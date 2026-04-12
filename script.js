@@ -46,12 +46,15 @@ function viewerCount(id) {
 /* ============================================================
    STATE
    ============================================================ */
+const ALL_STORES = ['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁'];
+
 let state = {
   search:      '',
   category:    'all',
   rocketOnly:  false,
-  activeOnly:  false,   // 품절제외 = 만료 안 된 상품만
+  activeOnly:  false,
   sort:        'discount',
+  stores:      new Set(ALL_STORES),
 };
 
 /* ============================================================
@@ -113,6 +116,7 @@ function getFiltered() {
         if (!p.name.toLowerCase().includes(q) && !p.brand.toLowerCase().includes(q)) return false;
       }
       if (state.category !== 'all' && p.category !== state.category) return false;
+      if (!state.stores.has(p.store)) return false;
       if (state.rocketOnly && p.store !== '쿠팡') return false;
       if (state.activeOnly && daysUntil(p.expiryDate) <= 0) return false;
       return true;
@@ -220,12 +224,33 @@ function render() {
 }
 
 /* ============================================================
+   필터 배지 카운트 업데이트
+   ============================================================ */
+function updateFilterCount() {
+  const deselected = ALL_STORES.length - state.stores.size;
+  const countEl = el('filterCount');
+  const filterBtn = el('filterBtn');
+  if (deselected > 0) {
+    countEl.textContent = deselected;
+    countEl.classList.remove('hidden');
+    filterBtn.style.color = 'var(--blue)';
+  } else {
+    countEl.classList.add('hidden');
+    filterBtn.style.color = '';
+  }
+}
+
+/* ============================================================
    이벤트 리스너
    ============================================================ */
 function initListeners() {
+  const searchInput  = el('searchInput');
+  const sheetOverlay = el('sheetOverlay');
+  const sortSheet    = el('sortSheet');
+  const filterSheet  = el('filterSheet');
+  const sortLabel    = el('sortLabel');
 
-  /* 검색 */
-  const searchInput = el('searchInput');
+  /* ---------- 검색 ---------- */
   searchInput.addEventListener('input', () => {
     state.search = searchInput.value.trim();
     render();
@@ -233,7 +258,7 @@ function initListeners() {
   searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') render(); });
   el('searchBtn').addEventListener('click', () => render());
 
-  /* 카테고리 탭 */
+  /* ---------- 카테고리 탭 ---------- */
   el('categoryFilter').addEventListener('click', e => {
     const tab = e.target.closest('.tab');
     if (!tab) return;
@@ -243,35 +268,22 @@ function initListeners() {
     render();
   });
 
-  /* 로켓배송 필터 */
-  el('filterRocket').addEventListener('change', e => {
-    state.rocketOnly = e.target.checked;
-    render();
-  });
+  /* ---------- 로켓배송 / 품절제외 ---------- */
+  el('filterRocket').addEventListener('change', e => { state.rocketOnly = e.target.checked; render(); });
+  el('filterActive').addEventListener('change', e => { state.activeOnly = e.target.checked; render(); });
 
-  /* 품절제외 필터 */
-  el('filterActive').addEventListener('change', e => {
-    state.activeOnly = e.target.checked;
-    render();
-  });
-
-  /* 정렬 바텀시트 */
-  const sortBtn     = el('sortBtn');
-  const sortSheet   = el('sortSheet');
-  const sortOverlay = el('sortOverlay');
-  const sortLabel   = el('sortLabel');
-
-  function openSort() {
-    sortSheet.classList.remove('hidden');
-    sortOverlay.classList.remove('hidden');
-  }
-  function closeSort() {
+  /* ---------- 오버레이 ---------- */
+  sheetOverlay.addEventListener('click', () => {
     sortSheet.classList.add('hidden');
-    sortOverlay.classList.add('hidden');
-  }
+    filterSheet.classList.add('hidden');
+    sheetOverlay.classList.add('hidden');
+  });
 
-  sortBtn.addEventListener('click', openSort);
-  sortOverlay.addEventListener('click', closeSort);
+  /* ---------- 정렬 바텀시트 ---------- */
+  el('sortBtn').addEventListener('click', () => {
+    sortSheet.classList.remove('hidden');
+    sheetOverlay.classList.remove('hidden');
+  });
 
   document.querySelectorAll('.sort-option').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -279,18 +291,79 @@ function initListeners() {
       document.querySelectorAll('.sort-option').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       sortLabel.textContent = btn.textContent.replace('✓', '').trim();
-      closeSort();
+      sortSheet.classList.add('hidden');
+      sheetOverlay.classList.add('hidden');
       render();
     });
   });
 
-  /* 필터 초기화 (빈 상태에서) */
+  /* ---------- 필터 바텀시트 ---------- */
+  const selectAllCb    = el('storeSelectAll');
+  const selectAllLabel = selectAllCb.closest('.filter-sheet-item');
+  const storeCbs       = document.querySelectorAll('.store-cb');
+
+  // 초기 시각 상태 설정
+  selectAllLabel.classList.add('checked');
+  storeCbs.forEach(cb => cb.closest('.filter-sheet-item').classList.add('checked'));
+
+  // 전체 선택 토글
+  selectAllLabel.addEventListener('click', () => {
+    const willCheck = !selectAllCb.checked;
+    selectAllCb.checked = willCheck;
+    selectAllLabel.classList.toggle('checked', willCheck);
+    storeCbs.forEach(cb => {
+      cb.checked = willCheck;
+      cb.closest('.filter-sheet-item').classList.toggle('checked', willCheck);
+    });
+  });
+
+  // 개별 스토어 토글
+  storeCbs.forEach(cb => {
+    cb.closest('.filter-sheet-item').addEventListener('click', () => {
+      cb.checked = !cb.checked;
+      cb.closest('.filter-sheet-item').classList.toggle('checked', cb.checked);
+      const allChecked = [...storeCbs].every(c => c.checked);
+      selectAllCb.checked = allChecked;
+      selectAllLabel.classList.toggle('checked', allChecked);
+    });
+  });
+
+  el('filterBtn').addEventListener('click', () => {
+    filterSheet.classList.remove('hidden');
+    sheetOverlay.classList.remove('hidden');
+  });
+  el('filterSheetClose').addEventListener('click', () => {
+    filterSheet.classList.add('hidden');
+    sheetOverlay.classList.add('hidden');
+  });
+
+  // 필터 초기화 (시트 내)
+  el('filterReset').addEventListener('click', () => {
+    selectAllCb.checked = true;
+    selectAllLabel.classList.add('checked');
+    storeCbs.forEach(cb => {
+      cb.checked = true;
+      cb.closest('.filter-sheet-item').classList.add('checked');
+    });
+  });
+
+  // 적용하기
+  el('filterApply').addEventListener('click', () => {
+    state.stores = new Set([...storeCbs].filter(cb => cb.checked).map(cb => cb.value));
+    updateFilterCount();
+    filterSheet.classList.add('hidden');
+    sheetOverlay.classList.add('hidden');
+    render();
+  });
+
+  /* ---------- 빈 상태 필터 초기화 ---------- */
   el('resetFilters').addEventListener('click', () => {
     state.search     = '';
     state.category   = 'all';
     state.rocketOnly = false;
     state.activeOnly = false;
     state.sort       = 'discount';
+    state.stores     = new Set(ALL_STORES);
 
     searchInput.value = '';
     document.querySelectorAll('#categoryFilter .tab').forEach((t, i) => t.classList.toggle('active', i === 0));
@@ -298,6 +371,10 @@ function initListeners() {
     el('filterActive').checked = false;
     sortLabel.textContent = '급하락순';
     document.querySelectorAll('.sort-option').forEach((b, i) => b.classList.toggle('active', i === 0));
+    selectAllCb.checked = true;
+    selectAllLabel.classList.add('checked');
+    storeCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
+    updateFilterCount();
     render();
   });
 }

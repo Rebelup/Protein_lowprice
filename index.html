@@ -17,15 +17,11 @@
   <!-- HEADER -->
   <header class="site-header">
     <div class="header-inner">
-      <div class="logo">
-        <span class="logo-emoji">🍗</span>
-        <strong>닭가슴살 특가</strong>
-      </div>
       <div class="header-search">
-        <button id="searchBtn" class="search-icon-btn" aria-label="검색">
-          <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
-        </button>
         <input type="text" id="searchInput" placeholder="상품, 브랜드 검색" />
+        <button id="searchBtn" class="search-icon-btn" aria-label="검색">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
+        </button>
       </div>
     </div>
   </header>
@@ -44,10 +40,18 @@
 
   <!-- 필터 행 -->
   <div class="filter-row">
-    <button class="sort-btn" id="sortBtn">
-      <span id="sortLabel">급하락순</span>
-      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-    </button>
+    <div class="filter-left">
+      <button class="sort-btn" id="sortBtn">
+        <span id="sortLabel">급하락순</span>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="filter-divider"></div>
+      <button class="filter-btn" id="filterBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+        <span>필터</span>
+        <span class="filter-count hidden" id="filterCount">0</span>
+      </button>
+    </div>
     <div class="filter-checks">
       <label class="filter-check">
         <input type="checkbox" id="filterRocket" />
@@ -60,14 +64,44 @@
     </div>
   </div>
 
+  <!-- 공유 오버레이 -->
+  <div class="sheet-overlay hidden" id="sheetOverlay"></div>
+
   <!-- 정렬 바텀시트 -->
-  <div class="sort-overlay hidden" id="sortOverlay"></div>
   <div class="sort-sheet hidden" id="sortSheet">
     <div class="sort-sheet-title">정렬</div>
     <button class="sort-option active" data-sort="discount">급하락순</button>
     <button class="sort-option" data-sort="price_asc">가격 낮은순</button>
     <button class="sort-option" data-sort="price_desc">가격 높은순</button>
     <button class="sort-option" data-sort="name">상품명순</button>
+  </div>
+
+  <!-- 필터 바텀시트 -->
+  <div class="filter-sheet hidden" id="filterSheet">
+    <div class="sheet-header">
+      <span class="sheet-title">필터</span>
+      <button class="sheet-close" id="filterSheetClose">✕</button>
+    </div>
+    <div class="filter-sheet-body">
+      <div class="filter-group-title">판매처</div>
+      <div class="filter-group">
+        <label class="filter-sheet-item select-all-item">
+          <input type="checkbox" id="storeSelectAll" checked />
+          <span>전체 선택</span>
+        </label>
+        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="쿠팡" checked /><span>쿠팡</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="마켓컬리" checked /><span>마켓컬리</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="이마트" checked /><span>이마트</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="홈플러스" checked /><span>홈플러스</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="GS25" checked /><span>GS25</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="올리브영" checked /><span>올리브영</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="오늘의식탁" checked /><span>오늘의식탁</span></label>
+      </div>
+    </div>
+    <div class="filter-sheet-footer">
+      <button class="filter-reset-btn" id="filterReset">초기화</button>
+      <button class="filter-apply-btn" id="filterApply">적용하기</button>
+    </div>
   </div>
 
   <main>
