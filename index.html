@@ -14,7 +14,7 @@
     <p>상품 정보를 불러오는 중...</p>
   </div>
 
-  <!-- HEADER -->
+  <!-- ===================== HEADER ===================== -->
   <header class="site-header">
     <div class="header-inner">
       <div class="header-search">
@@ -23,22 +23,24 @@
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
         </button>
       </div>
+      <button class="auth-btn" id="authBtn">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <span id="authBtnLabel">로그인</span>
+      </button>
     </div>
   </header>
 
-  <!-- 카테고리 탭 -->
+  <!-- ===================== 카테고리 탭 ===================== -->
   <div class="category-tabs-wrap">
     <div class="category-tabs" id="categoryFilter">
       <button class="tab active" data-category="all">전체</button>
-      <button class="tab" data-category="훈제">훈제</button>
-      <button class="tab" data-category="냉동">냉동</button>
-      <button class="tab" data-category="냉장">냉장</button>
-      <button class="tab" data-category="통조림">통조림</button>
-      <button class="tab" data-category="가공">가공</button>
+      <button class="tab tab-hotdeal" data-category="hotdeal">🔥 핫딜</button>
+      <button class="tab" data-category="보충제">보충제</button>
+      <button class="tab" data-category="음료">음료</button>
     </div>
   </div>
 
-  <!-- 필터 행 -->
+  <!-- ===================== 필터 행 ===================== -->
   <div class="filter-row">
     <div class="filter-left">
       <button class="sort-btn" id="sortBtn">
@@ -64,7 +66,7 @@
     </div>
   </div>
 
-  <!-- 공유 오버레이 -->
+  <!-- ===================== 공유 오버레이 ===================== -->
   <div class="sheet-overlay hidden" id="sheetOverlay"></div>
 
   <!-- 정렬 바텀시트 -->
@@ -83,6 +85,20 @@
       <button class="sheet-close" id="filterSheetClose">✕</button>
     </div>
     <div class="filter-sheet-body">
+
+      <div class="filter-group-title">종류</div>
+      <div class="filter-group">
+        <label class="filter-sheet-item subcat-all-item">
+          <input type="checkbox" id="subcatSelectAll" checked />
+          <span>전체 선택</span>
+        </label>
+        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="훈제" checked /><span>훈제</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="냉동" checked /><span>냉동</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="냉장" checked /><span>냉장</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="통조림" checked /><span>통조림</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="가공" checked /><span>가공</span></label>
+      </div>
+
       <div class="filter-group-title">판매처</div>
       <div class="filter-group">
         <label class="filter-sheet-item select-all-item">
@@ -97,6 +113,20 @@
         <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="올리브영" checked /><span>올리브영</span></label>
         <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="오늘의식탁" checked /><span>오늘의식탁</span></label>
       </div>
+
+      <div class="filter-group-title">맛</div>
+      <div class="filter-group">
+        <label class="filter-sheet-item flavor-all-item">
+          <input type="checkbox" id="flavorSelectAll" checked />
+          <span>전체 선택</span>
+        </label>
+        <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="무염" checked /><span>🧂 무염</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="오리지널" checked /><span>🍗 오리지널</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="매운맛" checked /><span>🌶️ 매운맛</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="갈릭" checked /><span>🧄 갈릭</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="간장" checked /><span>🍯 간장</span></label>
+      </div>
+
     </div>
     <div class="filter-sheet-footer">
       <button class="filter-reset-btn" id="filterReset">초기화</button>
@@ -104,13 +134,69 @@
     </div>
   </div>
 
-  <main>
-    <!-- TOP 10 섹션 -->
-    <section class="top10-section">
-      <h2 class="section-title">지금 인기 있는 TOP 10</h2>
-      <div class="top10-scroll" id="top10Grid">
-        <!-- JS에서 주입 -->
+  <!-- ===================== LOGIN MODAL ===================== -->
+  <div class="login-overlay hidden" id="loginOverlay"></div>
+  <div class="login-sheet hidden" id="loginSheet">
+    <div class="login-header">
+      <button class="login-close" id="loginClose">✕</button>
+    </div>
+
+    <!-- 로그인 폼 -->
+    <div id="loginForm">
+      <div class="login-logo">🍗</div>
+      <h2 class="login-title">로그인</h2>
+      <p class="login-sub">로그인 후 특가 상품 링크를 확인하세요</p>
+
+      <!-- 소셜 로그인 -->
+      <button class="social-btn social-google" id="loginGoogle">
+        <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Google로 계속하기
+      </button>
+
+      <div class="login-divider"><span>또는</span></div>
+
+      <!-- 이메일 로그인 -->
+      <div class="login-field-group">
+        <input type="email" id="loginEmail" class="login-input" placeholder="이메일" autocomplete="email" />
+        <input type="password" id="loginPassword" class="login-input" placeholder="비밀번호" autocomplete="current-password" />
       </div>
+      <div id="loginError" class="login-error hidden"></div>
+      <button class="login-submit-btn" id="loginSubmit">로그인</button>
+      <p class="login-switch">계정이 없으신가요? <button class="link-btn" id="goSignup">회원가입</button></p>
+    </div>
+
+    <!-- 회원가입 폼 -->
+    <div id="signupForm" class="hidden">
+      <div class="login-logo">🍗</div>
+      <h2 class="login-title">회원가입</h2>
+      <div class="login-field-group">
+        <input type="email" id="signupEmail" class="login-input" placeholder="이메일" autocomplete="email" />
+        <input type="password" id="signupPassword" class="login-input" placeholder="비밀번호 (6자 이상)" autocomplete="new-password" />
+        <input type="password" id="signupPasswordConfirm" class="login-input" placeholder="비밀번호 확인" autocomplete="new-password" />
+      </div>
+      <div id="signupError" class="login-error hidden"></div>
+      <button class="login-submit-btn" id="signupSubmit">가입하기</button>
+      <p class="login-switch">이미 계정이 있으신가요? <button class="link-btn" id="goLogin">로그인</button></p>
+    </div>
+  </div>
+
+  <!-- ===================== MAIN ===================== -->
+  <main>
+    <!-- 핫딜 배너 (핫딜 탭 선택 시 표시) -->
+    <div class="hotdeal-banner hidden" id="hotdealBanner">
+      <div class="hotdeal-banner-inner">
+        <span class="hotdeal-fire">🔥</span>
+        <div>
+          <strong>오늘의 핫딜</strong>
+          <p>30% 이상 역대급 할인 상품만 모았어요</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOP 10 섹션 -->
+    <section class="top10-section" id="top10Section">
+      <h2 class="section-title">지금 인기 있는 TOP 10</h2>
+      <div class="top10-scroll" id="top10Grid"></div>
     </section>
 
     <!-- 상품 그리드 -->
@@ -118,9 +204,7 @@
       <div class="result-bar">
         <strong id="resultCount">0</strong>개 상품
       </div>
-      <div class="product-grid" id="productGrid">
-        <!-- JS에서 주입 -->
-      </div>
+      <div class="product-grid" id="productGrid"></div>
       <div class="empty-state hidden" id="emptyState">
         <div class="empty-icon">🔍</div>
         <p>조건에 맞는 상품이 없습니다.</p>
