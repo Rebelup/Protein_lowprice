@@ -894,10 +894,6 @@ body {
   border: 1.5px solid var(--border);
   color: var(--text);
 }
-.social-kakao {
-  background: #FEE500;
-  color: #3C1E1E;
-}
 
 /* 구분선 */
 .login-divider {

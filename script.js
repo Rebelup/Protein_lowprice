@@ -585,7 +585,6 @@ function initListeners() {
     clearErrors();
   });
   el('loginGoogle').addEventListener('click', () => socialLogin('google'));
-  el('loginKakao').addEventListener('click', () => socialLogin('kakao'));
   el('loginSubmit').addEventListener('click', emailLogin);
   el('signupSubmit').addEventListener('click', emailSignup);
 
