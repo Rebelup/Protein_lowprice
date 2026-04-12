@@ -1,256 +1,25 @@
 'use strict';
 
 /* ============================================================
-   DATA — 닭가슴살 할인 상품 목록 (mock)
+   SUPABASE 설정
    ============================================================ */
-const PRODUCTS = [
-  {
-    id: 1,
-    name: '하림 IFF 닭가슴살 훈제 슬라이스',
-    brand: '하림',
-    store: '쿠팡',
-    category: '훈제',
-    flavor: '오리지널',
-    weight: '200g×5팩',
-    grams: 1000,
-    emoji: '🍗',
-    originalPrice: 18900,
-    salePrice: 12900,
-    expiryDate: '2026-04-20',
-    link: '#',
-  },
-  {
-    id: 2,
-    name: '동원 닭가슴살 통조림 135g',
-    brand: '동원',
-    store: '이마트',
-    category: '통조림',
-    flavor: '무염',
-    weight: '135g×6캔',
-    grams: 810,
-    emoji: '🥫',
-    originalPrice: 14400,
-    salePrice: 8990,
-    expiryDate: '2026-04-30',
-    link: '#',
-  },
-  {
-    id: 3,
-    name: '랭킹닭컴 오리지널 훈제 닭가슴살',
-    brand: '랭킹닭컴',
-    store: '마켓컬리',
-    category: '훈제',
-    flavor: '오리지널',
-    weight: '100g×10개',
-    grams: 1000,
-    emoji: '🍗',
-    originalPrice: 22000,
-    salePrice: 15400,
-    expiryDate: '2026-04-15',
-    link: '#',
-  },
-  {
-    id: 4,
-    name: '맘스터치 닭가슴살 스테이크 오리지널',
-    brand: '맘스터치',
-    store: '홈플러스',
-    category: '냉장',
-    flavor: '오리지널',
-    weight: '150g×3팩',
-    grams: 450,
-    emoji: '🥩',
-    originalPrice: 12000,
-    salePrice: 7990,
-    expiryDate: '2026-04-18',
-    link: '#',
-  },
-  {
-    id: 5,
-    name: '바디닭 저염 닭가슴살 큐브',
-    brand: '바디닭',
-    store: '쿠팡',
-    category: '냉동',
-    flavor: '무염',
-    weight: '1kg',
-    grams: 1000,
-    emoji: '❄️',
-    originalPrice: 19900,
-    salePrice: 13900,
-    expiryDate: '2026-05-10',
-    link: '#',
-  },
-  {
-    id: 6,
-    name: 'GS25 닭가슴살 샐러드 도시락',
-    brand: 'GS25',
-    store: 'GS25',
-    category: '냉장',
-    flavor: '오리지널',
-    weight: '250g',
-    grams: 250,
-    emoji: '🥗',
-    originalPrice: 5500,
-    salePrice: 3990,
-    expiryDate: '2026-04-13',
-    link: '#',
-  },
-  {
-    id: 7,
-    name: '오뚜기 진짜닭가슴살 볼 스파이시',
-    brand: '오뚜기',
-    store: '이마트',
-    category: '가공',
-    flavor: '매운맛',
-    weight: '200g',
-    grams: 200,
-    emoji: '🌶️',
-    originalPrice: 6900,
-    salePrice: 4490,
-    expiryDate: '2026-05-01',
-    link: '#',
-  },
-  {
-    id: 8,
-    name: '닭신 냉동 닭가슴살 무염',
-    brand: '닭신',
-    store: '오늘의식탁',
-    category: '냉동',
-    flavor: '무염',
-    weight: '500g×2팩',
-    grams: 1000,
-    emoji: '❄️',
-    originalPrice: 17500,
-    salePrice: 11900,
-    expiryDate: '2026-06-30',
-    link: '#',
-  },
-  {
-    id: 9,
-    name: '풀무원 닭가슴살 소시지',
-    brand: '풀무원',
-    store: '마켓컬리',
-    category: '가공',
-    flavor: '오리지널',
-    weight: '300g',
-    grams: 300,
-    emoji: '🌭',
-    originalPrice: 7800,
-    salePrice: 5200,
-    expiryDate: '2026-04-25',
-    link: '#',
-  },
-  {
-    id: 10,
-    name: '프레시지 닭가슴살 샐러드 키트',
-    brand: '프레시지',
-    store: '쿠팡',
-    category: '냉장',
-    flavor: '오리지널',
-    weight: '350g',
-    grams: 350,
-    emoji: '🥗',
-    originalPrice: 9900,
-    salePrice: 6390,
-    expiryDate: '2026-04-16',
-    link: '#',
-  },
-  {
-    id: 11,
-    name: '하림 닭가슴살 훈제 통구이',
-    brand: '하림',
-    store: '홈플러스',
-    category: '훈제',
-    flavor: '오리지널',
-    weight: '250g',
-    grams: 250,
-    emoji: '🍗',
-    originalPrice: 8200,
-    salePrice: 5590,
-    expiryDate: '2026-04-28',
-    link: '#',
-  },
-  {
-    id: 12,
-    name: '사조 닭가슴살 캔 (물담금)',
-    brand: '사조',
-    store: '이마트',
-    category: '통조림',
-    flavor: '무염',
-    weight: '200g×3캔',
-    grams: 600,
-    emoji: '🥫',
-    originalPrice: 9600,
-    salePrice: 5990,
-    expiryDate: '2026-07-01',
-    link: '#',
-  },
-  {
-    id: 13,
-    name: '바디닭 스파이시 훈제 닭가슴살',
-    brand: '바디닭',
-    store: '올리브영',
-    category: '훈제',
-    flavor: '매운맛',
-    weight: '100g×5개',
-    grams: 500,
-    emoji: '🌶️',
-    originalPrice: 13500,
-    salePrice: 9990,
-    expiryDate: '2026-04-22',
-    link: '#',
-  },
-  {
-    id: 14,
-    name: '랭킹닭컴 닭가슴살 스테이크 갈릭',
-    brand: '랭킹닭컴',
-    store: '쿠팡',
-    category: '냉장',
-    flavor: '갈릭',
-    weight: '130g×5팩',
-    grams: 650,
-    emoji: '🧄',
-    originalPrice: 16500,
-    salePrice: 10900,
-    expiryDate: '2026-04-17',
-    link: '#',
-  },
-  {
-    id: 15,
-    name: 'CJ 더건강한 닭가슴살 한입볼',
-    brand: 'CJ',
-    store: '마켓컬리',
-    category: '가공',
-    flavor: '오리지널',
-    weight: '450g',
-    grams: 450,
-    emoji: '🍢',
-    originalPrice: 11900,
-    salePrice: 8490,
-    expiryDate: '2026-05-05',
-    link: '#',
-  },
-  {
-    id: 16,
-    name: '닭신 양념 닭가슴살 간장구이',
-    brand: '닭신',
-    store: '오늘의식탁',
-    category: '냉장',
-    flavor: '간장',
-    weight: '200g×4팩',
-    grams: 800,
-    emoji: '🍗',
-    originalPrice: 19800,
-    salePrice: 13500,
-    expiryDate: '2026-04-24',
-    link: '#',
-  },
-];
+const SUPABASE_URL     = 'https://rtminyxkhiwzicwylalp.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0bWlueXhraGl3emljd3lsYWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODQ4NzYsImV4cCI6MjA5MTU2MDg3Nn0.9j1_o4l41OHjucWctzIulwoWDMRjAJe0yeRqg0piv6I';
+const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-const ALL_BRANDS = [...new Set(PRODUCTS.map(p => p.brand))];
+/* ============================================================
+   데이터 (Supabase에서 로드)
+   ============================================================ */
+let PRODUCTS   = [];
+let ALL_BRANDS = [];
+
+const ALL_STORES = ['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁'];
 
 /* ============================================================
    HELPERS
    ============================================================ */
+function el(id) { return document.getElementById(id); }
+
 function discountPct(orig, sale) {
   return Math.round(((orig - sale) / orig) * 100);
 }
@@ -264,35 +33,87 @@ function unitPrice(price, grams) {
 }
 
 function daysUntil(dateStr) {
-  const today = new Date('2026-04-12');
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
   const target = new Date(dateStr);
   return Math.ceil((target - today) / 86400000);
 }
 
 const FLAVOR_LABELS = {
-  무염: '🧂 무염',
+  무염:     '🧂 무염',
   오리지널: '🍗 오리지널',
-  매운맛: '🌶️ 매운맛',
-  갈릭: '🧄 갈릭',
-  간장: '🍯 간장',
+  매운맛:   '🌶️ 매운맛',
+  갈릭:     '🧄 갈릭',
+  간장:     '🍯 간장',
 };
-function flavorLabel(f) {
-  return FLAVOR_LABELS[f] || f;
+function flavorLabel(f) { return FLAVOR_LABELS[f] || f; }
+
+/* ============================================================
+   로딩 / 에러 상태
+   ============================================================ */
+function showLoading(visible) {
+  const overlay = el('loadingOverlay');
+  if (overlay) overlay.classList.toggle('hidden', !visible);
+}
+
+function showDbError(msg) {
+  const grid = el('productGrid');
+  if (grid) {
+    grid.style.display = 'block';
+    grid.innerHTML = `
+      <div class="db-error">
+        <span>⚠️</span>
+        <p>데이터를 불러오지 못했습니다</p>
+        <small>Supabase SQL Editor에서 setup.sql을 먼저 실행해주세요.<br/>${msg}</small>
+      </div>`;
+  }
+  showLoading(false);
+}
+
+/* ============================================================
+   Supabase에서 상품 불러오기
+   ============================================================ */
+async function loadProducts() {
+  const { data, error } = await db
+    .from('products')
+    .select('*')
+    .order('id');
+
+  if (error) throw new Error(error.message);
+
+  PRODUCTS = data.map(p => ({
+    id:            p.id,
+    name:          p.name,
+    brand:         p.brand,
+    store:         p.store,
+    category:      p.category,
+    flavor:        p.flavor,
+    weight:        p.weight,
+    grams:         p.grams,
+    emoji:         p.emoji,
+    originalPrice: p.original_price,
+    salePrice:     p.sale_price,
+    expiryDate:    p.expiry_date,
+    link:          p.link || '#',
+  }));
+
+  ALL_BRANDS       = [...new Set(PRODUCTS.map(p => p.brand))];
+  state.brands     = new Set(ALL_BRANDS);
 }
 
 /* ============================================================
    STATE
    ============================================================ */
 let state = {
-  search: '',
-  category: 'all',
-  stores: new Set(['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁']),
-  brands: new Set(ALL_BRANDS),
-  flavor: 'all',
+  search:      '',
+  category:    'all',
+  stores:      new Set(ALL_STORES),
+  brands:      new Set(),
+  flavor:      'all',
   minDiscount: 0,
-  priceMin: null,
-  priceMax: null,
-  sort: 'discount',
+  priceMin:    null,
+  priceMax:    null,
+  sort:        'discount',
 };
 
 /* ============================================================
@@ -316,10 +137,10 @@ function getFiltered() {
       return true;
     })
     .sort((a, b) => {
-      if (state.sort === 'discount') return discountPct(b.originalPrice, b.salePrice) - discountPct(a.originalPrice, a.salePrice);
-      if (state.sort === 'price_asc') return a.salePrice - b.salePrice;
+      if (state.sort === 'discount')    return discountPct(b.originalPrice, b.salePrice) - discountPct(a.originalPrice, a.salePrice);
+      if (state.sort === 'price_asc')  return a.salePrice - b.salePrice;
       if (state.sort === 'price_desc') return b.salePrice - a.salePrice;
-      if (state.sort === 'name') return a.name.localeCompare(b.name, 'ko');
+      if (state.sort === 'name')       return a.name.localeCompare(b.name, 'ko');
       return 0;
     });
 }
@@ -334,10 +155,10 @@ function badgeLevel(pct) {
 }
 
 function renderCard(p) {
-  const pct = discountPct(p.originalPrice, p.salePrice);
-  const days = daysUntil(p.expiryDate);
+  const pct         = discountPct(p.originalPrice, p.salePrice);
+  const days        = daysUntil(p.expiryDate);
   const expiryClass = days <= 3 ? 'expiry-soon' : '';
-  const expiryText = days <= 0 ? '오늘 종료' : days === 1 ? '내일 종료' : `${days}일 남음`;
+  const expiryText  = days <= 0 ? '오늘 종료' : days === 1 ? '내일 종료' : `${days}일 남음`;
 
   return `
     <article class="product-card" data-id="${p.id}">
@@ -372,40 +193,38 @@ function renderCard(p) {
 }
 
 function render() {
-  const items = getFiltered();
-  const grid = document.getElementById('productGrid');
-  const empty = document.getElementById('emptyState');
-  const countEl = document.getElementById('resultCount');
+  const items   = getFiltered();
+  const grid    = el('productGrid');
+  const empty   = el('emptyState');
+  const countEl = el('resultCount');
 
   countEl.textContent = items.length;
   grid.innerHTML = items.map(renderCard).join('');
 
   if (items.length === 0) {
-    empty.style.display = 'flex';
-    empty.style.flexDirection = 'column';
-    empty.style.alignItems = 'center';
+    empty.style.display        = 'flex';
+    empty.style.flexDirection  = 'column';
+    empty.style.alignItems     = 'center';
     empty.style.justifyContent = 'center';
     grid.style.display = 'none';
   } else {
     empty.style.display = 'none';
-    grid.style.display = 'grid';
+    grid.style.display  = 'grid';
   }
 }
 
 function updateHeroStats() {
   const pcts = PRODUCTS.map(p => discountPct(p.originalPrice, p.salePrice));
-  document.getElementById('totalProducts').textContent = PRODUCTS.length;
-  document.getElementById('avgDiscount').textContent = Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length);
-  document.getElementById('maxDiscount').textContent = Math.max(...pcts);
+  el('totalProducts').textContent = PRODUCTS.length;
+  el('avgDiscount').textContent   = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0;
+  el('maxDiscount').textContent   = pcts.length ? Math.max(...pcts) : 0;
 }
 
 /* ============================================================
    EVENT LISTENERS
    ============================================================ */
-function el(id) { return document.getElementById(id); }
-
 function initListeners() {
-  // Search
+  // 검색
   const searchInput = el('searchInput');
   const searchBtn   = el('searchBtn');
   function doSearch() {
@@ -416,7 +235,7 @@ function initListeners() {
   searchBtn.addEventListener('click', doSearch);
   searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 
-  // Category chips
+  // 카테고리
   el('categoryFilter').addEventListener('click', e => {
     const chip = e.target.closest('.chip');
     if (!chip) return;
@@ -426,7 +245,7 @@ function initListeners() {
     render();
   });
 
-  // Store checkboxes
+  // 판매처
   el('storeFilter').addEventListener('change', e => {
     if (e.target.type !== 'checkbox') return;
     if (e.target.checked) state.stores.add(e.target.value);
@@ -434,7 +253,7 @@ function initListeners() {
     render();
   });
 
-  // Brand checkboxes
+  // 브랜드
   el('brandFilter') && el('brandFilter').addEventListener('change', e => {
     if (e.target.type !== 'checkbox') return;
     if (e.target.checked) state.brands.add(e.target.value);
@@ -442,7 +261,7 @@ function initListeners() {
     render();
   });
 
-  // Flavor chips
+  // 양념 스타일
   el('flavorFilter') && el('flavorFilter').addEventListener('click', e => {
     const chip = e.target.closest('.chip');
     if (!chip) return;
@@ -452,7 +271,7 @@ function initListeners() {
     render();
   });
 
-  // Discount range
+  // 최소 할인율
   const rangeInput = el('discountRange');
   const rangeLabel = el('discountRangeLabel');
   rangeInput.addEventListener('input', () => {
@@ -461,45 +280,44 @@ function initListeners() {
     render();
   });
 
-  // Price inputs
-  document.getElementById('priceMin').addEventListener('input', e => {
+  // 가격대
+  el('priceMin').addEventListener('input', e => {
     state.priceMin = e.target.value ? parseInt(e.target.value, 10) : null;
     render();
   });
-  document.getElementById('priceMax').addEventListener('input', e => {
+  el('priceMax').addEventListener('input', e => {
     state.priceMax = e.target.value ? parseInt(e.target.value, 10) : null;
     render();
   });
 
-  // Sort
-  document.getElementById('sortSelect').addEventListener('change', e => {
+  // 정렬
+  el('sortSelect').addEventListener('change', e => {
     state.sort = e.target.value;
     render();
   });
 
-  // Reset
-  document.getElementById('resetFilters').addEventListener('click', () => {
+  // 필터 초기화
+  el('resetFilters').addEventListener('click', () => {
     state = {
-      search: '',
-      category: 'all',
-      stores: new Set(['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁']),
-      brands: new Set(ALL_BRANDS),
-      flavor: 'all',
+      search:      '',
+      category:    'all',
+      stores:      new Set(ALL_STORES),
+      brands:      new Set(ALL_BRANDS),
+      flavor:      'all',
       minDiscount: 0,
-      priceMin: null,
-      priceMax: null,
-      sort: state.sort,
+      priceMin:    null,
+      priceMax:    null,
+      sort:        state.sort,
     };
-    // Reset UI
-    document.getElementById('searchInput').value = '';
+    el('searchInput').value = '';
     document.querySelectorAll('#categoryFilter .chip').forEach((c, i) => c.classList.toggle('active', i === 0));
     document.querySelectorAll('#storeFilter input[type="checkbox"]').forEach(cb => (cb.checked = true));
     document.querySelectorAll('#brandFilter input[type="checkbox"]').forEach(cb => (cb.checked = true));
     document.querySelectorAll('#flavorFilter .chip').forEach((c, i) => c.classList.toggle('active', i === 0));
-    document.getElementById('discountRange').value = 0;
-    document.getElementById('discountRangeLabel').textContent = '0% 이상';
-    document.getElementById('priceMin').value = '';
-    document.getElementById('priceMax').value = '';
+    el('discountRange').value = 0;
+    el('discountRangeLabel').textContent = '0% 이상';
+    el('priceMin').value = '';
+    el('priceMax').value = '';
     render();
   });
 }
@@ -507,8 +325,15 @@ function initListeners() {
 /* ============================================================
    INIT
    ============================================================ */
-document.addEventListener('DOMContentLoaded', () => {
-  updateHeroStats();
-  initListeners();
-  render();
+document.addEventListener('DOMContentLoaded', async () => {
+  showLoading(true);
+  try {
+    await loadProducts();
+    updateHeroStats();
+    initListeners();
+    render();
+    showLoading(false);
+  } catch (err) {
+    showDbError(err.message);
+  }
 });
