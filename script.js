@@ -402,10 +402,12 @@ function updateHeroStats() {
 /* ============================================================
    EVENT LISTENERS
    ============================================================ */
+function el(id) { return document.getElementById(id); }
+
 function initListeners() {
   // Search
-  const searchInput = document.getElementById('searchInput');
-  const searchBtn   = document.getElementById('searchBtn');
+  const searchInput = el('searchInput');
+  const searchBtn   = el('searchBtn');
   function doSearch() {
     state.search = searchInput.value.trim();
     render();
@@ -415,7 +417,7 @@ function initListeners() {
   searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
 
   // Category chips
-  document.getElementById('categoryFilter').addEventListener('click', e => {
+  el('categoryFilter').addEventListener('click', e => {
     const chip = e.target.closest('.chip');
     if (!chip) return;
     document.querySelectorAll('#categoryFilter .chip').forEach(c => c.classList.remove('active'));
@@ -425,7 +427,7 @@ function initListeners() {
   });
 
   // Store checkboxes
-  document.getElementById('storeFilter').addEventListener('change', e => {
+  el('storeFilter').addEventListener('change', e => {
     if (e.target.type !== 'checkbox') return;
     if (e.target.checked) state.stores.add(e.target.value);
     else state.stores.delete(e.target.value);
@@ -433,7 +435,7 @@ function initListeners() {
   });
 
   // Brand checkboxes
-  document.getElementById('brandFilter').addEventListener('change', e => {
+  el('brandFilter') && el('brandFilter').addEventListener('change', e => {
     if (e.target.type !== 'checkbox') return;
     if (e.target.checked) state.brands.add(e.target.value);
     else state.brands.delete(e.target.value);
@@ -441,7 +443,7 @@ function initListeners() {
   });
 
   // Flavor chips
-  document.getElementById('flavorFilter').addEventListener('click', e => {
+  el('flavorFilter') && el('flavorFilter').addEventListener('click', e => {
     const chip = e.target.closest('.chip');
     if (!chip) return;
     document.querySelectorAll('#flavorFilter .chip').forEach(c => c.classList.remove('active'));
@@ -451,8 +453,8 @@ function initListeners() {
   });
 
   // Discount range
-  const rangeInput = document.getElementById('discountRange');
-  const rangeLabel = document.getElementById('discountRangeLabel');
+  const rangeInput = el('discountRange');
+  const rangeLabel = el('discountRangeLabel');
   rangeInput.addEventListener('input', () => {
     state.minDiscount = parseInt(rangeInput.value, 10);
     rangeLabel.textContent = `${state.minDiscount}% 이상`;
