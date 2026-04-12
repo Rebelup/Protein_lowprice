@@ -3,8 +3,8 @@
 /* ============================================================
    SUPABASE 설정
    ============================================================ */
-const SUPABASE_URL     = 'https://rtminyxkhiwzicwylalp.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ0bWlueXhraGl3emljd3lsYWxwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODQ4NzYsImV4cCI6MjA5MTU2MDg3Nn0.9j1_o4l41OHjucWctzIulwoWDMRjAJe0yeRqg0piv6I';
+const SUPABASE_URL     = 'https://myficrjdmqbtsgmdxtiu.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15ZmljcmpkbXFidHNnbWR4dGl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODY4OTEsImV4cCI6MjA5MTU2Mjg5MX0.G2-_UEqO12SqxELdkZScvrdcYBNPW1gusEBA0ZW6smc';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ============================================================
