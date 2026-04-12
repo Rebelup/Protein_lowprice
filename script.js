@@ -3,12 +3,12 @@
 /* ============================================================
    SUPABASE 설정
    ============================================================ */
-const SUPABASE_URL     = 'https://myficrjdmqbtsgmdxtiu.supabase.co';
+const SUPABASE_URL      = 'https://myficrjdmqbtsgmdxtiu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15ZmljcmpkbXFidHNnbWR4dGl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODY4OTEsImV4cCI6MjA5MTU2Mjg5MX0.G2-_UEqO12SqxELdkZScvrdcYBNPW1gusEBA0ZW6smc';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ============================================================
-   데이터 (Supabase에서 로드)
+   데이터
    ============================================================ */
 let PRODUCTS   = [];
 let ALL_BRANDS = [];
@@ -98,8 +98,8 @@ async function loadProducts() {
     link:          p.link || '#',
   }));
 
-  ALL_BRANDS       = [...new Set(PRODUCTS.map(p => p.brand))];
-  state.brands     = new Set(ALL_BRANDS);
+  ALL_BRANDS   = [...new Set(PRODUCTS.map(p => p.brand))];
+  state.brands = new Set(ALL_BRANDS);
 }
 
 /* ============================================================
@@ -147,14 +147,43 @@ function getFiltered() {
 }
 
 /* ============================================================
-   RENDER
+   RENDER — TOP 10
    ============================================================ */
-function badgeLevel(pct) {
-  if (pct >= 40) return 'high';
-  if (pct >= 25) return 'medium';
-  return 'low';
+function renderTop10() {
+  const container = el('top10Grid');
+  if (!container) return;
+
+  const top10 = [...PRODUCTS]
+    .sort((a, b) => discountPct(b.originalPrice, b.salePrice) - discountPct(a.originalPrice, a.salePrice))
+    .slice(0, 10);
+
+  container.innerHTML = top10.map((p, i) => {
+    const pct = discountPct(p.originalPrice, p.salePrice);
+    return `
+      <div class="top10-card" onclick="window.open('${p.link}','_blank')">
+        <div class="top10-img">
+          ${p.thumbnail
+            ? `<img src="${p.thumbnail}" alt="${p.name}" loading="lazy"
+                 onerror="this.style.display='none';this.nextSibling.style.display='flex'" />
+               <span style="display:none;font-size:40px">${p.emoji}</span>`
+            : `<span>${p.emoji}</span>`
+          }
+          <span class="top10-rank">${i + 1}</span>
+          <span class="top10-pct-badge">-${pct}%</span>
+        </div>
+        <div class="top10-body">
+          <p class="top10-name">${p.name}</p>
+          <p class="top10-price">${formatKRW(p.salePrice)}</p>
+          <p class="top10-store">${p.store}</p>
+        </div>
+      </div>
+    `;
+  }).join('');
 }
 
+/* ============================================================
+   RENDER — PRODUCT CARD
+   ============================================================ */
 function renderCard(p) {
   const pct         = discountPct(p.originalPrice, p.salePrice);
   const days        = daysUntil(p.expiryDate);
@@ -162,8 +191,11 @@ function renderCard(p) {
   const expiryText  = days <= 0 ? '오늘 종료' : days === 1 ? '내일 종료' : `${days}일 남음`;
 
   return `
-    <article class="product-card" data-id="${p.id}">
-      <div class="card-badge ${badgeLevel(pct)}">${pct}% 할인</div>
+    <article class="product-card" onclick="window.open('${p.link}','_blank')">
+      <div class="card-deal-badge">
+        <span>역대급특가</span>
+        <span>${pct}% 할인</span>
+      </div>
       <div class="card-img-wrap">
         ${p.thumbnail
           ? `<img src="${p.thumbnail}" alt="${p.name}" loading="lazy"
@@ -174,30 +206,28 @@ function renderCard(p) {
         <span class="card-store-badge">${p.store}</span>
       </div>
       <div class="card-body">
-        <span class="card-category">${p.category}</span>
         <h2 class="card-name">${p.name}</h2>
-        <div class="card-meta-row">
-          <p class="card-weight">${p.weight}</p>
-          <span class="card-flavor flavor-${p.flavor}">${flavorLabel(p.flavor)}</span>
-        </div>
+        <span class="card-flavor flavor-${p.flavor}">${flavorLabel(p.flavor)}</span>
         <div class="card-pricing">
-          <p class="card-original-price">${formatKRW(p.originalPrice)}</p>
           <div class="card-price-row">
+            <span class="card-discount-arrow">▼${pct}%</span>
             <span class="card-sale-price">${formatKRW(p.salePrice)}</span>
-            <span class="card-discount-pct">-${pct}%</span>
           </div>
+          <p class="card-original-price">${formatKRW(p.originalPrice)}</p>
           <p class="card-unit-price">${unitPrice(p.salePrice, p.grams)}</p>
           <p class="card-expiry ${expiryClass}">
-            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            할인 ${expiryText}
+            <svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+            ${expiryText}
           </p>
         </div>
       </div>
-      <button class="card-cta" onclick="window.open('${p.link}','_blank')">구매하러 가기</button>
     </article>
   `;
 }
 
+/* ============================================================
+   RENDER
+   ============================================================ */
 function render() {
   const items   = getFiltered();
   const grid    = el('productGrid');
@@ -219,13 +249,6 @@ function render() {
   }
 }
 
-function updateHeroStats() {
-  const pcts = PRODUCTS.map(p => discountPct(p.originalPrice, p.salePrice));
-  el('totalProducts').textContent = PRODUCTS.length;
-  el('avgDiscount').textContent   = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0;
-  el('maxDiscount').textContent   = pcts.length ? Math.max(...pcts) : 0;
-}
-
 /* ============================================================
    EVENT LISTENERS
    ============================================================ */
@@ -243,12 +266,45 @@ function initListeners() {
 
   // 카테고리
   el('categoryFilter').addEventListener('click', e => {
-    const chip = e.target.closest('.chip');
+    const chip = e.target.closest('.cat-chip');
     if (!chip) return;
-    document.querySelectorAll('#categoryFilter .chip').forEach(c => c.classList.remove('active'));
+    document.querySelectorAll('#categoryFilter .cat-chip').forEach(c => c.classList.remove('active'));
     chip.classList.add('active');
     state.category = chip.dataset.category;
     render();
+  });
+
+  // 정렬 드롭다운
+  const sortBtn      = el('sortBtn');
+  const sortDropdown = el('sortDropdown');
+  sortBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    sortDropdown.classList.toggle('hidden');
+    el('filterPanel').classList.add('hidden');
+    el('filterToggleBtn').classList.remove('active');
+  });
+  document.querySelectorAll('.sort-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.sort = btn.dataset.sort;
+      el('sortLabel').textContent = btn.textContent.trim();
+      document.querySelectorAll('.sort-option').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      sortDropdown.classList.add('hidden');
+      render();
+    });
+  });
+  document.addEventListener('click', () => {
+    sortDropdown.classList.add('hidden');
+  });
+
+  // 필터 패널 토글
+  const filterToggleBtn = el('filterToggleBtn');
+  const filterPanel     = el('filterPanel');
+  filterToggleBtn.addEventListener('click', e => {
+    e.stopPropagation();
+    filterPanel.classList.toggle('hidden');
+    filterToggleBtn.classList.toggle('active');
+    sortDropdown.classList.add('hidden');
   });
 
   // 판매처
@@ -296,12 +352,6 @@ function initListeners() {
     render();
   });
 
-  // 정렬
-  el('sortSelect').addEventListener('change', e => {
-    state.sort = e.target.value;
-    render();
-  });
-
   // 필터 초기화
   el('resetFilters').addEventListener('click', () => {
     state = {
@@ -316,7 +366,7 @@ function initListeners() {
       sort:        state.sort,
     };
     el('searchInput').value = '';
-    document.querySelectorAll('#categoryFilter .chip').forEach((c, i) => c.classList.toggle('active', i === 0));
+    document.querySelectorAll('#categoryFilter .cat-chip').forEach((c, i) => c.classList.toggle('active', i === 0));
     document.querySelectorAll('#storeFilter input[type="checkbox"]').forEach(cb => (cb.checked = true));
     document.querySelectorAll('#brandFilter input[type="checkbox"]').forEach(cb => (cb.checked = true));
     document.querySelectorAll('#flavorFilter .chip').forEach((c, i) => c.classList.toggle('active', i === 0));
@@ -335,7 +385,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   showLoading(true);
   try {
     await loadProducts();
-    updateHeroStats();
+    renderTop10();
     initListeners();
     render();
     showLoading(false);
