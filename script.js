@@ -16,6 +16,7 @@ let pendingProductLink = null;   // 로그인 후 열 상품 링크
 
 const ALL_STORES  = ['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁'];
 const ALL_FLAVORS = ['무염', '오리지널', '매운맛', '갈릭', '간장'];
+const ALL_SUBCATEGORIES = ['훈제', '냉동', '냉장', '통조림', '가공'];
 const THUMB_CACHE_KEY = 'protein_thumb_v1';
 
 /* ============================================================
@@ -53,7 +54,8 @@ let state = {
   activeOnly: false,
   sort:       'discount',
   stores:     new Set(ALL_STORES),
-  flavors:    new Set(ALL_FLAVORS),
+  flavors:       new Set(ALL_FLAVORS),
+  subcategories: new Set(ALL_SUBCATEGORIES),
 };
 
 /* ============================================================
@@ -172,7 +174,7 @@ function getThumbUrl(p) {
    필터 배지 카운트
    ============================================================ */
 function updateFilterCount() {
-  const deselected = (ALL_STORES.length - state.stores.size) + (ALL_FLAVORS.length - state.flavors.size);
+  const deselected = (ALL_STORES.length - state.stores.size) + (ALL_FLAVORS.length - state.flavors.size) + (ALL_SUBCATEGORIES.length - state.subcategories.size);
   const countEl    = el('filterCount');
   const filterBtn  = el('filterBtn');
   if (deselected > 0) {
@@ -193,7 +195,10 @@ function getFiltered() {
 
   if (state.category === 'hotdeal') {
     list = list.filter(p => discountPct(p.originalPrice, p.salePrice) >= 30);
-  } else if (state.category !== 'all') {
+    list = list.filter(p => !ALL_SUBCATEGORIES.includes(p.category) || state.subcategories.has(p.category));
+  } else if (state.category === 'all') {
+    list = list.filter(p => !ALL_SUBCATEGORIES.includes(p.category) || state.subcategories.has(p.category));
+  } else {
     list = list.filter(p => p.category === state.category);
   }
 
@@ -565,6 +570,33 @@ function initListeners() {
     });
   });
 
+  /* 종류 필터 */
+  const subcatAllCb    = el('subcatSelectAll');
+  const subcatAllLabel = subcatAllCb.closest('.filter-sheet-item');
+  const subcatCbs      = document.querySelectorAll('.subcat-cb');
+
+  subcatAllLabel.classList.add('checked');
+  subcatCbs.forEach(cb => cb.closest('.filter-sheet-item').classList.add('checked'));
+
+  subcatAllLabel.addEventListener('click', () => {
+    const willCheck = !subcatAllCb.checked;
+    subcatAllCb.checked = willCheck;
+    subcatAllLabel.classList.toggle('checked', willCheck);
+    subcatCbs.forEach(cb => {
+      cb.checked = willCheck;
+      cb.closest('.filter-sheet-item').classList.toggle('checked', willCheck);
+    });
+  });
+  subcatCbs.forEach(cb => {
+    cb.closest('.filter-sheet-item').addEventListener('click', () => {
+      cb.checked = !cb.checked;
+      cb.closest('.filter-sheet-item').classList.toggle('checked', cb.checked);
+      const allChecked = [...subcatCbs].every(c => c.checked);
+      subcatAllCb.checked = allChecked;
+      subcatAllLabel.classList.toggle('checked', allChecked);
+    });
+  });
+
   el('filterReset').addEventListener('click', () => {
     selectAllCb.checked = true;
     selectAllLabel.classList.add('checked');
@@ -572,10 +604,14 @@ function initListeners() {
     flavorAllCb.checked = true;
     flavorAllLabel.classList.add('checked');
     flavorCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
+    subcatAllCb.checked = true;
+    subcatAllLabel.classList.add('checked');
+    subcatCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
   });
   el('filterApply').addEventListener('click', () => {
-    state.stores  = new Set([...storeCbs].filter(cb => cb.checked).map(cb => cb.value));
-    state.flavors = new Set([...flavorCbs].filter(cb => cb.checked).map(cb => cb.value));
+    state.stores        = new Set([...storeCbs].filter(cb => cb.checked).map(cb => cb.value));
+    state.flavors       = new Set([...flavorCbs].filter(cb => cb.checked).map(cb => cb.value));
+    state.subcategories = new Set([...subcatCbs].filter(cb => cb.checked).map(cb => cb.value));
     updateFilterCount();
     filterSheet.classList.add('hidden');
     sheetOverlay.classList.add('hidden');
@@ -584,7 +620,7 @@ function initListeners() {
 
   /* 빈 상태 초기화 */
   el('resetFilters').addEventListener('click', () => {
-    state = { search: '', category: 'all', rocketOnly: false, activeOnly: false, sort: 'discount', stores: new Set(ALL_STORES), flavors: new Set(ALL_FLAVORS) };
+    state = { search: '', category: 'all', rocketOnly: false, activeOnly: false, sort: 'discount', stores: new Set(ALL_STORES), flavors: new Set(ALL_FLAVORS), subcategories: new Set(ALL_SUBCATEGORIES) };
     searchInput.value = '';
     document.querySelectorAll('#categoryFilter .tab').forEach((t, i) => t.classList.toggle('active', i === 0));
     el('filterRocket').checked = false;
@@ -594,6 +630,9 @@ function initListeners() {
     selectAllCb.checked = true;
     selectAllLabel.classList.add('checked');
     storeCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
+    subcatAllCb.checked = true;
+    subcatAllLabel.classList.add('checked');
+    subcatCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
     updateFilterCount();
     render();
   });

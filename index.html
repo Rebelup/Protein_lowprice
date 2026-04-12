@@ -35,11 +35,8 @@
     <div class="category-tabs" id="categoryFilter">
       <button class="tab active" data-category="all">전체</button>
       <button class="tab tab-hotdeal" data-category="hotdeal">🔥 핫딜</button>
-      <button class="tab" data-category="훈제">훈제</button>
-      <button class="tab" data-category="냉동">냉동</button>
-      <button class="tab" data-category="냉장">냉장</button>
-      <button class="tab" data-category="통조림">통조림</button>
-      <button class="tab" data-category="가공">가공</button>
+      <button class="tab" data-category="보충제">보충제</button>
+      <button class="tab" data-category="음료">음료</button>
     </div>
   </div>
 
@@ -88,6 +85,19 @@
       <button class="sheet-close" id="filterSheetClose">✕</button>
     </div>
     <div class="filter-sheet-body">
+
+      <div class="filter-group-title">종류</div>
+      <div class="filter-group">
+        <label class="filter-sheet-item subcat-all-item">
+          <input type="checkbox" id="subcatSelectAll" checked />
+          <span>전체 선택</span>
+        </label>
+        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="훈제" checked /><span>훈제</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="냉동" checked /><span>냉동</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="냉장" checked /><span>냉장</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="통조림" checked /><span>통조림</span></label>
+        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="가공" checked /><span>가공</span></label>
+      </div>
 
       <div class="filter-group-title">판매처</div>
       <div class="filter-group">
