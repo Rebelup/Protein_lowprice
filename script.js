@@ -198,6 +198,8 @@ function getFiltered() {
     list = list.filter(p => !ALL_SUBCATEGORIES.includes(p.category) || state.subcategories.has(p.category));
   } else if (state.category === 'all') {
     list = list.filter(p => !ALL_SUBCATEGORIES.includes(p.category) || state.subcategories.has(p.category));
+  } else if (state.category === '닭가슴살') {
+    list = list.filter(p => ALL_SUBCATEGORIES.includes(p.category) && state.subcategories.has(p.category));
   } else {
     list = list.filter(p => p.category === state.category);
   }
