@@ -3,144 +3,140 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>닭가슴살 특가 모음 🍗</title>
+  <title>닭가슴살 특가 🍗</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
 
+  <!-- 로딩 오버레이 -->
+  <div id="loadingOverlay" class="loading-overlay">
+    <div class="spinner"></div>
+    <p>상품 정보를 불러오는 중...</p>
+  </div>
+
   <!-- HEADER -->
   <header class="site-header">
     <div class="header-inner">
-      <div class="logo">
+      <a class="logo" href="#">
         <span class="logo-icon">🍗</span>
-        <div class="logo-text">
-          <strong>닭가슴살 특가</strong>
-          <small>최저가 할인 정보 모음</small>
-        </div>
-      </div>
+        <strong class="logo-name">닭가슴살 특가</strong>
+      </a>
       <div class="header-search">
-        <input type="text" id="searchInput" placeholder="상품명, 브랜드 검색..." />
+        <input type="text" id="searchInput" placeholder="상품명, 브랜드 검색" />
         <button id="searchBtn" aria-label="검색">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
         </button>
-      </div>
-      <div class="header-meta">
-        <span id="lastUpdated">업데이트: 2026-04-12</span>
       </div>
     </div>
   </header>
 
-  <!-- HERO BANNER -->
-  <section class="hero">
-    <div class="hero-inner">
-      <h1>오늘의 닭가슴살 <span class="accent">최저가</span></h1>
-      <p>마트·편의점·온라인몰 할인 정보를 한곳에서 확인하세요</p>
-      <div class="hero-stats">
-        <div class="stat"><span id="totalProducts">0</span><small>개 상품</small></div>
-        <div class="stat-divider"></div>
-        <div class="stat"><span id="avgDiscount">0</span><small>% 평균할인</small></div>
-        <div class="stat-divider"></div>
-        <div class="stat"><span id="maxDiscount">0</span><small>% 최대할인</small></div>
+  <!-- CATEGORY NAV -->
+  <nav class="category-nav">
+    <div class="category-scroll" id="categoryFilter">
+      <button class="cat-chip active" data-category="all">전체</button>
+      <button class="cat-chip" data-category="훈제">훈제</button>
+      <button class="cat-chip" data-category="냉동">냉동</button>
+      <button class="cat-chip" data-category="냉장">냉장</button>
+      <button class="cat-chip" data-category="통조림">통조림</button>
+      <button class="cat-chip" data-category="가공">가공식품</button>
+    </div>
+  </nav>
+
+  <!-- FILTER BAR -->
+  <div class="filter-bar">
+    <button class="sort-btn" id="sortBtn">
+      <span id="sortLabel">할인율 높은순</span>
+      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
+    </button>
+    <button class="filter-toggle-btn" id="filterToggleBtn">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 4h18M7 9h10M10 14h4"/></svg>
+      필터
+    </button>
+  </div>
+
+  <!-- SORT DROPDOWN -->
+  <div class="sort-dropdown hidden" id="sortDropdown">
+    <button class="sort-option active" data-sort="discount">할인율 높은순</button>
+    <button class="sort-option" data-sort="price_asc">가격 낮은순</button>
+    <button class="sort-option" data-sort="price_desc">가격 높은순</button>
+    <button class="sort-option" data-sort="name">상품명순</button>
+  </div>
+
+  <!-- FILTER PANEL -->
+  <div class="filter-panel hidden" id="filterPanel">
+    <div class="fp-section">
+      <h4 class="fp-title">판매처</h4>
+      <div class="fp-chips" id="storeFilter">
+        <label class="fp-chip"><input type="checkbox" value="쿠팡" checked /><span>쿠팡</span></label>
+        <label class="fp-chip"><input type="checkbox" value="마켓컬리" checked /><span>마켓컬리</span></label>
+        <label class="fp-chip"><input type="checkbox" value="이마트" checked /><span>이마트</span></label>
+        <label class="fp-chip"><input type="checkbox" value="홈플러스" checked /><span>홈플러스</span></label>
+        <label class="fp-chip"><input type="checkbox" value="GS25" checked /><span>GS25</span></label>
+        <label class="fp-chip"><input type="checkbox" value="올리브영" checked /><span>올리브영</span></label>
+        <label class="fp-chip"><input type="checkbox" value="오늘의식탁" checked /><span>오늘의식탁</span></label>
       </div>
     </div>
-  </section>
-
-  <!-- FILTERS + PRODUCTS -->
-  <main class="main-layout">
-
-    <!-- SIDEBAR FILTERS -->
-    <aside class="sidebar">
-      <div class="filter-section">
-        <h3 class="filter-title">카테고리</h3>
-        <div class="filter-chips" id="categoryFilter">
-          <button class="chip active" data-category="all">전체</button>
-          <button class="chip" data-category="훈제">훈제</button>
-          <button class="chip" data-category="냉동">냉동</button>
-          <button class="chip" data-category="냉장">냉장</button>
-          <button class="chip" data-category="통조림">통조림</button>
-          <button class="chip" data-category="가공">가공식품</button>
-        </div>
+    <div class="fp-section">
+      <h4 class="fp-title">브랜드</h4>
+      <div class="fp-chips" id="brandFilter">
+        <label class="fp-chip"><input type="checkbox" value="하림" checked /><span>하림</span></label>
+        <label class="fp-chip"><input type="checkbox" value="동원" checked /><span>동원</span></label>
+        <label class="fp-chip"><input type="checkbox" value="랭킹닭컴" checked /><span>랭킹닭컴</span></label>
+        <label class="fp-chip"><input type="checkbox" value="맘스터치" checked /><span>맘스터치</span></label>
+        <label class="fp-chip"><input type="checkbox" value="바디닭" checked /><span>바디닭</span></label>
+        <label class="fp-chip"><input type="checkbox" value="GS25" checked /><span>GS25</span></label>
+        <label class="fp-chip"><input type="checkbox" value="오뚜기" checked /><span>오뚜기</span></label>
+        <label class="fp-chip"><input type="checkbox" value="닭신" checked /><span>닭신</span></label>
+        <label class="fp-chip"><input type="checkbox" value="풀무원" checked /><span>풀무원</span></label>
+        <label class="fp-chip"><input type="checkbox" value="프레시지" checked /><span>프레시지</span></label>
+        <label class="fp-chip"><input type="checkbox" value="CJ" checked /><span>CJ</span></label>
+        <label class="fp-chip"><input type="checkbox" value="사조" checked /><span>사조</span></label>
       </div>
-
-      <div class="filter-section">
-        <h3 class="filter-title">판매처</h3>
-        <div class="store-list" id="storeFilter">
-          <label class="store-item"><input type="checkbox" value="쿠팡" checked /> 쿠팡</label>
-          <label class="store-item"><input type="checkbox" value="마켓컬리" checked /> 마켓컬리</label>
-          <label class="store-item"><input type="checkbox" value="이마트" checked /> 이마트</label>
-          <label class="store-item"><input type="checkbox" value="홈플러스" checked /> 홈플러스</label>
-          <label class="store-item"><input type="checkbox" value="GS25" checked /> GS25</label>
-          <label class="store-item"><input type="checkbox" value="올리브영" checked /> 올리브영</label>
-          <label class="store-item"><input type="checkbox" value="오늘의식탁" checked /> 오늘의식탁</label>
-        </div>
+    </div>
+    <div class="fp-section">
+      <h4 class="fp-title">양념 스타일</h4>
+      <div class="fp-flavor-chips" id="flavorFilter">
+        <button class="chip active" data-flavor="all">전체</button>
+        <button class="chip" data-flavor="무염">🧂 무염</button>
+        <button class="chip" data-flavor="오리지널">🍗 오리지널</button>
+        <button class="chip" data-flavor="매운맛">🌶️ 매운맛</button>
+        <button class="chip" data-flavor="갈릭">🧄 갈릭</button>
+        <button class="chip" data-flavor="간장">🍯 간장</button>
       </div>
-
-      <div class="filter-section">
-        <h3 class="filter-title">브랜드</h3>
-        <div class="store-list" id="brandFilter">
-          <label class="store-item"><input type="checkbox" value="하림" checked /> 하림</label>
-          <label class="store-item"><input type="checkbox" value="동원" checked /> 동원</label>
-          <label class="store-item"><input type="checkbox" value="랭킹닭컴" checked /> 랭킹닭컴</label>
-          <label class="store-item"><input type="checkbox" value="맘스터치" checked /> 맘스터치</label>
-          <label class="store-item"><input type="checkbox" value="바디닭" checked /> 바디닭</label>
-          <label class="store-item"><input type="checkbox" value="GS25" checked /> GS25</label>
-          <label class="store-item"><input type="checkbox" value="오뚜기" checked /> 오뚜기</label>
-          <label class="store-item"><input type="checkbox" value="닭신" checked /> 닭신</label>
-          <label class="store-item"><input type="checkbox" value="풀무원" checked /> 풀무원</label>
-          <label class="store-item"><input type="checkbox" value="프레시지" checked /> 프레시지</label>
-          <label class="store-item"><input type="checkbox" value="CJ" checked /> CJ</label>
-          <label class="store-item"><input type="checkbox" value="사조" checked /> 사조</label>
-        </div>
+    </div>
+    <div class="fp-section">
+      <h4 class="fp-title">최소 할인율</h4>
+      <div class="range-wrapper">
+        <input type="range" id="discountRange" min="0" max="60" value="0" step="5" />
+        <span id="discountRangeLabel">0% 이상</span>
       </div>
-
-      <div class="filter-section">
-        <h3 class="filter-title">양념 스타일</h3>
-        <div class="filter-chips" id="flavorFilter">
-          <button class="chip active" data-flavor="all">전체</button>
-          <button class="chip" data-flavor="무염">🧂 무염</button>
-          <button class="chip" data-flavor="오리지널">🍗 오리지널</button>
-          <button class="chip" data-flavor="매운맛">🌶️ 매운맛</button>
-          <button class="chip" data-flavor="갈릭">🧄 갈릭</button>
-          <button class="chip" data-flavor="간장">🍯 간장</button>
-        </div>
+    </div>
+    <div class="fp-section">
+      <h4 class="fp-title">가격대</h4>
+      <div class="price-inputs">
+        <input type="number" id="priceMin" placeholder="최소" min="0" step="1000" />
+        <span>~</span>
+        <input type="number" id="priceMax" placeholder="최대" min="0" step="1000" />
       </div>
+    </div>
+    <button class="btn-reset" id="resetFilters">필터 초기화</button>
+  </div>
 
-      <div class="filter-section">
-        <h3 class="filter-title">최소 할인율</h3>
-        <div class="range-wrapper">
-          <input type="range" id="discountRange" min="0" max="60" value="0" step="5" />
-          <span id="discountRangeLabel">0% 이상</span>
-        </div>
+  <main>
+    <!-- TOP 10 -->
+    <section class="top10-section">
+      <div class="section-header">
+        <h2 class="section-title">🔥 할인율 TOP 10</h2>
       </div>
+      <div class="top10-scroll" id="top10Grid"></div>
+    </section>
 
-      <div class="filter-section">
-        <h3 class="filter-title">가격대</h3>
-        <div class="price-inputs">
-          <input type="number" id="priceMin" placeholder="최소" min="0" step="1000" />
-          <span>~</span>
-          <input type="number" id="priceMax" placeholder="최대" min="0" step="1000" />
-        </div>
-      </div>
-
-      <button class="btn-reset" id="resetFilters">필터 초기화</button>
-    </aside>
-
-    <!-- PRODUCT GRID -->
+    <!-- ALL PRODUCTS -->
     <section class="products-section">
       <div class="products-header">
         <p class="result-count"><strong id="resultCount">0</strong>개 상품</p>
-        <select id="sortSelect">
-          <option value="discount">할인율 높은순</option>
-          <option value="price_asc">가격 낮은순</option>
-          <option value="price_desc">가격 높은순</option>
-          <option value="name">상품명순</option>
-        </select>
       </div>
-
-      <div class="product-grid" id="productGrid">
-        <!-- cards injected by JS -->
-      </div>
-
+      <div class="product-grid" id="productGrid"></div>
       <div class="empty-state" id="emptyState" style="display:none;">
         <span>🔍</span>
         <p>조건에 맞는 상품이 없습니다.</p>
@@ -149,12 +145,12 @@
     </section>
   </main>
 
-  <!-- FOOTER -->
   <footer class="site-footer">
-    <p>본 사이트의 가격·할인 정보는 참고용이며 실제 판매 가격과 다를 수 있습니다.</p>
-    <p>© 2026 닭가슴살 특가 모음</p>
+    <p>가격·할인 정보는 참고용이며 실제와 다를 수 있습니다.</p>
+    <p>© 2026 닭가슴살 특가</p>
   </footer>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
 </body>
 </html>
