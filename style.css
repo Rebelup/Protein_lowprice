@@ -373,6 +373,24 @@ body {
   justify-content: center;
   font-size: 64px;
   position: relative;
+  overflow: hidden;
+}
+
+/* 썸네일 이미지 */
+.card-img-wrap img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.card-img-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 64px;
+  width: 100%;
+  height: 100%;
 }
 
 .card-store-badge {

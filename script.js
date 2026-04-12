@@ -91,6 +91,7 @@ async function loadProducts() {
     weight:        p.weight,
     grams:         p.grams,
     emoji:         p.emoji,
+    thumbnail:     p.thumbnail || null,
     originalPrice: p.original_price,
     salePrice:     p.sale_price,
     expiryDate:    p.expiry_date,
@@ -164,7 +165,12 @@ function renderCard(p) {
     <article class="product-card" data-id="${p.id}">
       <div class="card-badge ${badgeLevel(pct)}">${pct}% 할인</div>
       <div class="card-img-wrap">
-        <span>${p.emoji}</span>
+        ${p.thumbnail
+          ? `<img src="${p.thumbnail}" alt="${p.name}" loading="lazy"
+               onerror="this.style.display='none';this.nextSibling.style.display='flex'" />
+             <span class="card-img-fallback" style="display:none">${p.emoji}</span>`
+          : `<span class="card-img-fallback">${p.emoji}</span>`
+        }
         <span class="card-store-badge">${p.store}</span>
       </div>
       <div class="card-body">
