@@ -373,10 +373,32 @@ body {
   overflow: hidden;
 }
 
+.card-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .card-weight {
   font-size: 12px;
   color: var(--muted);
 }
+
+.card-flavor {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 4px;
+  padding: 2px 7px;
+  background: #f0f0f5;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.flavor-무염    { background: #f0f5ff; color: #0066cc; }
+.flavor-매운맛  { background: #fff0f0; color: #e02020; }
+.flavor-갈릭    { background: #f5fff0; color: #2d8a00; }
+.flavor-간장    { background: #fff8e8; color: #b06000; }
 
 .card-pricing {
   margin-top: auto;
