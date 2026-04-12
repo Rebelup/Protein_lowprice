@@ -14,7 +14,8 @@ let PRODUCTS         = [];
 let currentUser      = null;
 let pendingProductLink = null;   // 로그인 후 열 상품 링크
 
-const ALL_STORES = ['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁'];
+const ALL_STORES  = ['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁'];
+const ALL_FLAVORS = ['무염', '오리지널', '매운맛', '갈릭', '간장'];
 const THUMB_CACHE_KEY = 'protein_thumb_v1';
 
 /* ============================================================
@@ -52,6 +53,7 @@ let state = {
   activeOnly: false,
   sort:       'discount',
   stores:     new Set(ALL_STORES),
+  flavors:    new Set(ALL_FLAVORS),
 };
 
 /* ============================================================
@@ -170,7 +172,7 @@ function getThumbUrl(p) {
    필터 배지 카운트
    ============================================================ */
 function updateFilterCount() {
-  const deselected = ALL_STORES.length - state.stores.size;
+  const deselected = (ALL_STORES.length - state.stores.size) + (ALL_FLAVORS.length - state.flavors.size);
   const countEl    = el('filterCount');
   const filterBtn  = el('filterBtn');
   if (deselected > 0) {
@@ -202,6 +204,7 @@ function getFiltered() {
         if (!p.name.toLowerCase().includes(q) && !p.brand.toLowerCase().includes(q)) return false;
       }
       if (!state.stores.has(p.store)) return false;
+      if (!state.flavors.has(p.flavor)) return false;
       if (state.rocketOnly && p.store !== '쿠팡') return false;
       if (state.activeOnly && daysUntil(p.expiryDate) <= 0) return false;
       return true;
@@ -364,7 +367,8 @@ function updateAuthUI(user) {
   const btn   = el('authBtn');
   const label = el('authBtnLabel');
   if (user) {
-    const name = user.user_metadata?.full_name || user.email?.split('@')[0] || '내 계정';
+    const raw  = user.user_metadata?.full_name || user.email?.split('@')[0] || '내 계정';
+    const name = raw.length > 7 ? raw.slice(0, 7) + '…' : raw;
     label.textContent = name;
     btn.classList.add('logged-in');
   } else {
@@ -534,13 +538,44 @@ function initListeners() {
     filterSheet.classList.add('hidden');
     sheetOverlay.classList.add('hidden');
   });
+  /* 맛 필터 */
+  const flavorAllCb    = el('flavorSelectAll');
+  const flavorAllLabel = flavorAllCb.closest('.filter-sheet-item');
+  const flavorCbs      = document.querySelectorAll('.flavor-cb');
+
+  flavorAllLabel.classList.add('checked');
+  flavorCbs.forEach(cb => cb.closest('.filter-sheet-item').classList.add('checked'));
+
+  flavorAllLabel.addEventListener('click', () => {
+    const willCheck = !flavorAllCb.checked;
+    flavorAllCb.checked = willCheck;
+    flavorAllLabel.classList.toggle('checked', willCheck);
+    flavorCbs.forEach(cb => {
+      cb.checked = willCheck;
+      cb.closest('.filter-sheet-item').classList.toggle('checked', willCheck);
+    });
+  });
+  flavorCbs.forEach(cb => {
+    cb.closest('.filter-sheet-item').addEventListener('click', () => {
+      cb.checked = !cb.checked;
+      cb.closest('.filter-sheet-item').classList.toggle('checked', cb.checked);
+      const allChecked = [...flavorCbs].every(c => c.checked);
+      flavorAllCb.checked = allChecked;
+      flavorAllLabel.classList.toggle('checked', allChecked);
+    });
+  });
+
   el('filterReset').addEventListener('click', () => {
     selectAllCb.checked = true;
     selectAllLabel.classList.add('checked');
     storeCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
+    flavorAllCb.checked = true;
+    flavorAllLabel.classList.add('checked');
+    flavorCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
   });
   el('filterApply').addEventListener('click', () => {
-    state.stores = new Set([...storeCbs].filter(cb => cb.checked).map(cb => cb.value));
+    state.stores  = new Set([...storeCbs].filter(cb => cb.checked).map(cb => cb.value));
+    state.flavors = new Set([...flavorCbs].filter(cb => cb.checked).map(cb => cb.value));
     updateFilterCount();
     filterSheet.classList.add('hidden');
     sheetOverlay.classList.add('hidden');
@@ -549,7 +584,7 @@ function initListeners() {
 
   /* 빈 상태 초기화 */
   el('resetFilters').addEventListener('click', () => {
-    state = { search: '', category: 'all', rocketOnly: false, activeOnly: false, sort: 'discount', stores: new Set(ALL_STORES) };
+    state = { search: '', category: 'all', rocketOnly: false, activeOnly: false, sort: 'discount', stores: new Set(ALL_STORES), flavors: new Set(ALL_FLAVORS) };
     searchInput.value = '';
     document.querySelectorAll('#categoryFilter .tab').forEach((t, i) => t.classList.toggle('active', i === 0));
     el('filterRocket').checked = false;
