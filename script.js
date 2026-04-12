@@ -10,6 +10,7 @@ const PRODUCTS = [
     brand: '하림',
     store: '쿠팡',
     category: '훈제',
+    flavor: '오리지널',
     weight: '200g×5팩',
     grams: 1000,
     emoji: '🍗',
@@ -24,6 +25,7 @@ const PRODUCTS = [
     brand: '동원',
     store: '이마트',
     category: '통조림',
+    flavor: '무염',
     weight: '135g×6캔',
     grams: 810,
     emoji: '🥫',
@@ -38,6 +40,7 @@ const PRODUCTS = [
     brand: '랭킹닭컴',
     store: '마켓컬리',
     category: '훈제',
+    flavor: '오리지널',
     weight: '100g×10개',
     grams: 1000,
     emoji: '🍗',
@@ -52,6 +55,7 @@ const PRODUCTS = [
     brand: '맘스터치',
     store: '홈플러스',
     category: '냉장',
+    flavor: '오리지널',
     weight: '150g×3팩',
     grams: 450,
     emoji: '🥩',
@@ -66,6 +70,7 @@ const PRODUCTS = [
     brand: '바디닭',
     store: '쿠팡',
     category: '냉동',
+    flavor: '무염',
     weight: '1kg',
     grams: 1000,
     emoji: '❄️',
@@ -80,6 +85,7 @@ const PRODUCTS = [
     brand: 'GS25',
     store: 'GS25',
     category: '냉장',
+    flavor: '오리지널',
     weight: '250g',
     grams: 250,
     emoji: '🥗',
@@ -94,6 +100,7 @@ const PRODUCTS = [
     brand: '오뚜기',
     store: '이마트',
     category: '가공',
+    flavor: '매운맛',
     weight: '200g',
     grams: 200,
     emoji: '🌶️',
@@ -108,6 +115,7 @@ const PRODUCTS = [
     brand: '닭신',
     store: '오늘의식탁',
     category: '냉동',
+    flavor: '무염',
     weight: '500g×2팩',
     grams: 1000,
     emoji: '❄️',
@@ -122,6 +130,7 @@ const PRODUCTS = [
     brand: '풀무원',
     store: '마켓컬리',
     category: '가공',
+    flavor: '오리지널',
     weight: '300g',
     grams: 300,
     emoji: '🌭',
@@ -136,6 +145,7 @@ const PRODUCTS = [
     brand: '프레시지',
     store: '쿠팡',
     category: '냉장',
+    flavor: '오리지널',
     weight: '350g',
     grams: 350,
     emoji: '🥗',
@@ -150,6 +160,7 @@ const PRODUCTS = [
     brand: '하림',
     store: '홈플러스',
     category: '훈제',
+    flavor: '오리지널',
     weight: '250g',
     grams: 250,
     emoji: '🍗',
@@ -164,6 +175,7 @@ const PRODUCTS = [
     brand: '사조',
     store: '이마트',
     category: '통조림',
+    flavor: '무염',
     weight: '200g×3캔',
     grams: 600,
     emoji: '🥫',
@@ -178,6 +190,7 @@ const PRODUCTS = [
     brand: '바디닭',
     store: '올리브영',
     category: '훈제',
+    flavor: '매운맛',
     weight: '100g×5개',
     grams: 500,
     emoji: '🌶️',
@@ -192,6 +205,7 @@ const PRODUCTS = [
     brand: '랭킹닭컴',
     store: '쿠팡',
     category: '냉장',
+    flavor: '갈릭',
     weight: '130g×5팩',
     grams: 650,
     emoji: '🧄',
@@ -206,6 +220,7 @@ const PRODUCTS = [
     brand: 'CJ',
     store: '마켓컬리',
     category: '가공',
+    flavor: '오리지널',
     weight: '450g',
     grams: 450,
     emoji: '🍢',
@@ -220,6 +235,7 @@ const PRODUCTS = [
     brand: '닭신',
     store: '오늘의식탁',
     category: '냉장',
+    flavor: '간장',
     weight: '200g×4팩',
     grams: 800,
     emoji: '🍗',
@@ -229,6 +245,8 @@ const PRODUCTS = [
     link: '#',
   },
 ];
+
+const ALL_BRANDS = [...new Set(PRODUCTS.map(p => p.brand))];
 
 /* ============================================================
    HELPERS
@@ -251,6 +269,17 @@ function daysUntil(dateStr) {
   return Math.ceil((target - today) / 86400000);
 }
 
+const FLAVOR_LABELS = {
+  무염: '🧂 무염',
+  오리지널: '🍗 오리지널',
+  매운맛: '🌶️ 매운맛',
+  갈릭: '🧄 갈릭',
+  간장: '🍯 간장',
+};
+function flavorLabel(f) {
+  return FLAVOR_LABELS[f] || f;
+}
+
 /* ============================================================
    STATE
    ============================================================ */
@@ -258,6 +287,8 @@ let state = {
   search: '',
   category: 'all',
   stores: new Set(['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁']),
+  brands: new Set(ALL_BRANDS),
+  flavor: 'all',
   minDiscount: 0,
   priceMin: null,
   priceMax: null,
@@ -277,6 +308,8 @@ function getFiltered() {
       }
       if (state.category !== 'all' && p.category !== state.category) return false;
       if (!state.stores.has(p.store)) return false;
+      if (!state.brands.has(p.brand)) return false;
+      if (state.flavor !== 'all' && p.flavor !== state.flavor) return false;
       if (pct < state.minDiscount) return false;
       if (state.priceMin !== null && p.salePrice < state.priceMin) return false;
       if (state.priceMax !== null && p.salePrice > state.priceMax) return false;
@@ -316,7 +349,10 @@ function renderCard(p) {
       <div class="card-body">
         <span class="card-category">${p.category}</span>
         <h2 class="card-name">${p.name}</h2>
-        <p class="card-weight">${p.weight}</p>
+        <div class="card-meta-row">
+          <p class="card-weight">${p.weight}</p>
+          <span class="card-flavor flavor-${p.flavor}">${flavorLabel(p.flavor)}</span>
+        </div>
         <div class="card-pricing">
           <p class="card-original-price">${formatKRW(p.originalPrice)}</p>
           <div class="card-price-row">
@@ -396,6 +432,24 @@ function initListeners() {
     render();
   });
 
+  // Brand checkboxes
+  document.getElementById('brandFilter').addEventListener('change', e => {
+    if (e.target.type !== 'checkbox') return;
+    if (e.target.checked) state.brands.add(e.target.value);
+    else state.brands.delete(e.target.value);
+    render();
+  });
+
+  // Flavor chips
+  document.getElementById('flavorFilter').addEventListener('click', e => {
+    const chip = e.target.closest('.chip');
+    if (!chip) return;
+    document.querySelectorAll('#flavorFilter .chip').forEach(c => c.classList.remove('active'));
+    chip.classList.add('active');
+    state.flavor = chip.dataset.flavor;
+    render();
+  });
+
   // Discount range
   const rangeInput = document.getElementById('discountRange');
   const rangeLabel = document.getElementById('discountRangeLabel');
@@ -427,6 +481,8 @@ function initListeners() {
       search: '',
       category: 'all',
       stores: new Set(['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁']),
+      brands: new Set(ALL_BRANDS),
+      flavor: 'all',
       minDiscount: 0,
       priceMin: null,
       priceMax: null,
@@ -436,6 +492,8 @@ function initListeners() {
     document.getElementById('searchInput').value = '';
     document.querySelectorAll('#categoryFilter .chip').forEach((c, i) => c.classList.toggle('active', i === 0));
     document.querySelectorAll('#storeFilter input[type="checkbox"]').forEach(cb => (cb.checked = true));
+    document.querySelectorAll('#brandFilter input[type="checkbox"]').forEach(cb => (cb.checked = true));
+    document.querySelectorAll('#flavorFilter .chip').forEach((c, i) => c.classList.toggle('active', i === 0));
     document.getElementById('discountRange').value = 0;
     document.getElementById('discountRangeLabel').textContent = '0% 이상';
     document.getElementById('priceMin').value = '';
