@@ -3,17 +3,14 @@
 /* ============================================================
    SUPABASE 설정
    ============================================================ */
-const SUPABASE_URL     = 'https://myficrjdmqbtsgmdxtiu.supabase.co';
+const SUPABASE_URL      = 'https://myficrjdmqbtsgmdxtiu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15ZmljcmpkbXFidHNnbWR4dGl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODY4OTEsImV4cCI6MjA5MTU2Mjg5MX0.G2-_UEqO12SqxELdkZScvrdcYBNPW1gusEBA0ZW6smc';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ============================================================
-   데이터 (Supabase에서 로드)
+   전역 데이터
    ============================================================ */
-let PRODUCTS   = [];
-let ALL_BRANDS = [];
-
-const ALL_STORES = ['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁'];
+let PRODUCTS = [];
 
 /* ============================================================
    HELPERS
@@ -28,50 +25,56 @@ function formatKRW(n) {
   return n.toLocaleString('ko-KR') + '원';
 }
 
-function unitPrice(price, grams) {
-  return Math.round(price / grams) + '원/g';
-}
-
 function daysUntil(dateStr) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const target = new Date(dateStr);
-  return Math.ceil((target - today) / 86400000);
+  return Math.ceil((new Date(dateStr) - today) / 86400000);
 }
 
-const FLAVOR_LABELS = {
-  무염:     '🧂 무염',
-  오리지널: '🍗 오리지널',
-  매운맛:   '🌶️ 매운맛',
-  갈릭:     '🧄 갈릭',
-  간장:     '🍯 간장',
-};
-function flavorLabel(f) { return FLAVOR_LABELS[f] || f; }
+/** 판매처 → 배송 배지 */
+function deliveryInfo(store) {
+  if (store === '쿠팡')     return { label: '🚀 로켓배송',  cls: 'rocket' };
+  if (store === '마켓컬리') return { label: '🌿 새벽배송',  cls: 'fresh'  };
+  return                           { label: `📦 ${store}`,   cls: 'normal' };
+}
+
+/** 상품 ID 기반 의사-랜덤 "N명 추가" */
+function viewerCount(id) {
+  return ((id * 7 + 3) % 19) + 3;
+}
 
 /* ============================================================
-   로딩 / 에러 상태
+   STATE
+   ============================================================ */
+let state = {
+  search:      '',
+  category:    'all',
+  rocketOnly:  false,
+  activeOnly:  false,   // 품절제외 = 만료 안 된 상품만
+  sort:        'discount',
+};
+
+/* ============================================================
+   로딩 / 에러
    ============================================================ */
 function showLoading(visible) {
-  const overlay = el('loadingOverlay');
-  if (overlay) overlay.classList.toggle('hidden', !visible);
+  el('loadingOverlay').classList.toggle('hidden', !visible);
 }
 
 function showDbError(msg) {
   const grid = el('productGrid');
-  if (grid) {
-    grid.style.display = 'block';
-    grid.innerHTML = `
-      <div class="db-error">
-        <span>⚠️</span>
-        <p>데이터를 불러오지 못했습니다</p>
-        <small>Supabase SQL Editor에서 setup.sql을 먼저 실행해주세요.<br/>${msg}</small>
-      </div>`;
-  }
+  grid.style.display = 'block';
+  grid.innerHTML = `
+    <div class="db-error">
+      <span class="db-error-icon">⚠️</span>
+      <p>데이터를 불러오지 못했습니다</p>
+      <small>Supabase SQL Editor에서 setup.sql을 먼저 실행해 주세요.<br>${msg}</small>
+    </div>`;
   showLoading(false);
 }
 
 /* ============================================================
-   Supabase에서 상품 불러오기
+   Supabase 로드
    ============================================================ */
 async function loadProducts() {
   const { data, error } = await db
@@ -97,233 +100,204 @@ async function loadProducts() {
     expiryDate:    p.expiry_date,
     link:          p.link || '#',
   }));
-
-  ALL_BRANDS       = [...new Set(PRODUCTS.map(p => p.brand))];
-  state.brands     = new Set(ALL_BRANDS);
 }
 
 /* ============================================================
-   STATE
-   ============================================================ */
-let state = {
-  search:      '',
-  category:    'all',
-  stores:      new Set(ALL_STORES),
-  brands:      new Set(),
-  flavor:      'all',
-  minDiscount: 0,
-  priceMin:    null,
-  priceMax:    null,
-  sort:        'discount',
-};
-
-/* ============================================================
-   FILTER + SORT
+   필터 + 정렬
    ============================================================ */
 function getFiltered() {
   return PRODUCTS
     .filter(p => {
-      const pct = discountPct(p.originalPrice, p.salePrice);
       if (state.search) {
         const q = state.search.toLowerCase();
         if (!p.name.toLowerCase().includes(q) && !p.brand.toLowerCase().includes(q)) return false;
       }
       if (state.category !== 'all' && p.category !== state.category) return false;
-      if (!state.stores.has(p.store)) return false;
-      if (!state.brands.has(p.brand)) return false;
-      if (state.flavor !== 'all' && p.flavor !== state.flavor) return false;
-      if (pct < state.minDiscount) return false;
-      if (state.priceMin !== null && p.salePrice < state.priceMin) return false;
-      if (state.priceMax !== null && p.salePrice > state.priceMax) return false;
+      if (state.rocketOnly && p.store !== '쿠팡') return false;
+      if (state.activeOnly && daysUntil(p.expiryDate) <= 0) return false;
       return true;
     })
     .sort((a, b) => {
       if (state.sort === 'discount')    return discountPct(b.originalPrice, b.salePrice) - discountPct(a.originalPrice, a.salePrice);
-      if (state.sort === 'price_asc')  return a.salePrice - b.salePrice;
-      if (state.sort === 'price_desc') return b.salePrice - a.salePrice;
-      if (state.sort === 'name')       return a.name.localeCompare(b.name, 'ko');
+      if (state.sort === 'price_asc')   return a.salePrice - b.salePrice;
+      if (state.sort === 'price_desc')  return b.salePrice - a.salePrice;
+      if (state.sort === 'name')        return a.name.localeCompare(b.name, 'ko');
       return 0;
     });
 }
 
 /* ============================================================
-   RENDER
+   TOP 10 렌더링
    ============================================================ */
-function badgeLevel(pct) {
-  if (pct >= 40) return 'high';
-  if (pct >= 25) return 'medium';
-  return 'low';
+function renderTop10() {
+  const top10 = [...PRODUCTS]
+    .sort((a, b) => discountPct(b.originalPrice, b.salePrice) - discountPct(a.originalPrice, a.salePrice))
+    .slice(0, 10);
+
+  el('top10Grid').innerHTML = top10.map((p, i) => {
+    const pct      = discountPct(p.originalPrice, p.salePrice);
+    const delivery = deliveryInfo(p.store);
+    const rank     = i + 1;
+
+    return `
+      <div class="top10-card" onclick="window.open('${p.link}', '_blank')">
+        <div class="top10-img-wrap">
+          ${pct >= 25 ? '<span class="badge-yeokdaegup">역대급</span>' : ''}
+          ${p.thumbnail
+            ? `<img src="${p.thumbnail}" alt="${p.name}" loading="lazy"
+                 onerror="this.style.display='none';this.nextSibling.style.display='flex'" />
+               <span class="top10-img-fallback" style="display:none">${p.emoji}</span>`
+            : `<span class="top10-img-fallback">${p.emoji}</span>`
+          }
+          <span class="rank-badge ${rank === 1 ? 'rank-1' : ''}">${rank}</span>
+        </div>
+        <div class="top10-body">
+          <div class="delivery-tag ${delivery.cls}">${delivery.label}</div>
+          <div class="top10-name">${p.name}</div>
+          <div class="price-row">
+            <span class="price-main">${formatKRW(p.salePrice)}</span>
+            <span class="price-down">▼${pct}%</span>
+          </div>
+        </div>
+      </div>`;
+  }).join('');
 }
 
+/* ============================================================
+   상품 카드 렌더링
+   ============================================================ */
 function renderCard(p) {
-  const pct         = discountPct(p.originalPrice, p.salePrice);
-  const days        = daysUntil(p.expiryDate);
-  const expiryClass = days <= 3 ? 'expiry-soon' : '';
-  const expiryText  = days <= 0 ? '오늘 종료' : days === 1 ? '내일 종료' : `${days}일 남음`;
+  const pct      = discountPct(p.originalPrice, p.salePrice);
+  const delivery = deliveryInfo(p.store);
+  const viewers  = viewerCount(p.id);
+  const showBadge = pct >= 30;
 
   return `
-    <article class="product-card" data-id="${p.id}">
-      <div class="card-badge ${badgeLevel(pct)}">${pct}% 할인</div>
+    <article class="product-card" onclick="window.open('${p.link}', '_blank')">
       <div class="card-img-wrap">
+        ${showBadge ? '<div class="badge-lowprice">역대급최저가<br>구매타이밍</div>' : ''}
         ${p.thumbnail
           ? `<img src="${p.thumbnail}" alt="${p.name}" loading="lazy"
                onerror="this.style.display='none';this.nextSibling.style.display='flex'" />
              <span class="card-img-fallback" style="display:none">${p.emoji}</span>`
           : `<span class="card-img-fallback">${p.emoji}</span>`
         }
-        <span class="card-store-badge">${p.store}</span>
+        <button class="add-btn"
+          onclick="event.stopPropagation(); window.open('${p.link}', '_blank')"
+          aria-label="장바구니 담기">+</button>
       </div>
       <div class="card-body">
-        <span class="card-category">${p.category}</span>
-        <h2 class="card-name">${p.name}</h2>
-        <div class="card-meta-row">
-          <p class="card-weight">${p.weight}</p>
-          <span class="card-flavor flavor-${p.flavor}">${flavorLabel(p.flavor)}</span>
+        <div class="card-delivery ${delivery.cls}">${delivery.label}</div>
+        <div class="card-name">${p.name}</div>
+        <div class="card-price-row">
+          <span class="card-price">${formatKRW(p.salePrice)}</span>
+          <span class="card-discount">▼${pct}%</span>
         </div>
-        <div class="card-pricing">
-          <p class="card-original-price">${formatKRW(p.originalPrice)}</p>
-          <div class="card-price-row">
-            <span class="card-sale-price">${formatKRW(p.salePrice)}</span>
-            <span class="card-discount-pct">-${pct}%</span>
-          </div>
-          <p class="card-unit-price">${unitPrice(p.salePrice, p.grams)}</p>
-          <p class="card-expiry ${expiryClass}">
-            <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-            할인 ${expiryText}
-          </p>
-        </div>
+        <div class="card-viewers">${viewers}명 추가</div>
       </div>
-      <button class="card-cta" onclick="window.open('${p.link}','_blank')">구매하러 가기</button>
-    </article>
-  `;
-}
-
-function render() {
-  const items   = getFiltered();
-  const grid    = el('productGrid');
-  const empty   = el('emptyState');
-  const countEl = el('resultCount');
-
-  countEl.textContent = items.length;
-  grid.innerHTML = items.map(renderCard).join('');
-
-  if (items.length === 0) {
-    empty.style.display        = 'flex';
-    empty.style.flexDirection  = 'column';
-    empty.style.alignItems     = 'center';
-    empty.style.justifyContent = 'center';
-    grid.style.display = 'none';
-  } else {
-    empty.style.display = 'none';
-    grid.style.display  = 'grid';
-  }
-}
-
-function updateHeroStats() {
-  const pcts = PRODUCTS.map(p => discountPct(p.originalPrice, p.salePrice));
-  el('totalProducts').textContent = PRODUCTS.length;
-  el('avgDiscount').textContent   = pcts.length ? Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) : 0;
-  el('maxDiscount').textContent   = pcts.length ? Math.max(...pcts) : 0;
+    </article>`;
 }
 
 /* ============================================================
-   EVENT LISTENERS
+   전체 렌더
+   ============================================================ */
+function render() {
+  const items = getFiltered();
+  const grid  = el('productGrid');
+  const empty = el('emptyState');
+
+  el('resultCount').textContent = items.length;
+
+  if (items.length === 0) {
+    grid.innerHTML     = '';
+    grid.style.display = 'none';
+    empty.classList.remove('hidden');
+  } else {
+    grid.innerHTML     = items.map(renderCard).join('');
+    grid.style.display = 'grid';
+    empty.classList.add('hidden');
+  }
+}
+
+/* ============================================================
+   이벤트 리스너
    ============================================================ */
 function initListeners() {
-  // 검색
+
+  /* 검색 */
   const searchInput = el('searchInput');
-  const searchBtn   = el('searchBtn');
-  function doSearch() {
+  searchInput.addEventListener('input', () => {
     state.search = searchInput.value.trim();
     render();
-  }
-  searchInput.addEventListener('input', doSearch);
-  searchBtn.addEventListener('click', doSearch);
-  searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') doSearch(); });
+  });
+  searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') render(); });
+  el('searchBtn').addEventListener('click', () => render());
 
-  // 카테고리
+  /* 카테고리 탭 */
   el('categoryFilter').addEventListener('click', e => {
-    const chip = e.target.closest('.chip');
-    if (!chip) return;
-    document.querySelectorAll('#categoryFilter .chip').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
-    state.category = chip.dataset.category;
+    const tab = e.target.closest('.tab');
+    if (!tab) return;
+    document.querySelectorAll('#categoryFilter .tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    state.category = tab.dataset.category;
     render();
   });
 
-  // 판매처
-  el('storeFilter').addEventListener('change', e => {
-    if (e.target.type !== 'checkbox') return;
-    if (e.target.checked) state.stores.add(e.target.value);
-    else state.stores.delete(e.target.value);
+  /* 로켓배송 필터 */
+  el('filterRocket').addEventListener('change', e => {
+    state.rocketOnly = e.target.checked;
     render();
   });
 
-  // 브랜드
-  el('brandFilter') && el('brandFilter').addEventListener('change', e => {
-    if (e.target.type !== 'checkbox') return;
-    if (e.target.checked) state.brands.add(e.target.value);
-    else state.brands.delete(e.target.value);
+  /* 품절제외 필터 */
+  el('filterActive').addEventListener('change', e => {
+    state.activeOnly = e.target.checked;
     render();
   });
 
-  // 양념 스타일
-  el('flavorFilter') && el('flavorFilter').addEventListener('click', e => {
-    const chip = e.target.closest('.chip');
-    if (!chip) return;
-    document.querySelectorAll('#flavorFilter .chip').forEach(c => c.classList.remove('active'));
-    chip.classList.add('active');
-    state.flavor = chip.dataset.flavor;
-    render();
+  /* 정렬 바텀시트 */
+  const sortBtn     = el('sortBtn');
+  const sortSheet   = el('sortSheet');
+  const sortOverlay = el('sortOverlay');
+  const sortLabel   = el('sortLabel');
+
+  function openSort() {
+    sortSheet.classList.remove('hidden');
+    sortOverlay.classList.remove('hidden');
+  }
+  function closeSort() {
+    sortSheet.classList.add('hidden');
+    sortOverlay.classList.add('hidden');
+  }
+
+  sortBtn.addEventListener('click', openSort);
+  sortOverlay.addEventListener('click', closeSort);
+
+  document.querySelectorAll('.sort-option').forEach(btn => {
+    btn.addEventListener('click', () => {
+      state.sort = btn.dataset.sort;
+      document.querySelectorAll('.sort-option').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      sortLabel.textContent = btn.textContent.replace('✓', '').trim();
+      closeSort();
+      render();
+    });
   });
 
-  // 최소 할인율
-  const rangeInput = el('discountRange');
-  const rangeLabel = el('discountRangeLabel');
-  rangeInput.addEventListener('input', () => {
-    state.minDiscount = parseInt(rangeInput.value, 10);
-    rangeLabel.textContent = `${state.minDiscount}% 이상`;
-    render();
-  });
-
-  // 가격대
-  el('priceMin').addEventListener('input', e => {
-    state.priceMin = e.target.value ? parseInt(e.target.value, 10) : null;
-    render();
-  });
-  el('priceMax').addEventListener('input', e => {
-    state.priceMax = e.target.value ? parseInt(e.target.value, 10) : null;
-    render();
-  });
-
-  // 정렬
-  el('sortSelect').addEventListener('change', e => {
-    state.sort = e.target.value;
-    render();
-  });
-
-  // 필터 초기화
+  /* 필터 초기화 (빈 상태에서) */
   el('resetFilters').addEventListener('click', () => {
-    state = {
-      search:      '',
-      category:    'all',
-      stores:      new Set(ALL_STORES),
-      brands:      new Set(ALL_BRANDS),
-      flavor:      'all',
-      minDiscount: 0,
-      priceMin:    null,
-      priceMax:    null,
-      sort:        state.sort,
-    };
-    el('searchInput').value = '';
-    document.querySelectorAll('#categoryFilter .chip').forEach((c, i) => c.classList.toggle('active', i === 0));
-    document.querySelectorAll('#storeFilter input[type="checkbox"]').forEach(cb => (cb.checked = true));
-    document.querySelectorAll('#brandFilter input[type="checkbox"]').forEach(cb => (cb.checked = true));
-    document.querySelectorAll('#flavorFilter .chip').forEach((c, i) => c.classList.toggle('active', i === 0));
-    el('discountRange').value = 0;
-    el('discountRangeLabel').textContent = '0% 이상';
-    el('priceMin').value = '';
-    el('priceMax').value = '';
+    state.search     = '';
+    state.category   = 'all';
+    state.rocketOnly = false;
+    state.activeOnly = false;
+    state.sort       = 'discount';
+
+    searchInput.value = '';
+    document.querySelectorAll('#categoryFilter .tab').forEach((t, i) => t.classList.toggle('active', i === 0));
+    el('filterRocket').checked = false;
+    el('filterActive').checked = false;
+    sortLabel.textContent = '급하락순';
+    document.querySelectorAll('.sort-option').forEach((b, i) => b.classList.toggle('active', i === 0));
     render();
   });
 }
@@ -335,7 +309,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   showLoading(true);
   try {
     await loadProducts();
-    updateHeroStats();
+    renderTop10();
     initListeners();
     render();
     showLoading(false);
