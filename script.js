@@ -8,17 +8,37 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ============================================================
+   이벤트 데이터 (정적)
+   ============================================================ */
+const EVENTS = [
+  {
+    id: 1, brand: 'myprotein', brandLabel: '마이프로틴',
+    name: '마이프로틴 할인코드 모음',
+    desc: '할인 코드 적용 시 최대 35% 추가 할인. 코드 확인 후 장바구니에서 입력하세요.',
+    discountPct: 35, color: '#0077CC',
+    active: true, endDate: '2026-12-31',
+    link: 'https://www.myprotein.co.kr/c/voucher-codes/?affil=thgppc&thg_ppc_campaign=821750852&gclid=Cj0KCQjwqPLOBhCiARIsAKRMPZppFlpuWJQZWpknDNHBpdmJXWLzmVpzTa3tTRozHc-6vpTKUTywYu8aAnx9EALw_wcB',
+  },
+  {
+    id: 2, brand: 'bsn', brandLabel: 'BSN',
+    name: "BSN Let's BSN 이벤트",
+    desc: '신타6 구매 시 특별 프로모션 혜택. 이벤트 기간 구매 시 최대 20% 추가 할인.',
+    discountPct: 20, color: '#E53935',
+    active: true, endDate: '2026-06-30',
+    link: 'https://www.bsn.co.kr/pages/lets-bsn',
+  },
+];
+
+/* ============================================================
    전역 데이터
    ============================================================ */
-let PRODUCTS         = [];
-let currentUser      = null;
-let pendingProductLink = null;   // 로그인 후 열 상품 링크
+let PRODUCTS           = [];
+let currentUser        = null;
+let pendingProductLink = null;
 
-const ALL_STORES        = ['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁'];
-const ALL_FLAVORS       = ['무염', '오리지널', '매운맛', '갈릭', '간장'];
-const ALL_SUBCATEGORIES = ['훈제', '냉동', '냉장', '통조림', '가공'];
+const ALL_BRANDS        = ['마이프로틴', 'BSN'];
+const ALL_PRODUCT_TYPES = ['단백질 파우더', 'BCAA', '크레아틴', '영양제'];
 const BOOSTER_SUB       = ['단백질 파우더', 'BCAA', '크레아틴', '영양제'];
-const DRINK_SUB         = ['RTD 단백질', '프로틴 워터', 'BCAA 드링크'];
 const THUMB_CACHE_KEY   = 'protein_thumb_v1';
 
 /* ============================================================
@@ -47,36 +67,45 @@ function daysUntil(dateStr) {
   return Math.ceil((new Date(dateStr) - today) / 86400000);
 }
 function deliveryInfo(store) {
-  if (store === '쿠팡')     return { label: '🚀 로켓배송', cls: 'rocket' };
-  if (store === '마켓컬리') return { label: '🌿 새벽배송', cls: 'fresh'  };
-  return                           { label: `📦 ${store}`,  cls: 'normal' };
+  if (store === '마이프로틴') return { label: '🔵 마이프로틴몰', cls: 'myprotein' };
+  if (store === 'BSN')       return { label: '🔴 BSN코리아',    cls: 'bsn' };
+  return { label: `📦 ${store}`, cls: 'normal' };
 }
 function viewerCount(id) {
   return ((id * 7 + 3) % 19) + 3;
 }
 
-/** 보충제·음료 세부 분류 (이름 키워드로 파생) */
+/** 보충제 세부 분류 */
 function getSubCat(p) {
-  if (p.category === '보충제') {
-    if (/BCAA/.test(p.name)) return 'BCAA';
-    if (/크레아틴/.test(p.name)) return '크레아틴';
-    if (/콜라겐|펩타이드/.test(p.name)) return '영양제';
-    return '단백질 파우더';
-  }
-  if (p.category === '음료') {
-    if (/BCAA/.test(p.name)) return 'BCAA 드링크';
-    if (/워터|이오|닥스/.test(p.name)) return '프로틴 워터';
-    return 'RTD 단백질';
-  }
-  return '';
+  const n = p.name.toLowerCase();
+  if (/bcaa/.test(n)) return 'BCAA';
+  if (/크레아틴|creatine/.test(n)) return '크레아틴';
+  if (/비타민|vitamin|영양제/.test(n)) return '영양제';
+  return '단백질 파우더';
 }
 
-/** 현재 탭에 맞는 세부 칩 목록 반환 */
+/** 탭별 세부 칩 목록 */
 function getChipsForTab(tab) {
-  if (tab === '닭가슴살') return ALL_FLAVORS;
-  if (tab === '보충제')   return BOOSTER_SUB;
-  if (tab === '음료')     return DRINK_SUB;
+  if (tab === '보충제') return BOOSTER_SUB;
   return null;
+}
+
+/** 상품에 적용 가능한 이벤트 목록 */
+function getProductEvents(p) {
+  const brand = (p.brand || '').toLowerCase();
+  return EVENTS.filter(e => {
+    if (e.brand === 'myprotein') return brand.includes('마이프로틴');
+    if (e.brand === 'bsn') return brand === 'bsn';
+    return false;
+  });
+}
+
+/** 이벤트 적용 시 최저가 계산 */
+function getEventBestPrice(p) {
+  const evts = getProductEvents(p);
+  if (!evts.length) return null;
+  const best = Math.max(...evts.map(e => e.discountPct));
+  return Math.round(p.salePrice * (1 - best / 100));
 }
 
 /** 세부 카테고리 칩 렌더링 */
@@ -96,15 +125,13 @@ function renderSubcatChips() {
    STATE
    ============================================================ */
 let state = {
-  search:        '',
-  category:      'all',
-  subCat:        null,
-  rocketOnly:    false,
-  activeOnly:    false,
-  sort:          'discount',
-  stores:        new Set(ALL_STORES),
-  flavors:       new Set(ALL_FLAVORS),
-  subcategories: new Set(ALL_SUBCATEGORIES),
+  search:       '',
+  category:     'all',
+  subCat:       null,
+  activeOnly:   false,
+  sort:         'discount',
+  brands:       new Set(ALL_BRANDS),
+  productTypes: new Set(ALL_PRODUCT_TYPES),
 };
 
 /* ============================================================
@@ -223,9 +250,9 @@ function getThumbUrl(p) {
    필터 배지 카운트
    ============================================================ */
 function updateFilterCount() {
-  const deselected = (ALL_STORES.length - state.stores.size) + (ALL_FLAVORS.length - state.flavors.size) + (ALL_SUBCATEGORIES.length - state.subcategories.size);
-  const countEl    = el('filterCount');
-  const filterBtn  = el('filterBtn');
+  const deselected = (ALL_BRANDS.length - state.brands.size) + (ALL_PRODUCT_TYPES.length - state.productTypes.size);
+  const countEl = el('filterCount');
+  const filterBtn = el('filterBtn');
   if (deselected > 0) {
     countEl.textContent = deselected;
     countEl.classList.remove('hidden');
@@ -242,25 +269,14 @@ function updateFilterCount() {
 function getFiltered() {
   let list = PRODUCTS;
 
-  // 1차: 탭별 카테고리 필터
   if (state.category === 'hotdeal') {
     list = list.filter(p => discountPct(p.originalPrice, p.salePrice) >= 30);
-    list = list.filter(p => !ALL_SUBCATEGORIES.includes(p.category) || state.subcategories.has(p.category));
-  } else if (state.category === 'all') {
-    list = list.filter(p => !ALL_SUBCATEGORIES.includes(p.category) || state.subcategories.has(p.category));
-  } else if (state.category === '닭가슴살') {
-    list = list.filter(p => ALL_SUBCATEGORIES.includes(p.category) && state.subcategories.has(p.category));
-  } else {
+  } else if (state.category !== 'all') {
     list = list.filter(p => p.category === state.category);
   }
 
-  // 2차: 세부 칩 필터
   if (state.subCat) {
-    if (state.category === '닭가슴살') {
-      list = list.filter(p => p.flavor === state.subCat);
-    } else if (state.category === '보충제' || state.category === '음료') {
-      list = list.filter(p => getSubCat(p) === state.subCat);
-    }
+    list = list.filter(p => getSubCat(p) === state.subCat);
   }
 
   return list
@@ -269,10 +285,8 @@ function getFiltered() {
         const q = state.search.toLowerCase();
         if (!p.name.toLowerCase().includes(q) && !p.brand.toLowerCase().includes(q)) return false;
       }
-      if (!state.stores.has(p.store)) return false;
-      // 보충제·음료는 맛 필터 미적용 (모두 오리지널이므로)
-      if (ALL_SUBCATEGORIES.includes(p.category) && !state.flavors.has(p.flavor)) return false;
-      if (state.rocketOnly && p.store !== '쿠팡') return false;
+      if (!state.brands.has(p.brand)) return false;
+      if (!state.productTypes.has(getSubCat(p))) return false;
       if (state.activeOnly && daysUntil(p.expiryDate) <= 0) return false;
       return true;
     })
@@ -300,7 +314,7 @@ function renderTop10() {
     const thumb    = getThumbUrl(p);
 
     return `
-      <div class="top10-card" data-pid="${p.id}" data-link="${p.link}" onclick="handleProductClick(event, '${p.link}')">
+      <div class="top10-card" data-pid="${p.id}" onclick="openProductDetail(${p.id})">
         <div class="top10-img-wrap ${!thumb ? 'thumb-loading' : ''}">
           ${pct >= 25 ? '<span class="badge-yeokdaegup">역대급</span>' : ''}
           ${thumb
@@ -335,7 +349,7 @@ function renderCard(p) {
   const isHotdeal = pct >= 40;
 
   return `
-    <article class="product-card" data-pid="${p.id}" onclick="handleProductClick(event, '${p.link}')">
+    <article class="product-card" data-pid="${p.id}" onclick="openProductDetail(${p.id})">
       <div class="card-img-wrap ${!thumb ? 'thumb-loading' : ''}">
         ${showBadge ? `<div class="badge-lowprice">${isHotdeal ? '🔥 핫딜' : '역대급최저가'}<br>${isHotdeal ? '지금 바로!' : '구매타이밍'}</div>` : ''}
         ${thumb
@@ -356,7 +370,7 @@ function renderCard(p) {
           <span class="card-price">${formatKRW(p.salePrice)}</span>
           <span class="card-discount">▼${pct}%</span>
         </div>
-        <div class="card-viewers">${viewers}명 추가</div>
+        ${(() => { const ep = getEventBestPrice(p); return ep ? `<div class="card-event-price">🎁 이벤트 최저가 <strong>${formatKRW(ep)}</strong></div>` : ''; })()}
       </div>
     </article>`;
 }
@@ -387,16 +401,132 @@ function render() {
 }
 
 /* ============================================================
-   상품 클릭 → 로그인 게이트
+   상품 상세 페이지 (바텀시트)
    ============================================================ */
-function handleProductClick(e, link) {
-  e.stopPropagation();
+function openProductDetail(productId) {
+  const p = PRODUCTS.find(x => x.id === productId);
+  if (!p) return;
+  const pct      = discountPct(p.originalPrice, p.salePrice);
+  const delivery = deliveryInfo(p.store);
+  const thumb    = getThumbUrl(p);
+  const evts     = getProductEvents(p);
+  const safeLink = escHtml(safeUrl(p.link));
+
+  const eventsHtml = evts.length ? `
+    <div class="detail-events-wrap">
+      <div class="detail-events-title">🎁 적용 가능한 이벤트</div>
+      ${evts.map(e => `
+        <label class="detail-event-card" style="--ec:${e.color}">
+          <div class="detail-event-card-left">
+            <span class="detail-event-dot" style="background:${e.color}"></span>
+            <div>
+              <div class="detail-event-name">${escHtml(e.name)}</div>
+              <div class="detail-event-desc">${escHtml(e.desc)}</div>
+              <div class="detail-event-meta">추가 <strong>${e.discountPct}%</strong> 할인 · ~${e.endDate}</div>
+            </div>
+          </div>
+          <input type="checkbox" class="detail-event-cb" value="${e.id}" onchange="updateDetailCalc(${p.id})">
+        </label>`).join('')}
+      <div class="detail-calc">
+        <div class="detail-calc-label">이벤트 적용 후 예상가</div>
+        <div class="detail-calc-price" id="detailCalcPrice">${formatKRW(p.salePrice)}</div>
+        <div class="detail-calc-note" id="detailCalcNote">이벤트를 선택하면 할인가가 업데이트됩니다</div>
+      </div>
+    </div>` : `<div class="detail-no-events">이 상품에 적용 가능한 이벤트가 없습니다</div>`;
+
+  el('detailSheetInner').innerHTML = `
+    <div class="detail-close-row">
+      <button class="detail-close-btn" onclick="closeProductDetail()">✕ 닫기</button>
+    </div>
+    <div class="detail-img-wrap ${!thumb ? 'thumb-loading' : ''}">
+      ${thumb
+        ? `<img src="${escHtml(thumb)}" alt="${escHtml(p.name)}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+           <span class="detail-img-fallback" style="display:none">${p.emoji}</span>`
+        : `<span class="detail-img-fallback">${p.emoji}</span>`}
+    </div>
+    <div class="detail-info">
+      <div class="detail-delivery ${delivery.cls}">${delivery.label}</div>
+      <div class="detail-brand">${escHtml(p.brand)}</div>
+      <div class="detail-name">${escHtml(p.name)}</div>
+      <div class="detail-price-section">
+        <div class="detail-orig">정가 ${formatKRW(p.originalPrice)}</div>
+        <div class="detail-sale-row">
+          <span class="detail-sale-price">${formatKRW(p.salePrice)}</span>
+          <span class="detail-pct">▼${pct}%</span>
+        </div>
+      </div>
+    </div>
+    ${eventsHtml}
+    <div class="detail-actions">
+      <button class="detail-event-page-btn" onclick="openEventSheet()">이벤트 보기</button>
+      <button class="detail-buy-btn" onclick="handleBuyClick('${safeLink}')">구매하기</button>
+    </div>`;
+
+  el('detailSheet').classList.remove('hidden');
+  el('sheetOverlay').classList.remove('hidden');
+}
+
+function closeProductDetail() {
+  el('detailSheet').classList.add('hidden');
+  el('sheetOverlay').classList.add('hidden');
+}
+
+function updateDetailCalc(pid) {
+  const p = PRODUCTS.find(x => x.id === pid);
+  if (!p) return;
+  const checked = [...document.querySelectorAll('.detail-event-cb:checked')];
+  const evts = checked.map(cb => EVENTS.find(e => e.id === parseInt(cb.value))).filter(Boolean);
+  if (!evts.length) {
+    el('detailCalcPrice').textContent = formatKRW(p.salePrice);
+    el('detailCalcNote').textContent  = '이벤트를 선택하면 할인가가 업데이트됩니다';
+    return;
+  }
+  const best = Math.max(...evts.map(e => e.discountPct));
+  const final = Math.round(p.salePrice * (1 - best / 100));
+  el('detailCalcPrice').textContent = formatKRW(final);
+  el('detailCalcNote').textContent  = `${best}% 추가 할인 적용 (${formatKRW(p.salePrice)} → ${formatKRW(final)})`;
+}
+
+function handleBuyClick(link) {
   if (currentUser) {
-    window.open(link, '_blank');
+    window.open(link, '_blank', 'noopener,noreferrer');
   } else {
     pendingProductLink = link;
     openLoginSheet();
   }
+}
+
+/* ============================================================
+   이벤트 시트
+   ============================================================ */
+function openEventSheet(status) {
+  renderEventSheet(status || 'active');
+  el('eventSheet').classList.remove('hidden');
+  el('sheetOverlay').classList.remove('hidden');
+}
+function closeEventSheet() {
+  el('eventSheet').classList.add('hidden');
+  el('sheetOverlay').classList.add('hidden');
+}
+function renderEventSheet(status) {
+  const list = EVENTS.filter(e => status === 'active' ? e.active : !e.active);
+  el('eventSheetBody').innerHTML = list.length === 0
+    ? '<div class="event-empty">현재 진행중인 이벤트가 없습니다</div>'
+    : list.map(e => `
+      <div class="event-card">
+        <div class="event-card-dot" style="background:${e.color}"></div>
+        <div class="event-card-body">
+          <div class="event-card-brand">${escHtml(e.brandLabel)}</div>
+          <div class="event-card-name">${escHtml(e.name)}</div>
+          <div class="event-card-desc">${escHtml(e.desc)}</div>
+          <div class="event-card-meta">최대 <strong>${e.discountPct}%</strong> 추가 할인 · ~${e.endDate}</div>
+          <a class="event-card-link" href="${escHtml(safeUrl(e.link))}" target="_blank" rel="noopener noreferrer">이벤트 보러가기 →</a>
+        </div>
+      </div>`).join('');
+  // 탭 활성화
+  document.querySelectorAll('.event-status-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.status === status);
+  });
 }
 
 /* ============================================================
@@ -656,6 +786,30 @@ async function logout() {
 /* ============================================================
    이벤트 리스너
    ============================================================ */
+function initCheckboxGroup(allCbId, cbClass) {
+  const allCb    = el(allCbId);
+  const allLabel = allCb.closest('.filter-sheet-item');
+  const cbs      = document.querySelectorAll('.' + cbClass);
+  allLabel.classList.add('checked');
+  cbs.forEach(cb => cb.closest('.filter-sheet-item').classList.add('checked'));
+  allLabel.addEventListener('click', () => {
+    const v = !allCb.checked;
+    allCb.checked = v;
+    allLabel.classList.toggle('checked', v);
+    cbs.forEach(cb => { cb.checked = v; cb.closest('.filter-sheet-item').classList.toggle('checked', v); });
+  });
+  cbs.forEach(cb => {
+    cb.closest('.filter-sheet-item').addEventListener('click', () => {
+      cb.checked = !cb.checked;
+      cb.closest('.filter-sheet-item').classList.toggle('checked', cb.checked);
+      const all = [...cbs].every(c => c.checked);
+      allCb.checked = all;
+      allLabel.classList.toggle('checked', all);
+    });
+  });
+  return cbs;
+}
+
 function initListeners() {
   const searchInput  = el('searchInput');
   const sheetOverlay = el('sheetOverlay');
@@ -664,18 +818,16 @@ function initListeners() {
   const sortLabel    = el('sortLabel');
 
   /* 검색 */
-  searchInput.addEventListener('input', () => {
-    state.search = searchInput.value.trim();
-    render();
-  });
+  searchInput.addEventListener('input', () => { state.search = searchInput.value.trim(); render(); });
   searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') render(); });
   el('searchBtn').addEventListener('click', () => render());
 
-  /* 카테고리 탭 */
+  /* 카테고리 탭 — 이벤트 버튼은 시트 오픈, 나머지는 카테고리 필터 */
   el('categoryFilter').addEventListener('click', e => {
     const tab = e.target.closest('.tab');
     if (!tab) return;
-    document.querySelectorAll('#categoryFilter .tab').forEach(t => t.classList.remove('active'));
+    if (tab.id === 'eventBtn') { openEventSheet(); return; }
+    document.querySelectorAll('#categoryFilter .tab:not(#eventBtn)').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     state.category = tab.dataset.category;
     state.subCat   = null;
@@ -692,24 +844,22 @@ function initListeners() {
     render();
   });
 
-  /* 로켓배송 / 품절제외 */
-  el('filterRocket').addEventListener('change', e => { state.rocketOnly = e.target.checked; render(); });
+  /* 품절제외 */
   el('filterActive').addEventListener('change', e => { state.activeOnly = e.target.checked; render(); });
 
-  /* 공유 오버레이 */
+  /* 오버레이 → 모든 시트 닫기 */
   sheetOverlay.addEventListener('click', () => {
     sortSheet.classList.add('hidden');
     filterSheet.classList.add('hidden');
     el('cartSheet').classList.add('hidden');
     el('userSheet').classList.add('hidden');
+    el('detailSheet').classList.add('hidden');
+    el('eventSheet').classList.add('hidden');
     sheetOverlay.classList.add('hidden');
   });
 
   /* 정렬 시트 */
-  el('sortBtn').addEventListener('click', () => {
-    sortSheet.classList.remove('hidden');
-    sheetOverlay.classList.remove('hidden');
-  });
+  el('sortBtn').addEventListener('click', () => { sortSheet.classList.remove('hidden'); sheetOverlay.classList.remove('hidden'); });
   document.querySelectorAll('.sort-option').forEach(btn => {
     btn.addEventListener('click', () => {
       state.sort = btn.dataset.sort;
@@ -722,111 +872,26 @@ function initListeners() {
     });
   });
 
-  /* 필터 시트 */
-  const selectAllCb    = el('storeSelectAll');
-  const selectAllLabel = selectAllCb.closest('.filter-sheet-item');
-  const storeCbs       = document.querySelectorAll('.store-cb');
+  /* 필터 시트 — 브랜드 + 종류 */
+  const brandCbs = initCheckboxGroup('brandSelectAll', 'brand-cb');
+  const typeCbs  = initCheckboxGroup('typeSelectAll', 'type-cb');
 
-  selectAllLabel.classList.add('checked');
-  storeCbs.forEach(cb => cb.closest('.filter-sheet-item').classList.add('checked'));
-
-  selectAllLabel.addEventListener('click', () => {
-    const willCheck = !selectAllCb.checked;
-    selectAllCb.checked = willCheck;
-    selectAllLabel.classList.toggle('checked', willCheck);
-    storeCbs.forEach(cb => {
-      cb.checked = willCheck;
-      cb.closest('.filter-sheet-item').classList.toggle('checked', willCheck);
-    });
-  });
-  storeCbs.forEach(cb => {
-    cb.closest('.filter-sheet-item').addEventListener('click', () => {
-      cb.checked = !cb.checked;
-      cb.closest('.filter-sheet-item').classList.toggle('checked', cb.checked);
-      const allChecked = [...storeCbs].every(c => c.checked);
-      selectAllCb.checked = allChecked;
-      selectAllLabel.classList.toggle('checked', allChecked);
-    });
-  });
-
-  el('filterBtn').addEventListener('click', () => {
-    filterSheet.dataset.tab = state.category;
-    filterSheet.classList.remove('hidden');
-    sheetOverlay.classList.remove('hidden');
-  });
-  el('filterSheetClose').addEventListener('click', () => {
-    filterSheet.classList.add('hidden');
-    sheetOverlay.classList.add('hidden');
-  });
-  /* 맛 필터 */
-  const flavorAllCb    = el('flavorSelectAll');
-  const flavorAllLabel = flavorAllCb.closest('.filter-sheet-item');
-  const flavorCbs      = document.querySelectorAll('.flavor-cb');
-
-  flavorAllLabel.classList.add('checked');
-  flavorCbs.forEach(cb => cb.closest('.filter-sheet-item').classList.add('checked'));
-
-  flavorAllLabel.addEventListener('click', () => {
-    const willCheck = !flavorAllCb.checked;
-    flavorAllCb.checked = willCheck;
-    flavorAllLabel.classList.toggle('checked', willCheck);
-    flavorCbs.forEach(cb => {
-      cb.checked = willCheck;
-      cb.closest('.filter-sheet-item').classList.toggle('checked', willCheck);
-    });
-  });
-  flavorCbs.forEach(cb => {
-    cb.closest('.filter-sheet-item').addEventListener('click', () => {
-      cb.checked = !cb.checked;
-      cb.closest('.filter-sheet-item').classList.toggle('checked', cb.checked);
-      const allChecked = [...flavorCbs].every(c => c.checked);
-      flavorAllCb.checked = allChecked;
-      flavorAllLabel.classList.toggle('checked', allChecked);
-    });
-  });
-
-  /* 종류 필터 */
-  const subcatAllCb    = el('subcatSelectAll');
-  const subcatAllLabel = subcatAllCb.closest('.filter-sheet-item');
-  const subcatCbs      = document.querySelectorAll('.subcat-cb');
-
-  subcatAllLabel.classList.add('checked');
-  subcatCbs.forEach(cb => cb.closest('.filter-sheet-item').classList.add('checked'));
-
-  subcatAllLabel.addEventListener('click', () => {
-    const willCheck = !subcatAllCb.checked;
-    subcatAllCb.checked = willCheck;
-    subcatAllLabel.classList.toggle('checked', willCheck);
-    subcatCbs.forEach(cb => {
-      cb.checked = willCheck;
-      cb.closest('.filter-sheet-item').classList.toggle('checked', willCheck);
-    });
-  });
-  subcatCbs.forEach(cb => {
-    cb.closest('.filter-sheet-item').addEventListener('click', () => {
-      cb.checked = !cb.checked;
-      cb.closest('.filter-sheet-item').classList.toggle('checked', cb.checked);
-      const allChecked = [...subcatCbs].every(c => c.checked);
-      subcatAllCb.checked = allChecked;
-      subcatAllLabel.classList.toggle('checked', allChecked);
-    });
-  });
+  el('filterBtn').addEventListener('click', () => { filterSheet.classList.remove('hidden'); sheetOverlay.classList.remove('hidden'); });
+  el('filterSheetClose').addEventListener('click', () => { filterSheet.classList.add('hidden'); sheetOverlay.classList.add('hidden'); });
 
   el('filterReset').addEventListener('click', () => {
-    selectAllCb.checked = true;
-    selectAllLabel.classList.add('checked');
-    storeCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
-    flavorAllCb.checked = true;
-    flavorAllLabel.classList.add('checked');
-    flavorCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
-    subcatAllCb.checked = true;
-    subcatAllLabel.classList.add('checked');
-    subcatCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
+    [brandCbs, typeCbs].forEach(cbs => cbs.forEach(cb => {
+      cb.checked = true;
+      cb.closest('.filter-sheet-item').classList.add('checked');
+    }));
+    el('brandSelectAll').checked = true;
+    el('brandSelectAll').closest('.filter-sheet-item').classList.add('checked');
+    el('typeSelectAll').checked = true;
+    el('typeSelectAll').closest('.filter-sheet-item').classList.add('checked');
   });
   el('filterApply').addEventListener('click', () => {
-    state.stores        = new Set([...storeCbs].filter(cb => cb.checked).map(cb => cb.value));
-    state.flavors       = new Set([...flavorCbs].filter(cb => cb.checked).map(cb => cb.value));
-    state.subcategories = new Set([...subcatCbs].filter(cb => cb.checked).map(cb => cb.value));
+    state.brands       = new Set([...brandCbs].filter(cb => cb.checked).map(cb => cb.value));
+    state.productTypes = new Set([...typeCbs].filter(cb => cb.checked).map(cb => cb.value));
     updateFilterCount();
     filterSheet.classList.add('hidden');
     sheetOverlay.classList.add('hidden');
@@ -835,34 +900,31 @@ function initListeners() {
 
   /* 빈 상태 초기화 */
   el('resetFilters').addEventListener('click', () => {
-    state = { search: '', category: 'all', subCat: null, rocketOnly: false, activeOnly: false, sort: 'discount', stores: new Set(ALL_STORES), flavors: new Set(ALL_FLAVORS), subcategories: new Set(ALL_SUBCATEGORIES) };
+    state = { search:'', category:'all', subCat:null, activeOnly:false, sort:'discount', brands:new Set(ALL_BRANDS), productTypes:new Set(ALL_PRODUCT_TYPES) };
     searchInput.value = '';
-    document.querySelectorAll('#categoryFilter .tab').forEach((t, i) => t.classList.toggle('active', i === 0));
-    el('filterRocket').checked = false;
+    document.querySelectorAll('#categoryFilter .tab:not(#eventBtn)').forEach((t,i) => t.classList.toggle('active', i===0));
     el('filterActive').checked = false;
     sortLabel.textContent = '급하락순';
-    document.querySelectorAll('.sort-option').forEach((b, i) => b.classList.toggle('active', i === 0));
-    selectAllCb.checked = true;
-    selectAllLabel.classList.add('checked');
-    storeCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
-    subcatAllCb.checked = true;
-    subcatAllLabel.classList.add('checked');
-    subcatCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
+    document.querySelectorAll('.sort-option').forEach((b,i) => b.classList.toggle('active', i===0));
     renderSubcatChips();
     updateFilterCount();
     render();
   });
 
-  /* ---- 로그인 UI 이벤트 ---- */
-  el('authBtn').addEventListener('click', () => openLoginSheet());
-  el('cartBtn').addEventListener('click', () => openCartSheet());
-  el('userBtn').addEventListener('click', () => openUserSheet());
+  /* 이벤트 시트 탭 */
+  el('eventStatusTabs').addEventListener('click', e => {
+    const tab = e.target.closest('.event-status-tab');
+    if (tab) renderEventSheet(tab.dataset.status);
+  });
+  el('eventSheetClose').addEventListener('click', closeEventSheet);
+
+  /* 인증 버튼 */
+  el('authBtn').addEventListener('click', openLoginSheet);
+  el('cartBtn').addEventListener('click', openCartSheet);
+  el('userBtn').addEventListener('click', openUserSheet);
   el('cartSheetClose').addEventListener('click', closeCartSheet);
   el('userSheetClose').addEventListener('click', closeUserSheet);
-  el('userLogoutBtn').addEventListener('click', () => {
-    closeUserSheet();
-    logout();
-  });
+  el('userLogoutBtn').addEventListener('click', () => { closeUserSheet(); logout(); });
   el('loginOverlay').addEventListener('click', closeLoginSheet);
   el('loginClose').addEventListener('click', closeLoginSheet);
   el('goSignup').addEventListener('click', () => {
