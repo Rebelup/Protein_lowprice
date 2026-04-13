@@ -1,3 +1,10 @@
+/* v1.0.0 - 2026-04-13
+   프로틴 특가 | 마이프로틴 & BSN 보충제 특가 모음
+   - 이벤트 시스템 (진행중/예정 탭)
+   - 상품 상세 페이지 (이벤트 선택 + 실시간 가격 계산)
+   - 보안: XSS 방지, noopener/noreferrer, DOM API 사용
+   - 최적화: 디바운스 검색, 이벤트 위임
+*/
 'use strict';
 
 /* ============================================================
@@ -53,6 +60,11 @@ function safeUrl(u) {
     const parsed = new URL(u);
     return (parsed.protocol === 'https:' || parsed.protocol === 'http:') ? u : '#';
   } catch { return '#'; }
+}
+
+function debounce(fn, ms) {
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), ms); };
 }
 
 function discountPct(orig, sale) {
@@ -458,8 +470,8 @@ function openProductDetail(productId) {
     </div>
     ${eventsHtml}
     <div class="detail-actions">
-      <button class="detail-event-page-btn" onclick="openEventSheet()">이벤트 보기</button>
-      <button class="detail-buy-btn" onclick="handleBuyClick('${safeLink}')">구매하기</button>
+      <button class="detail-event-page-btn js-open-event">이벤트 보기</button>
+      <button class="detail-buy-btn" data-link="${safeLink}">구매하기</button>
     </div>`;
 
   el('detailSheet').classList.remove('hidden');
@@ -699,8 +711,13 @@ function openUserSheet() {
   el('userSheetEmail').textContent = email;
 
   const avatarEl = el('userAvatar');
+  avatarEl.textContent = '';
   if (photo) {
-    avatarEl.innerHTML = `<img src="${escHtml(photo)}" alt="${escHtml(name)}" onerror="this.textContent='${initial}'">`;
+    const img = document.createElement('img');
+    img.src = photo;
+    img.alt = name;
+    img.onerror = () => { avatarEl.textContent = initial; };
+    avatarEl.appendChild(img);
   } else {
     avatarEl.textContent = initial;
   }
@@ -743,7 +760,7 @@ async function emailLogin() {
   } else {
     closeLoginSheet();
     if (pendingProductLink) {
-      window.open(pendingProductLink, '_blank');
+      window.open(pendingProductLink, '_blank', 'noopener,noreferrer');
       pendingProductLink = null;
     }
   }
@@ -817,10 +834,18 @@ function initListeners() {
   const filterSheet  = el('filterSheet');
   const sortLabel    = el('sortLabel');
 
-  /* 검색 */
-  searchInput.addEventListener('input', () => { state.search = searchInput.value.trim(); render(); });
-  searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') render(); });
-  el('searchBtn').addEventListener('click', () => render());
+  /* 검색 (debounce 250ms) */
+  const debouncedRender = debounce(() => { state.search = searchInput.value.trim(); render(); }, 250);
+  searchInput.addEventListener('input', debouncedRender);
+  searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(); state.search = searchInput.value.trim(); render(); } });
+  el('searchBtn').addEventListener('click', () => { state.search = searchInput.value.trim(); render(); });
+
+  /* 상품 상세 시트 이벤트 위임 (detail-buy-btn, js-open-event) */
+  el('detailSheetInner').addEventListener('click', e => {
+    const buyBtn = e.target.closest('.detail-buy-btn');
+    if (buyBtn) { handleBuyClick(buyBtn.dataset.link); return; }
+    if (e.target.closest('.js-open-event')) { openEventSheet(); }
+  });
 
   /* 카테고리 탭 — 이벤트 버튼은 시트 오픈, 나머지는 카테고리 필터 */
   el('categoryFilter').addEventListener('click', e => {
@@ -959,7 +984,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     updateAuthUI(currentUser);
     // 로그인 성공 후 대기 중이던 링크 처리
     if (currentUser && pendingProductLink) {
-      window.open(pendingProductLink, '_blank');
+      window.open(pendingProductLink, '_blank', 'noopener,noreferrer');
       pendingProductLink = null;
       closeLoginSheet();
     }

@@ -374,11 +374,6 @@ body {
   margin-bottom: 20px;
 }
 
-/* 컨텍스트별 필터 섹션 표시/숨김 */
-.filter-sheet[data-tab="보충제"] .fs-kind,
-.filter-sheet[data-tab="보충제"] .fs-flavor,
-.filter-sheet[data-tab="음료"] .fs-kind,
-.filter-sheet[data-tab="음료"] .fs-flavor { display: none; }
 .filter-sheet-item {
   display: flex;
   align-items: center;
@@ -540,8 +535,6 @@ body {
   align-items: center;
   gap: 2px;
 }
-.delivery-tag.rocket { color: var(--blue); }
-.delivery-tag.fresh  { color: var(--green); }
 .delivery-tag.normal { color: var(--muted); }
 
 .top10-name {
@@ -675,8 +668,6 @@ body {
   font-weight: 700;
   margin-bottom: 3px;
 }
-.card-delivery.rocket { color: var(--blue); }
-.card-delivery.fresh  { color: var(--green); }
 .card-delivery.normal { color: var(--muted); }
 
 .card-name {
