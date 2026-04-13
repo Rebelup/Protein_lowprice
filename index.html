@@ -27,6 +27,16 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
         <span id="authBtnLabel">로그인</span>
       </button>
+      <!-- 로그인 후 표시되는 아이콘 그룹 -->
+      <div class="header-icon-group hidden" id="headerIconGroup">
+        <button class="header-icon-btn" id="cartBtn" aria-label="장바구니">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+          <span class="cart-badge hidden" id="cartBadge">0</span>
+        </button>
+        <button class="header-icon-btn" id="userBtn" aria-label="내 정보">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        </button>
+      </div>
     </div>
   </header>
 
@@ -228,6 +238,28 @@
     <p>가격·할인 정보는 참고용이며 실제와 다를 수 있습니다.</p>
     <p>© 2026 닭가슴살 특가</p>
   </footer>
+
+  <!-- ===================== CART SHEET ===================== -->
+  <div class="cart-sheet hidden" id="cartSheet">
+    <div class="cart-sheet-header">
+      <span class="cart-sheet-title">장바구니</span>
+      <button class="sheet-close" id="cartSheetClose">✕</button>
+    </div>
+    <div class="cart-sheet-body" id="cartSheetBody"></div>
+  </div>
+
+  <!-- ===================== USER INFO SHEET ===================== -->
+  <div class="user-sheet hidden" id="userSheet">
+    <div class="user-sheet-header">
+      <button class="login-close" id="userSheetClose">✕</button>
+    </div>
+    <div class="user-sheet-body">
+      <div class="user-avatar" id="userAvatar"></div>
+      <div class="user-name" id="userSheetName"></div>
+      <div class="user-email" id="userSheetEmail"></div>
+      <button class="user-logout-btn" id="userLogoutBtn">로그아웃</button>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
