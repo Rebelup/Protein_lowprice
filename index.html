@@ -46,7 +46,6 @@
       <button class="tab active" data-category="all">전체</button>
       <button class="tab tab-hotdeal" data-category="hotdeal">🔥 핫딜</button>
       <button class="tab" data-category="보충제">보충제</button>
-      <button class="tab tab-event" id="eventBtn">🎁 이벤트</button>
     </div>
     <!-- 세부 카테고리 칩 -->
     <div class="subcat-chips-wrap hidden" id="subcatChipsWrap">
@@ -58,7 +57,7 @@
   <div class="filter-row">
     <div class="filter-left">
       <button class="sort-btn" id="sortBtn">
-        <span id="sortLabel">급하락순</span>
+        <span id="sortLabel">가격 낮은순</span>
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
       </button>
       <div class="filter-divider"></div>
@@ -69,6 +68,7 @@
       </button>
     </div>
     <div class="filter-checks">
+      <button class="tab tab-event" id="eventBtn">🎁 이벤트</button>
       <label class="filter-check">
         <input type="checkbox" id="filterActive" />
         <span>품절제외</span>
@@ -82,8 +82,7 @@
   <!-- 정렬 바텀시트 -->
   <div class="sort-sheet hidden" id="sortSheet">
     <div class="sort-sheet-title">정렬</div>
-    <button class="sort-option active" data-sort="discount">급하락순</button>
-    <button class="sort-option" data-sort="price_asc">가격 낮은순</button>
+    <button class="sort-option active" data-sort="price_asc">가격 낮은순</button>
     <button class="sort-option" data-sort="price_desc">가격 높은순</button>
     <button class="sort-option" data-sort="name">상품명순</button>
   </div>

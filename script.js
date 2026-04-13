@@ -141,7 +141,7 @@ let state = {
   category:     'all',
   subCat:       null,
   activeOnly:   false,
-  sort:         'discount',
+  sort:         'price_asc',
   brands:       new Set(ALL_BRANDS),
   productTypes: new Set(ALL_PRODUCT_TYPES),
 };
@@ -303,11 +303,10 @@ function getFiltered() {
       return true;
     })
     .sort((a, b) => {
-      if (state.sort === 'discount')   return discountPct(b.originalPrice, b.salePrice) - discountPct(a.originalPrice, a.salePrice);
       if (state.sort === 'price_asc')  return a.salePrice - b.salePrice;
       if (state.sort === 'price_desc') return b.salePrice - a.salePrice;
       if (state.sort === 'name')       return a.name.localeCompare(b.name, 'ko');
-      return 0;
+      return a.salePrice - b.salePrice;
     });
 }
 
@@ -852,7 +851,7 @@ function initListeners() {
     const tab = e.target.closest('.tab');
     if (!tab) return;
     if (tab.id === 'eventBtn') { openEventSheet(); return; }
-    document.querySelectorAll('#categoryFilter .tab:not(#eventBtn)').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('#categoryFilter .tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     state.category = tab.dataset.category;
     state.subCat   = null;
@@ -925,11 +924,11 @@ function initListeners() {
 
   /* 빈 상태 초기화 */
   el('resetFilters').addEventListener('click', () => {
-    state = { search:'', category:'all', subCat:null, activeOnly:false, sort:'discount', brands:new Set(ALL_BRANDS), productTypes:new Set(ALL_PRODUCT_TYPES) };
+    state = { search:'', category:'all', subCat:null, activeOnly:false, sort:'price_asc', brands:new Set(ALL_BRANDS), productTypes:new Set(ALL_PRODUCT_TYPES) };
     searchInput.value = '';
-    document.querySelectorAll('#categoryFilter .tab:not(#eventBtn)').forEach((t,i) => t.classList.toggle('active', i===0));
+    document.querySelectorAll('#categoryFilter .tab').forEach((t,i) => t.classList.toggle('active', i===0));
     el('filterActive').checked = false;
-    sortLabel.textContent = '급하락순';
+    sortLabel.textContent = '가격 낮은순';
     document.querySelectorAll('.sort-option').forEach((b,i) => b.classList.toggle('active', i===0));
     renderSubcatChips();
     updateFilterCount();
