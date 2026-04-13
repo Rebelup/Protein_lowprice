@@ -758,6 +758,485 @@ body {
 }
 
 /* =====================
+   AUTH BUTTON
+   ===================== */
+.auth-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 99px;
+  padding: 5px 11px 5px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--sub);
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+  transition: all .15s;
+}
+.auth-btn:hover { border-color: var(--blue); color: var(--blue); }
+.auth-btn svg { flex-shrink: 0; }
+
+/* =====================
+   HEADER ICON GROUP (로그인 후 표시)
+   ===================== */
+.header-icon-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.header-icon-btn {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  background: none;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  color: var(--sub);
+  transition: background .15s;
+}
+.header-icon-btn:hover { background: #F0F0F0; }
+.cart-badge {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  background: var(--red);
+  color: var(--white);
+  font-size: 9px;
+  font-weight: 800;
+  border-radius: 99px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+/* =====================
+   핫딜 탭 스타일
+   ===================== */
+.tab-hotdeal {
+  background: linear-gradient(135deg, #FF6B35, #E53935);
+  border-color: transparent;
+  color: var(--white);
+  font-weight: 700;
+}
+.tab-hotdeal:hover {
+  background: linear-gradient(135deg, #E85A22, #C62828);
+  border-color: transparent;
+  color: var(--white);
+}
+.tab-hotdeal.active {
+  background: linear-gradient(135deg, #E85A22, #C62828);
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(229,57,53,.4);
+}
+
+/* =====================
+   핫딜 배너
+   ===================== */
+.hotdeal-banner {
+  background: linear-gradient(135deg, #FF6B35 0%, #E53935 100%);
+  padding: 14px 16px;
+  margin-bottom: 0;
+}
+.hotdeal-banner-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--white);
+}
+.hotdeal-fire { font-size: 32px; line-height: 1; }
+.hotdeal-banner-inner strong { font-size: 15px; font-weight: 800; display: block; margin-bottom: 2px; }
+.hotdeal-banner-inner p { font-size: 12px; opacity: .88; }
+
+/* =====================
+   THUMBNAIL SKELETON
+   ===================== */
+.thumb-loading {
+  background: linear-gradient(90deg, #F0F0F0 25%, #E8E8E8 50%, #F0F0F0 75%);
+  background-size: 400px 100%;
+  animation: shimmer 1.2s infinite;
+}
+
+/* =====================
+   원가 표시
+   ===================== */
+.card-orig {
+  font-size: 11px;
+  color: var(--muted);
+  text-decoration: line-through;
+  margin-bottom: 2px;
+}
+
+/* =====================
+   LOGIN OVERLAY + SHEET
+   ===================== */
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,.55);
+  z-index: 300;
+  backdrop-filter: blur(2px);
+}
+.login-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 640px;
+  background: var(--white);
+  border-radius: 20px 20px 0 0;
+  z-index: 301;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.login-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 16px 0;
+}
+.login-close {
+  background: #F0F0F0;
+  border: none;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--sub);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.login-logo {
+  text-align: center;
+  font-size: 40px;
+  margin-bottom: 8px;
+}
+.login-title {
+  text-align: center;
+  font-size: 20px;
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+.login-sub {
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 24px;
+  padding: 0 20px;
+}
+#loginForm, #signupForm {
+  padding: 0 20px 20px;
+}
+.social-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  margin-bottom: 10px;
+  transition: opacity .15s;
+}
+.social-btn:hover { opacity: .88; }
+.social-btn svg { flex-shrink: 0; }
+.social-google {
+  background: var(--white);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+}
+.login-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.login-divider::before,
+.login-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+.login-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.login-input {
+  width: 100%;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 13px 14px;
+  font-size: 15px;
+  outline: none;
+  color: var(--text);
+  transition: border-color .15s;
+  background: var(--white);
+}
+.login-input:focus { border-color: var(--blue); }
+.login-input::placeholder { color: #BBBBBB; }
+.login-error {
+  background: #FFF0F0;
+  border: 1px solid #FFCDD2;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--red);
+  margin-bottom: 12px;
+}
+.login-submit-btn {
+  width: 100%;
+  background: var(--blue);
+  color: var(--white);
+  border: none;
+  border-radius: 10px;
+  padding: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background .15s;
+}
+.login-submit-btn:hover { background: #1558C0; }
+.login-submit-btn:disabled {
+  background: var(--border);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+.login-switch {
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 14px;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--blue);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+}
+
+/* =====================
+   CART SHEET
+   ===================== */
+.cart-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 640px;
+  background: var(--white);
+  border-radius: 20px 20px 0 0;
+  z-index: 301;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+}
+.cart-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.cart-sheet-title {
+  font-size: 16px;
+  font-weight: 800;
+}
+.cart-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 16px;
+}
+.cart-empty {
+  text-align: center;
+  padding: 48px 24px;
+  color: var(--muted);
+}
+.cart-empty-icon { font-size: 40px; margin-bottom: 12px; }
+.cart-empty p { font-size: 14px; }
+.cart-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.cart-item:last-child { border-bottom: none; }
+.cart-item-img {
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  background: #F8F8F8;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  overflow: hidden;
+}
+.cart-item-img img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+}
+.cart-item-body {
+  flex: 1;
+  min-width: 0;
+}
+.cart-item-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  margin-bottom: 4px;
+}
+.cart-item-price {
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text);
+}
+.cart-item-store {
+  font-size: 11px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+.cart-item-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.cart-item-link {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--blue);
+  background: var(--blue-light);
+  border: none;
+  border-radius: 6px;
+  padding: 5px 9px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cart-item-remove {
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  transition: color .15s;
+}
+.cart-item-remove:hover { color: var(--red); }
+
+/* =====================
+   USER INFO SHEET
+   ===================== */
+.user-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100%;
+  max-width: 640px;
+  background: var(--white);
+  border-radius: 20px 20px 0 0;
+  z-index: 301;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+.user-sheet-header {
+  display: flex;
+  justify-content: flex-end;
+  padding: 14px 16px 0;
+}
+.user-sheet-body {
+  padding: 16px 24px 24px;
+}
+.user-avatar {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: var(--blue-light);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--blue);
+  margin: 0 auto 14px;
+  overflow: hidden;
+}
+.user-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.user-name {
+  text-align: center;
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.user-email {
+  text-align: center;
+  font-size: 13px;
+  color: var(--muted);
+  margin-bottom: 24px;
+}
+.user-logout-btn {
+  width: 100%;
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 13px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--sub);
+  cursor: pointer;
+  transition: all .15s;
+}
+.user-logout-btn:hover {
+  border-color: var(--red);
+  color: var(--red);
+}
+
+/* =====================
    DESKTOP
    ===================== */
 @media (min-width: 641px) {

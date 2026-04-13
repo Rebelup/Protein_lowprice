@@ -26,6 +26,15 @@ const THUMB_CACHE_KEY   = 'protein_thumb_v1';
    ============================================================ */
 function el(id) { return document.getElementById(id); }
 
+const _escMap = { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' };
+function escHtml(s) { return String(s).replace(/[&<>"']/g, c => _escMap[c]); }
+function safeUrl(u) {
+  try {
+    const parsed = new URL(u);
+    return (parsed.protocol === 'https:' || parsed.protocol === 'http:') ? u : '#';
+  } catch { return '#'; }
+}
+
 function discountPct(orig, sale) {
   return Math.round(((orig - sale) / orig) * 100);
 }
@@ -336,12 +345,13 @@ function renderCard(p) {
           : `<span class="card-img-fallback">${p.emoji}</span>`
         }
         <button class="add-btn"
-          onclick="event.stopPropagation(); handleProductClick(event, '${p.link}')"
-          aria-label="바로가기">+</button>
+          onclick="event.stopPropagation(); addToCart(${p.id})"
+          aria-label="장바구니에 추가">+</button>
       </div>
       <div class="card-body">
         <div class="card-delivery ${delivery.cls}">${delivery.label}</div>
         <div class="card-name">${p.name}</div>
+        <div class="card-orig">정가 ${formatKRW(p.originalPrice)}</div>
         <div class="card-price-row">
           <span class="card-price">${formatKRW(p.salePrice)}</span>
           <span class="card-discount">▼${pct}%</span>
@@ -422,17 +432,155 @@ function setLoading(btnId, loading) {
 }
 
 function updateAuthUI(user) {
-  const btn   = el('authBtn');
-  const label = el('authBtnLabel');
+  const authBtn        = el('authBtn');
+  const iconGroup      = el('headerIconGroup');
   if (user) {
-    const raw  = user.user_metadata?.full_name || user.email?.split('@')[0] || '내 계정';
-    const name = raw.length > 7 ? raw.slice(0, 7) + '…' : raw;
-    label.textContent = name;
-    btn.classList.add('logged-in');
+    authBtn.classList.add('hidden');
+    iconGroup.classList.remove('hidden');
+    updateCartBadge();
   } else {
-    label.textContent = '로그인';
-    btn.classList.remove('logged-in');
+    authBtn.classList.remove('hidden');
+    iconGroup.classList.add('hidden');
   }
+}
+
+/* ============================================================
+   CART — localStorage 기반
+   ============================================================ */
+const CART_KEY = 'protein_cart_v1';
+
+function getCart() {
+  try { return JSON.parse(localStorage.getItem(CART_KEY) || '[]'); }
+  catch { return []; }
+}
+function setCart(items) {
+  try { localStorage.setItem(CART_KEY, JSON.stringify(items)); }
+  catch {}
+}
+
+function addToCart(productId) {
+  if (!currentUser) { openLoginSheet(); return; }
+  const p = PRODUCTS.find(x => x.id === productId);
+  if (!p) return;
+  const cart = getCart();
+  if (cart.some(c => c.id === productId)) {
+    // 이미 추가됨 - 살짝 피드백
+    showCartToast('이미 장바구니에 있어요');
+    return;
+  }
+  cart.push({
+    id:            p.id,
+    name:          p.name,
+    store:         p.store,
+    emoji:         p.emoji,
+    thumbnail:     getThumbUrl(p),
+    salePrice:     p.salePrice,
+    link:          p.link,
+  });
+  setCart(cart);
+  updateCartBadge();
+  showCartToast('장바구니에 추가됐어요');
+}
+
+function removeFromCart(productId) {
+  setCart(getCart().filter(c => c.id !== productId));
+  updateCartBadge();
+  renderCartSheet();
+}
+
+function updateCartBadge() {
+  const badge = el('cartBadge');
+  const count = getCart().length;
+  if (count > 0) {
+    badge.textContent = count > 99 ? '99+' : count;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+let toastTimer = null;
+function showCartToast(msg) {
+  let toast = document.getElementById('cartToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'cartToast';
+    toast.style.cssText = 'position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.78);color:#fff;border-radius:99px;padding:9px 20px;font-size:13px;font-weight:600;z-index:500;white-space:nowrap;transition:opacity .3s';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = msg;
+  toast.style.opacity = '1';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+}
+
+function renderCartSheet() {
+  const body = el('cartSheetBody');
+  const cart = getCart();
+  if (cart.length === 0) {
+    body.innerHTML = `
+      <div class="cart-empty">
+        <div class="cart-empty-icon">🛒</div>
+        <p>장바구니가 비어있어요</p>
+      </div>`;
+    return;
+  }
+  body.innerHTML = cart.map(item => {
+    const imgHtml = item.thumbnail
+      ? `<img src="${escHtml(item.thumbnail)}" alt="${escHtml(item.name)}" onerror="this.style.display='none'">`
+      : escHtml(item.emoji);
+    return `
+      <div class="cart-item">
+        <div class="cart-item-img">${imgHtml}</div>
+        <div class="cart-item-body">
+          <div class="cart-item-name">${escHtml(item.name)}</div>
+          <div class="cart-item-price">${formatKRW(item.salePrice)}</div>
+          <div class="cart-item-store">${escHtml(item.store)}</div>
+        </div>
+        <div class="cart-item-actions">
+          <a class="cart-item-link" href="${escHtml(safeUrl(item.link))}" target="_blank" rel="noopener noreferrer">구매</a>
+          <button class="cart-item-remove" onclick="removeFromCart(${item.id})" aria-label="삭제">×</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openCartSheet() {
+  renderCartSheet();
+  el('cartSheet').classList.remove('hidden');
+  el('sheetOverlay').classList.remove('hidden');
+}
+function closeCartSheet() {
+  el('cartSheet').classList.add('hidden');
+  el('sheetOverlay').classList.add('hidden');
+}
+
+/* ============================================================
+   USER INFO SHEET
+   ============================================================ */
+function openUserSheet() {
+  if (!currentUser) return;
+  const name  = currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || '내 계정';
+  const email = currentUser.email || '';
+  const photo = currentUser.user_metadata?.avatar_url || '';
+  const initial = name.charAt(0).toUpperCase();
+
+  el('userSheetName').textContent  = name;
+  el('userSheetEmail').textContent = email;
+
+  const avatarEl = el('userAvatar');
+  if (photo) {
+    avatarEl.innerHTML = `<img src="${escHtml(photo)}" alt="${escHtml(name)}" onerror="this.textContent='${initial}'">`;
+  } else {
+    avatarEl.textContent = initial;
+  }
+
+  el('userSheet').classList.remove('hidden');
+  el('sheetOverlay').classList.remove('hidden');
+}
+function closeUserSheet() {
+  el('userSheet').classList.add('hidden');
+  el('sheetOverlay').classList.add('hidden');
 }
 
 /* ============================================================
@@ -552,6 +700,8 @@ function initListeners() {
   sheetOverlay.addEventListener('click', () => {
     sortSheet.classList.add('hidden');
     filterSheet.classList.add('hidden');
+    el('cartSheet').classList.add('hidden');
+    el('userSheet').classList.add('hidden');
     sheetOverlay.classList.add('hidden');
   });
 
@@ -704,13 +854,14 @@ function initListeners() {
   });
 
   /* ---- 로그인 UI 이벤트 ---- */
-  el('authBtn').addEventListener('click', () => {
-    if (currentUser) {
-      // 로그인 상태 → 로그아웃 확인
-      if (confirm('로그아웃 하시겠습니까?')) logout();
-    } else {
-      openLoginSheet();
-    }
+  el('authBtn').addEventListener('click', () => openLoginSheet());
+  el('cartBtn').addEventListener('click', () => openCartSheet());
+  el('userBtn').addEventListener('click', () => openUserSheet());
+  el('cartSheetClose').addEventListener('click', closeCartSheet);
+  el('userSheetClose').addEventListener('click', closeUserSheet);
+  el('userLogoutBtn').addEventListener('click', () => {
+    closeUserSheet();
+    logout();
   });
   el('loginOverlay').addEventListener('click', closeLoginSheet);
   el('loginClose').addEventListener('click', closeLoginSheet);
