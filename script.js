@@ -14,10 +14,12 @@ let PRODUCTS         = [];
 let currentUser      = null;
 let pendingProductLink = null;   // 로그인 후 열 상품 링크
 
-const ALL_STORES  = ['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁'];
-const ALL_FLAVORS = ['무염', '오리지널', '매운맛', '갈릭', '간장'];
+const ALL_STORES        = ['쿠팡', '마켓컬리', '이마트', '홈플러스', 'GS25', '올리브영', '오늘의식탁'];
+const ALL_FLAVORS       = ['무염', '오리지널', '매운맛', '갈릭', '간장'];
 const ALL_SUBCATEGORIES = ['훈제', '냉동', '냉장', '통조림', '가공'];
-const THUMB_CACHE_KEY = 'protein_thumb_v1';
+const BOOSTER_SUB       = ['단백질 파우더', 'BCAA', '크레아틴', '영양제'];
+const DRINK_SUB         = ['RTD 단백질', '프로틴 워터', 'BCAA 드링크'];
+const THUMB_CACHE_KEY   = 'protein_thumb_v1';
 
 /* ============================================================
    HELPERS
@@ -44,16 +46,54 @@ function viewerCount(id) {
   return ((id * 7 + 3) % 19) + 3;
 }
 
+/** 보충제·음료 세부 분류 (이름 키워드로 파생) */
+function getSubCat(p) {
+  if (p.category === '보충제') {
+    if (/BCAA/.test(p.name)) return 'BCAA';
+    if (/크레아틴/.test(p.name)) return '크레아틴';
+    if (/콜라겐|펩타이드/.test(p.name)) return '영양제';
+    return '단백질 파우더';
+  }
+  if (p.category === '음료') {
+    if (/BCAA/.test(p.name)) return 'BCAA 드링크';
+    if (/워터|이오|닥스/.test(p.name)) return '프로틴 워터';
+    return 'RTD 단백질';
+  }
+  return '';
+}
+
+/** 현재 탭에 맞는 세부 칩 목록 반환 */
+function getChipsForTab(tab) {
+  if (tab === '닭가슴살') return ALL_FLAVORS;
+  if (tab === '보충제')   return BOOSTER_SUB;
+  if (tab === '음료')     return DRINK_SUB;
+  return null;
+}
+
+/** 세부 카테고리 칩 렌더링 */
+function renderSubcatChips() {
+  const wrap  = el('subcatChipsWrap');
+  const chips = getChipsForTab(state.category);
+  if (!chips) { wrap.classList.add('hidden'); return; }
+  wrap.classList.remove('hidden');
+  el('subcatChips').innerHTML = ['전체', ...chips].map(c => {
+    const val    = c === '전체' ? '' : c;
+    const active = (!state.subCat && c === '전체') || state.subCat === val;
+    return `<button class="subcat-chip${active ? ' active' : ''}" data-val="${val}">${c}</button>`;
+  }).join('');
+}
+
 /* ============================================================
    STATE
    ============================================================ */
 let state = {
-  search:     '',
-  category:   'all',
-  rocketOnly: false,
-  activeOnly: false,
-  sort:       'discount',
-  stores:     new Set(ALL_STORES),
+  search:        '',
+  category:      'all',
+  subCat:        null,
+  rocketOnly:    false,
+  activeOnly:    false,
+  sort:          'discount',
+  stores:        new Set(ALL_STORES),
   flavors:       new Set(ALL_FLAVORS),
   subcategories: new Set(ALL_SUBCATEGORIES),
 };
@@ -193,6 +233,7 @@ function updateFilterCount() {
 function getFiltered() {
   let list = PRODUCTS;
 
+  // 1차: 탭별 카테고리 필터
   if (state.category === 'hotdeal') {
     list = list.filter(p => discountPct(p.originalPrice, p.salePrice) >= 30);
     list = list.filter(p => !ALL_SUBCATEGORIES.includes(p.category) || state.subcategories.has(p.category));
@@ -204,6 +245,15 @@ function getFiltered() {
     list = list.filter(p => p.category === state.category);
   }
 
+  // 2차: 세부 칩 필터
+  if (state.subCat) {
+    if (state.category === '닭가슴살') {
+      list = list.filter(p => p.flavor === state.subCat);
+    } else if (state.category === '보충제' || state.category === '음료') {
+      list = list.filter(p => getSubCat(p) === state.subCat);
+    }
+  }
+
   return list
     .filter(p => {
       if (state.search) {
@@ -211,7 +261,8 @@ function getFiltered() {
         if (!p.name.toLowerCase().includes(q) && !p.brand.toLowerCase().includes(q)) return false;
       }
       if (!state.stores.has(p.store)) return false;
-      if (!state.flavors.has(p.flavor)) return false;
+      // 보충제·음료는 맛 필터 미적용 (모두 오리지널이므로)
+      if (ALL_SUBCATEGORIES.includes(p.category) && !state.flavors.has(p.flavor)) return false;
       if (state.rocketOnly && p.store !== '쿠팡') return false;
       if (state.activeOnly && daysUntil(p.expiryDate) <= 0) return false;
       return true;
@@ -479,6 +530,17 @@ function initListeners() {
     document.querySelectorAll('#categoryFilter .tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     state.category = tab.dataset.category;
+    state.subCat   = null;
+    renderSubcatChips();
+    render();
+  });
+
+  /* 세부 카테고리 칩 */
+  el('subcatChips').addEventListener('click', e => {
+    const chip = e.target.closest('.subcat-chip');
+    if (!chip) return;
+    state.subCat = chip.dataset.val || null;
+    renderSubcatChips();
     render();
   });
 
@@ -538,6 +600,7 @@ function initListeners() {
   });
 
   el('filterBtn').addEventListener('click', () => {
+    filterSheet.dataset.tab = state.category;
     filterSheet.classList.remove('hidden');
     sheetOverlay.classList.remove('hidden');
   });
@@ -622,7 +685,7 @@ function initListeners() {
 
   /* 빈 상태 초기화 */
   el('resetFilters').addEventListener('click', () => {
-    state = { search: '', category: 'all', rocketOnly: false, activeOnly: false, sort: 'discount', stores: new Set(ALL_STORES), flavors: new Set(ALL_FLAVORS), subcategories: new Set(ALL_SUBCATEGORIES) };
+    state = { search: '', category: 'all', subCat: null, rocketOnly: false, activeOnly: false, sort: 'discount', stores: new Set(ALL_STORES), flavors: new Set(ALL_FLAVORS), subcategories: new Set(ALL_SUBCATEGORIES) };
     searchInput.value = '';
     document.querySelectorAll('#categoryFilter .tab').forEach((t, i) => t.classList.toggle('active', i === 0));
     el('filterRocket').checked = false;
@@ -635,6 +698,7 @@ function initListeners() {
     subcatAllCb.checked = true;
     subcatAllLabel.classList.add('checked');
     subcatCbs.forEach(cb => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
+    renderSubcatChips();
     updateFilterCount();
     render();
   });
@@ -692,6 +756,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadProducts();
     renderTop10();
     initListeners();
+    renderSubcatChips();
     render();
     showLoading(false);
 

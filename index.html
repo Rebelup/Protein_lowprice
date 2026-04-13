@@ -39,6 +39,10 @@
       <button class="tab" data-category="보충제">보충제</button>
       <button class="tab" data-category="음료">음료</button>
     </div>
+    <!-- 세부 카테고리 칩 (탭별 동적 표시) -->
+    <div class="subcat-chips-wrap hidden" id="subcatChipsWrap">
+      <div class="subcat-chips" id="subcatChips"></div>
+    </div>
   </div>
 
   <!-- ===================== 필터 행 ===================== -->
@@ -87,45 +91,51 @@
     </div>
     <div class="filter-sheet-body">
 
-      <div class="filter-group-title">종류</div>
-      <div class="filter-group">
-        <label class="filter-sheet-item subcat-all-item">
-          <input type="checkbox" id="subcatSelectAll" checked />
-          <span>전체 선택</span>
-        </label>
-        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="훈제" checked /><span>훈제</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="냉동" checked /><span>냉동</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="냉장" checked /><span>냉장</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="통조림" checked /><span>통조림</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="가공" checked /><span>가공</span></label>
+      <div class="filter-section fs-kind">
+        <div class="filter-group-title">종류</div>
+        <div class="filter-group">
+          <label class="filter-sheet-item subcat-all-item">
+            <input type="checkbox" id="subcatSelectAll" checked />
+            <span>전체 선택</span>
+          </label>
+          <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="훈제" checked /><span>훈제</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="냉동" checked /><span>냉동</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="냉장" checked /><span>냉장</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="통조림" checked /><span>통조림</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="subcat-cb" value="가공" checked /><span>가공</span></label>
+        </div>
       </div>
 
-      <div class="filter-group-title">판매처</div>
-      <div class="filter-group">
-        <label class="filter-sheet-item select-all-item">
-          <input type="checkbox" id="storeSelectAll" checked />
-          <span>전체 선택</span>
-        </label>
-        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="쿠팡" checked /><span>쿠팡</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="마켓컬리" checked /><span>마켓컬리</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="이마트" checked /><span>이마트</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="홈플러스" checked /><span>홈플러스</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="GS25" checked /><span>GS25</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="올리브영" checked /><span>올리브영</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="오늘의식탁" checked /><span>오늘의식탁</span></label>
+      <div class="filter-section fs-store">
+        <div class="filter-group-title">판매처</div>
+        <div class="filter-group">
+          <label class="filter-sheet-item select-all-item">
+            <input type="checkbox" id="storeSelectAll" checked />
+            <span>전체 선택</span>
+          </label>
+          <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="쿠팡" checked /><span>쿠팡</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="마켓컬리" checked /><span>마켓컬리</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="이마트" checked /><span>이마트</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="홈플러스" checked /><span>홈플러스</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="GS25" checked /><span>GS25</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="올리브영" checked /><span>올리브영</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="store-cb" value="오늘의식탁" checked /><span>오늘의식탁</span></label>
+        </div>
       </div>
 
-      <div class="filter-group-title">맛</div>
-      <div class="filter-group">
-        <label class="filter-sheet-item flavor-all-item">
-          <input type="checkbox" id="flavorSelectAll" checked />
-          <span>전체 선택</span>
-        </label>
-        <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="무염" checked /><span>🧂 무염</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="오리지널" checked /><span>🍗 오리지널</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="매운맛" checked /><span>🌶️ 매운맛</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="갈릭" checked /><span>🧄 갈릭</span></label>
-        <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="간장" checked /><span>🍯 간장</span></label>
+      <div class="filter-section fs-flavor">
+        <div class="filter-group-title">맛</div>
+        <div class="filter-group">
+          <label class="filter-sheet-item flavor-all-item">
+            <input type="checkbox" id="flavorSelectAll" checked />
+            <span>전체 선택</span>
+          </label>
+          <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="무염" checked /><span>🧂 무염</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="오리지널" checked /><span>🍗 오리지널</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="매운맛" checked /><span>🌶️ 매운맛</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="갈릭" checked /><span>🧄 갈릭</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="flavor-cb" value="간장" checked /><span>🍯 간장</span></label>
+        </div>
       </div>
 
     </div>

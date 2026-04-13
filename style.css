@@ -127,6 +127,41 @@ body {
 }
 .category-tabs::-webkit-scrollbar { display: none; }
 
+/* 세부 카테고리 칩 */
+.subcat-chips-wrap {
+  padding: 0 14px 9px;
+  border-top: 1px solid var(--border);
+}
+.subcat-chips-wrap.hidden { display: none; }
+.subcat-chips {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.subcat-chips::-webkit-scrollbar { display: none; }
+.subcat-chip {
+  flex-shrink: 0;
+  border: 1.5px solid var(--border);
+  background: var(--white);
+  border-radius: 99px;
+  padding: 4px 13px;
+  font-size: 12.5px;
+  font-weight: 500;
+  cursor: pointer;
+  color: var(--sub);
+  white-space: nowrap;
+  transition: all .15s;
+  margin-top: 8px;
+}
+.subcat-chip:hover { border-color: var(--blue); color: var(--blue); }
+.subcat-chip.active {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--white);
+  font-weight: 700;
+}
+
 .tab {
   flex-shrink: 0;
   border: 1.5px solid var(--border);
@@ -338,6 +373,12 @@ body {
   gap: 8px;
   margin-bottom: 20px;
 }
+
+/* 컨텍스트별 필터 섹션 표시/숨김 */
+.filter-sheet[data-tab="보충제"] .fs-kind,
+.filter-sheet[data-tab="보충제"] .fs-flavor,
+.filter-sheet[data-tab="음료"] .fs-kind,
+.filter-sheet[data-tab="음료"] .fs-flavor { display: none; }
 .filter-sheet-item {
   display: flex;
   align-items: center;
