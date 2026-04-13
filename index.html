@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>닭가슴살 특가 🍗</title>
+  <title>프로틴 특가 모음</title>
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -14,141 +14,242 @@
     <p>상품 정보를 불러오는 중...</p>
   </div>
 
-  <!-- HEADER -->
+  <!-- ===================== HEADER ===================== -->
   <header class="site-header">
     <div class="header-inner">
-      <a class="logo" href="#">
-        <span class="logo-icon">🍗</span>
-        <strong class="logo-name">닭가슴살 특가</strong>
-      </a>
       <div class="header-search">
-        <input type="text" id="searchInput" placeholder="상품명, 브랜드 검색" />
-        <button id="searchBtn" aria-label="검색">
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
+        <input type="text" id="searchInput" placeholder="상품, 브랜드 검색" />
+        <button id="searchBtn" class="search-icon-btn" aria-label="검색">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
+        </button>
+      </div>
+      <button class="auth-btn" id="authBtn">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+        <span id="authBtnLabel">로그인</span>
+      </button>
+      <!-- 로그인 후 표시되는 아이콘 그룹 -->
+      <div class="header-icon-group hidden" id="headerIconGroup">
+        <button class="header-icon-btn" id="cartBtn" aria-label="장바구니">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+          <span class="cart-badge hidden" id="cartBadge">0</span>
+        </button>
+        <button class="header-icon-btn" id="userBtn" aria-label="내 정보">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
         </button>
       </div>
     </div>
   </header>
 
-  <!-- CATEGORY NAV -->
-  <nav class="category-nav">
-    <div class="category-scroll" id="categoryFilter">
-      <button class="cat-chip active" data-category="all">전체</button>
-      <button class="cat-chip" data-category="훈제">훈제</button>
-      <button class="cat-chip" data-category="냉동">냉동</button>
-      <button class="cat-chip" data-category="냉장">냉장</button>
-      <button class="cat-chip" data-category="통조림">통조림</button>
-      <button class="cat-chip" data-category="가공">가공식품</button>
+  <!-- ===================== 카테고리 탭 ===================== -->
+  <div class="category-tabs-wrap">
+    <div class="category-tabs" id="categoryFilter">
+      <button class="tab active" data-category="all">전체</button>
+      <button class="tab tab-hotdeal" data-category="hotdeal">🔥 핫딜</button>
+      <button class="tab" data-category="보충제">보충제</button>
     </div>
-  </nav>
-
-  <!-- FILTER BAR -->
-  <div class="filter-bar">
-    <button class="sort-btn" id="sortBtn">
-      <span id="sortLabel">할인율 높은순</span>
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M7 10l5 5 5-5z"/></svg>
-    </button>
-    <button class="filter-toggle-btn" id="filterToggleBtn">
-      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M3 4h18M7 9h10M10 14h4"/></svg>
-      필터
-    </button>
+    <!-- 세부 카테고리 칩 -->
+    <div class="subcat-chips-wrap hidden" id="subcatChipsWrap">
+      <div class="subcat-chips" id="subcatChips"></div>
+    </div>
   </div>
 
-  <!-- SORT DROPDOWN -->
-  <div class="sort-dropdown hidden" id="sortDropdown">
-    <button class="sort-option active" data-sort="discount">할인율 높은순</button>
-    <button class="sort-option" data-sort="price_asc">가격 낮은순</button>
+  <!-- ===================== 필터 행 ===================== -->
+  <div class="filter-row">
+    <div class="filter-left">
+      <button class="sort-btn" id="sortBtn">
+        <span id="sortLabel">가격 낮은순</span>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+      </button>
+      <div class="filter-divider"></div>
+      <button class="filter-btn" id="filterBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+        <span>필터</span>
+        <span class="filter-count hidden" id="filterCount">0</span>
+      </button>
+    </div>
+    <div class="filter-checks">
+      <button class="tab tab-event" id="eventBtn">🎁 이벤트</button>
+      <label class="filter-check">
+        <input type="checkbox" id="filterActive" />
+        <span>품절제외</span>
+      </label>
+    </div>
+  </div>
+
+  <!-- ===================== 공유 오버레이 ===================== -->
+  <div class="sheet-overlay hidden" id="sheetOverlay"></div>
+
+  <!-- 정렬 바텀시트 -->
+  <div class="sort-sheet hidden" id="sortSheet">
+    <div class="sort-sheet-title">정렬</div>
+    <button class="sort-option active" data-sort="price_asc">가격 낮은순</button>
     <button class="sort-option" data-sort="price_desc">가격 높은순</button>
     <button class="sort-option" data-sort="name">상품명순</button>
   </div>
 
-  <!-- FILTER PANEL -->
-  <div class="filter-panel hidden" id="filterPanel">
-    <div class="fp-section">
-      <h4 class="fp-title">판매처</h4>
-      <div class="fp-chips" id="storeFilter">
-        <label class="fp-chip"><input type="checkbox" value="쿠팡" checked /><span>쿠팡</span></label>
-        <label class="fp-chip"><input type="checkbox" value="마켓컬리" checked /><span>마켓컬리</span></label>
-        <label class="fp-chip"><input type="checkbox" value="이마트" checked /><span>이마트</span></label>
-        <label class="fp-chip"><input type="checkbox" value="홈플러스" checked /><span>홈플러스</span></label>
-        <label class="fp-chip"><input type="checkbox" value="GS25" checked /><span>GS25</span></label>
-        <label class="fp-chip"><input type="checkbox" value="올리브영" checked /><span>올리브영</span></label>
-        <label class="fp-chip"><input type="checkbox" value="오늘의식탁" checked /><span>오늘의식탁</span></label>
-      </div>
+  <!-- 필터 바텀시트 -->
+  <div class="filter-sheet hidden" id="filterSheet">
+    <div class="sheet-header">
+      <span class="sheet-title">필터</span>
+      <button class="sheet-close" id="filterSheetClose">✕</button>
     </div>
-    <div class="fp-section">
-      <h4 class="fp-title">브랜드</h4>
-      <div class="fp-chips" id="brandFilter">
-        <label class="fp-chip"><input type="checkbox" value="하림" checked /><span>하림</span></label>
-        <label class="fp-chip"><input type="checkbox" value="동원" checked /><span>동원</span></label>
-        <label class="fp-chip"><input type="checkbox" value="랭킹닭컴" checked /><span>랭킹닭컴</span></label>
-        <label class="fp-chip"><input type="checkbox" value="맘스터치" checked /><span>맘스터치</span></label>
-        <label class="fp-chip"><input type="checkbox" value="바디닭" checked /><span>바디닭</span></label>
-        <label class="fp-chip"><input type="checkbox" value="GS25" checked /><span>GS25</span></label>
-        <label class="fp-chip"><input type="checkbox" value="오뚜기" checked /><span>오뚜기</span></label>
-        <label class="fp-chip"><input type="checkbox" value="닭신" checked /><span>닭신</span></label>
-        <label class="fp-chip"><input type="checkbox" value="풀무원" checked /><span>풀무원</span></label>
-        <label class="fp-chip"><input type="checkbox" value="프레시지" checked /><span>프레시지</span></label>
-        <label class="fp-chip"><input type="checkbox" value="CJ" checked /><span>CJ</span></label>
-        <label class="fp-chip"><input type="checkbox" value="사조" checked /><span>사조</span></label>
+    <div class="filter-sheet-body">
+
+      <div class="filter-section fs-brand">
+        <div class="filter-group-title">브랜드</div>
+        <div class="filter-group">
+          <label class="filter-sheet-item select-all-item">
+            <input type="checkbox" id="brandSelectAll" checked />
+            <span>전체 선택</span>
+          </label>
+          <label class="filter-sheet-item"><input type="checkbox" class="brand-cb" value="마이프로틴" checked /><span>마이프로틴</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="brand-cb" value="BSN" checked /><span>BSN</span></label>
+        </div>
       </div>
-    </div>
-    <div class="fp-section">
-      <h4 class="fp-title">양념 스타일</h4>
-      <div class="fp-flavor-chips" id="flavorFilter">
-        <button class="chip active" data-flavor="all">전체</button>
-        <button class="chip" data-flavor="무염">🧂 무염</button>
-        <button class="chip" data-flavor="오리지널">🍗 오리지널</button>
-        <button class="chip" data-flavor="매운맛">🌶️ 매운맛</button>
-        <button class="chip" data-flavor="갈릭">🧄 갈릭</button>
-        <button class="chip" data-flavor="간장">🍯 간장</button>
+
+      <div class="filter-section fs-type">
+        <div class="filter-group-title">종류</div>
+        <div class="filter-group">
+          <label class="filter-sheet-item type-all-item">
+            <input type="checkbox" id="typeSelectAll" checked />
+            <span>전체 선택</span>
+          </label>
+          <label class="filter-sheet-item"><input type="checkbox" class="type-cb" value="단백질 파우더" checked /><span>단백질 파우더</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="type-cb" value="BCAA" checked /><span>BCAA</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="type-cb" value="크레아틴" checked /><span>크레아틴</span></label>
+          <label class="filter-sheet-item"><input type="checkbox" class="type-cb" value="영양제" checked /><span>영양제</span></label>
+        </div>
       </div>
+
     </div>
-    <div class="fp-section">
-      <h4 class="fp-title">최소 할인율</h4>
-      <div class="range-wrapper">
-        <input type="range" id="discountRange" min="0" max="60" value="0" step="5" />
-        <span id="discountRangeLabel">0% 이상</span>
-      </div>
+    <div class="filter-sheet-footer">
+      <button class="filter-reset-btn" id="filterReset">초기화</button>
+      <button class="filter-apply-btn" id="filterApply">적용하기</button>
     </div>
-    <div class="fp-section">
-      <h4 class="fp-title">가격대</h4>
-      <div class="price-inputs">
-        <input type="number" id="priceMin" placeholder="최소" min="0" step="1000" />
-        <span>~</span>
-        <input type="number" id="priceMax" placeholder="최대" min="0" step="1000" />
-      </div>
-    </div>
-    <button class="btn-reset" id="resetFilters">필터 초기화</button>
   </div>
 
-  <main>
-    <!-- TOP 10 -->
-    <section class="top10-section">
-      <div class="section-header">
-        <h2 class="section-title">🔥 할인율 TOP 10</h2>
+  <!-- ===================== LOGIN MODAL ===================== -->
+  <div class="login-overlay hidden" id="loginOverlay"></div>
+  <div class="login-sheet hidden" id="loginSheet">
+    <div class="login-header">
+      <button class="login-close" id="loginClose">✕</button>
+    </div>
+
+    <!-- 로그인 폼 -->
+    <div id="loginForm">
+      <div class="login-logo">💪</div>
+      <h2 class="login-title">로그인</h2>
+      <p class="login-sub">로그인 후 특가 상품 링크를 확인하세요</p>
+      <button class="social-btn social-google" id="loginGoogle">
+        <svg width="20" height="20" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+        Google로 계속하기
+      </button>
+      <div class="login-divider"><span>또는</span></div>
+      <div class="login-field-group">
+        <input type="email" id="loginEmail" class="login-input" placeholder="이메일" autocomplete="email" />
+        <input type="password" id="loginPassword" class="login-input" placeholder="비밀번호" autocomplete="current-password" />
       </div>
+      <div id="loginError" class="login-error hidden"></div>
+      <button class="login-submit-btn" id="loginSubmit">로그인</button>
+      <p class="login-switch">계정이 없으신가요? <button class="link-btn" id="goSignup">회원가입</button></p>
+    </div>
+
+    <!-- 회원가입 폼 -->
+    <div id="signupForm" class="hidden">
+      <div class="login-logo">💪</div>
+      <h2 class="login-title">회원가입</h2>
+      <div class="login-field-group">
+        <input type="email" id="signupEmail" class="login-input" placeholder="이메일" autocomplete="email" />
+        <input type="password" id="signupPassword" class="login-input" placeholder="비밀번호 (6자 이상)" autocomplete="new-password" />
+        <input type="password" id="signupPasswordConfirm" class="login-input" placeholder="비밀번호 확인" autocomplete="new-password" />
+      </div>
+      <div id="signupError" class="login-error hidden"></div>
+      <button class="login-submit-btn" id="signupSubmit">가입하기</button>
+      <p class="login-switch">이미 계정이 있으신가요? <button class="link-btn" id="goLogin">로그인</button></p>
+    </div>
+  </div>
+
+  <!-- ===================== MAIN ===================== -->
+  <main>
+    <!-- 핫딜 배너 (핫딜 탭 선택 시 표시) -->
+    <div class="hotdeal-banner hidden" id="hotdealBanner">
+      <div class="hotdeal-banner-inner">
+        <span class="hotdeal-fire">🔥</span>
+        <div>
+          <strong>오늘의 핫딜</strong>
+          <p>30% 이상 역대급 할인 상품만 모았어요</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- TOP 10 섹션 -->
+    <section class="top10-section" id="top10Section">
+      <h2 class="section-title">지금 인기 있는 TOP 10</h2>
       <div class="top10-scroll" id="top10Grid"></div>
     </section>
 
-    <!-- ALL PRODUCTS -->
+    <!-- 상품 그리드 -->
     <section class="products-section">
-      <div class="products-header">
-        <p class="result-count"><strong id="resultCount">0</strong>개 상품</p>
+      <div class="result-bar">
+        <strong id="resultCount">0</strong>개 상품
       </div>
       <div class="product-grid" id="productGrid"></div>
-      <div class="empty-state" id="emptyState" style="display:none;">
-        <span>🔍</span>
+      <div class="empty-state hidden" id="emptyState">
+        <div class="empty-icon">🔍</div>
         <p>조건에 맞는 상품이 없습니다.</p>
-        <button class="btn-reset" onclick="document.getElementById('resetFilters').click()">필터 초기화</button>
+        <button class="reset-btn" id="resetFilters">필터 초기화</button>
       </div>
     </section>
   </main>
 
   <footer class="site-footer">
     <p>가격·할인 정보는 참고용이며 실제와 다를 수 있습니다.</p>
-    <p>© 2026 닭가슴살 특가</p>
+    <p>© 2026 프로틴 특가</p>
   </footer>
+
+  <!-- ===================== PRODUCT DETAIL SHEET ===================== -->
+  <div class="detail-sheet hidden" id="detailSheet">
+    <div class="detail-handle"></div>
+    <div class="detail-sheet-inner" id="detailSheetInner"></div>
+  </div>
+
+  <!-- ===================== EVENT SHEET ===================== -->
+  <div class="event-sheet hidden" id="eventSheet">
+    <div class="event-sheet-header">
+      <div>
+        <div class="event-sheet-title">🎁 이벤트</div>
+        <div class="event-sheet-subtitle">할인 코드 &amp; 프로모션 모음</div>
+      </div>
+      <button class="sheet-close" id="eventSheetClose">✕</button>
+    </div>
+    <div class="event-status-tabs" id="eventStatusTabs">
+      <button class="event-status-tab active" data-status="active">진행중</button>
+      <button class="event-status-tab" data-status="upcoming">예정</button>
+    </div>
+    <div class="event-sheet-body" id="eventSheetBody"></div>
+  </div>
+
+  <!-- ===================== CART SHEET ===================== -->
+  <div class="cart-sheet hidden" id="cartSheet">
+    <div class="cart-sheet-header">
+      <span class="cart-sheet-title">장바구니</span>
+      <button class="sheet-close" id="cartSheetClose">✕</button>
+    </div>
+    <div class="cart-sheet-body" id="cartSheetBody"></div>
+  </div>
+
+  <!-- ===================== USER INFO SHEET ===================== -->
+  <div class="user-sheet hidden" id="userSheet">
+    <div class="user-sheet-header">
+      <button class="login-close" id="userSheetClose">✕</button>
+    </div>
+    <div class="user-sheet-body">
+      <div class="user-avatar" id="userAvatar"></div>
+      <div class="user-name" id="userSheetName"></div>
+      <div class="user-email" id="userSheetEmail"></div>
+      <button class="user-logout-btn" id="userLogoutBtn">로그아웃</button>
+    </div>
+  </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="script.js"></script>
