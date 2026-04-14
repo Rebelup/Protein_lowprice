@@ -1927,3 +1927,237 @@ body {
   text-align: center;
   padding: 12px 20px 20px;
 }
+
+/* =====================================================
+   PRODUCT PAGE — TAB BAR
+   ===================================================== */
+.pp-tab-bar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  background: #fff;
+  border-bottom: 1.5px solid var(--border);
+  padding: 0 4px;
+}
+.pp-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  padding: 14px 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  cursor: pointer;
+  position: relative;
+  transition: color .15s;
+}
+.pp-tab.active {
+  color: var(--text);
+}
+.pp-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 12%; right: 12%;
+  height: 2.5px;
+  background: var(--text);
+  border-radius: 2px;
+}
+
+/* =====================================================
+   PRODUCT PAGE — EVENT TIP BOX (yellow)
+   ===================================================== */
+.pp-event-tip-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #FFFBEA;
+  border: 1px solid #FFE580;
+  border-radius: 14px;
+  margin: 12px 16px 0;
+  padding: 14px 16px;
+}
+.pp-event-tip-emoji { font-size: 26px; flex-shrink: 0; }
+.pp-event-tip-label { font-size: 12px; color: #8C6E00; font-weight: 600; margin-bottom: 3px; }
+.pp-event-tip-price { font-size: 20px; font-weight: 800; color: var(--text); }
+.pp-event-tip-save  { font-size: 12px; font-weight: 700; color: var(--blue); margin-left: 6px; }
+
+/* =====================================================
+   PRODUCT PAGE — PANEL & SECTION SHARED
+   ===================================================== */
+.pp-panel { padding: 0 0 4px; }
+.pp-panel--hidden { display: none; }
+.pp-empty { text-align: center; padding: 48px 16px; color: var(--muted); font-size: 14px; }
+
+.pp-section { padding: 20px 16px 0; }
+.pp-section-head {
+  font-size: 18px; font-weight: 800; color: var(--text);
+  margin-bottom: 4px;
+}
+.pp-section-sub {
+  font-size: 13px; color: var(--sub);
+  margin-bottom: 14px;
+}
+
+/* =====================================================
+   EVENT PANEL — toggles + calc
+   ===================================================== */
+.pp-evt-toggles {
+  display: flex; flex-wrap: wrap; gap: 10px;
+  margin-bottom: 14px;
+}
+.pp-evt-toggle { cursor: pointer; }
+.pp-evt-toggle input { display: none; }
+.pp-evt-toggle-chip {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 10px 18px;
+  border-radius: 50px;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  font-size: 14px; font-weight: 600; color: var(--sub);
+  transition: background .18s, color .18s, border-color .18s;
+}
+.pp-evt-toggle input:checked + .pp-evt-toggle-chip {
+  background: #111; color: #fff; border-color: #111;
+}
+.pp-calc-row {
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--blue-light);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 4px;
+}
+.pp-calc-label { font-size: 13px; font-weight: 600; color: var(--blue); }
+.pp-calc-price { font-size: 20px; font-weight: 800; color: var(--blue); }
+
+/* =====================================================
+   EVENT PANEL — card (inspired by screenshot style)
+   ===================================================== */
+.pp-evt-card {
+  background: #fff;
+  border-radius: 16px;
+  margin: 14px 16px 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.pp-evt-card-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.pp-evt-badge {
+  padding: 4px 10px; border-radius: 99px;
+  font-size: 12px; font-weight: 800; color: #fff;
+  flex-shrink: 0;
+}
+.pp-evt-title { font-size: 14px; font-weight: 700; color: var(--text); }
+
+/* Tip box (yellow bg) */
+.pp-tip-box {
+  background: #FFFBEA;
+  padding: 14px 16px;
+  border-bottom: 1px solid #FFE58080;
+}
+.pp-tip-title { font-size: 13px; font-weight: 700; color: #8C6E00; margin-bottom: 2px; }
+.pp-tip-sub   { font-size: 12px; color: #8C6E00; margin-bottom: 8px; }
+.pp-tip-list  { margin: 0; padding-left: 18px; }
+.pp-tip-list li {
+  font-size: 13px; color: var(--text); margin-bottom: 4px; line-height: 1.5;
+}
+
+/* Steps (like 공고 일정 in screenshot) */
+.pp-steps-box {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.pp-steps-title { font-size: 13px; font-weight: 700; color: var(--sub); margin-bottom: 12px; }
+.pp-steps { list-style: none; padding: 0; margin: 0; }
+.pp-step {
+  display: flex; align-items: flex-start; gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px dashed var(--border);
+  position: relative;
+}
+.pp-step:last-child { border-bottom: none; }
+.pp-step-num {
+  width: 26px; height: 26px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 800; color: #fff;
+  flex-shrink: 0;
+}
+.pp-step-text { font-size: 13.5px; color: var(--text); line-height: 1.5; padding-top: 3px; }
+
+/* Coupon row */
+.pp-coupon-row {
+  display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px;
+  padding: 14px 16px;
+}
+.pp-coupon-note { font-size: 12px; color: var(--sub); flex: 1; }
+.pp-evt-link {
+  font-size: 13px; font-weight: 700; color: var(--blue);
+  text-decoration: none; white-space: nowrap;
+}
+.pp-evt-link:hover { text-decoration: underline; }
+
+/* =====================================================
+   INFO PANEL — key-value card (like 집 정보 요약)
+   ===================================================== */
+.pp-info-card {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+.pp-info-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.pp-info-row:last-child { border-bottom: none; }
+.pp-info-row--key .pp-info-value { color: var(--blue); font-weight: 800; }
+.pp-info-label { font-size: 13.5px; color: var(--sub); }
+.pp-info-value { font-size: 14px; font-weight: 700; color: var(--text); text-align: right; }
+
+/* =====================================================
+   NUTRITION PANEL — macro bars
+   ===================================================== */
+.pp-nutrition-bars {
+  background: #fff;
+  border-radius: 16px;
+  border: 1px solid var(--border);
+  padding: 16px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+.pp-macro-row {
+  display: flex; align-items: center; gap: 10px;
+}
+.pp-macro-label { font-size: 13px; color: var(--sub); width: 52px; flex-shrink: 0; }
+.pp-macro-track {
+  flex: 1; height: 8px; background: var(--border);
+  border-radius: 99px; overflow: hidden;
+}
+.pp-macro-fill { height: 100%; border-radius: 99px; transition: width .6s ease; }
+.pp-macro-val { font-size: 13px; font-weight: 700; color: var(--text); width: 36px; text-align: right; }
+
+/* =====================================================
+   STICKY BUY CTA
+   ===================================================== */
+.pp-cta {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  border-top: 1px solid var(--border);
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  margin-top: 20px;
+}
+.pp-buy-cta {
+  width: 100%;
+  background: var(--blue); color: #fff;
+  border: none; border-radius: 14px;
+  font-size: 16px; font-weight: 800;
+  padding: 17px;
+  cursor: pointer;
+  transition: opacity .15s;
+}
+.pp-buy-cta:hover { opacity: .88; }

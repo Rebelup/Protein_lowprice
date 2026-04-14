@@ -21,20 +21,63 @@ const EVENTS = [
   {
     id: 1, brand: 'myprotein', brandLabel: '마이프로틴',
     name: '마이프로틴 할인코드 모음',
-    desc: '할인 코드 적용 시 최대 35% 추가 할인. 코드 확인 후 장바구니에서 입력하세요.',
+    desc: '할인 코드 적용 시 최대 35% 추가 할인.',
     discountPct: 35, color: '#0077CC',
     active: true, endDate: '2026-12-31',
     link: 'https://www.myprotein.co.kr/c/voucher-codes/?affil=thgppc&thg_ppc_campaign=821750852&gclid=Cj0KCQjwqPLOBhCiARIsAKRMPZppFlpuWJQZWpknDNHBpdmJXWLzmVpzTa3tTRozHc-6vpTKUTywYu8aAnx9EALw_wcB',
+    conditions: [
+      '마이프로틴 공식 홈페이지(myprotein.co.kr)에서 구매 시 적용',
+      '신규 및 기존 회원 모두 사용 가능',
+      '1회 주문당 1개 쿠폰코드만 적용 가능',
+      '이미 할인 중인 일부 상품은 중복 적용 불가',
+    ],
+    howTo: [
+      '마이프로틴 공식 사이트(myprotein.co.kr) 접속',
+      '원하는 상품 선택 후 장바구니 담기',
+      '장바구니 → 주문하기 페이지로 이동',
+      '"프로모션 코드" 입력란에 할인코드 입력 후 적용',
+      '최대 35% 할인가 확인 후 구매 완료',
+    ],
+    couponNote: '이벤트 페이지에서 현재 사용 가능한 최신 코드를 확인하세요.',
   },
   {
     id: 2, brand: 'bsn', brandLabel: 'BSN',
     name: "BSN Let's BSN 이벤트",
-    desc: '신타6 구매 시 특별 프로모션 혜택. 이벤트 기간 구매 시 최대 20% 추가 할인.',
+    desc: '공식 홈페이지에서 신타6 구매 시 최대 20% 할인 프로모션.',
     discountPct: 20, color: '#E53935',
     active: true, endDate: '2026-06-30',
     link: 'https://www.bsn.co.kr/pages/lets-bsn',
+    conditions: [
+      'BSN 공식 홈페이지(bsn.co.kr)에서 구매 시 적용',
+      "Let's BSN 이벤트 기간(~2026.06.30) 내 구매",
+      '신규 및 기존 회원 모두 적용 가능',
+    ],
+    howTo: [
+      'BSN 공식 홈페이지(bsn.co.kr) 접속',
+      "상단 메뉴에서 'Let's BSN' 이벤트 페이지 클릭",
+      '이벤트 조건 확인 후 원하는 신타6 제품 선택',
+      '장바구니 담기 → 결제 진행',
+      '이벤트 할인가 자동 적용 확인 후 구매 완료',
+    ],
+    couponNote: '별도 쿠폰코드 없이 이벤트 기간 내 자동 할인 적용됩니다.',
   },
 ];
+
+/* ============================================================
+   영양 정보 데이터 (1회 제공량 기준)
+   ============================================================ */
+const NUTRITION_DATA = {
+  'impact 웨이 프로틴':       { serving:'25g', servings:40,  kcal:103, protein:21,  carbs:2.0,  fat:1.9, fiber:0.3, sodium:50  },
+  'impact 웨이 아이솔레이트': { serving:'25g', servings:40,  kcal:93,  protein:23,  carbs:0.6,  fat:0.4, fiber:0,   sodium:40  },
+  'the 웨이':                 { serving:'35g', servings:43,  kcal:140, protein:25,  carbs:3.0,  fat:3.0, fiber:0.5, sodium:200 },
+  'clear 웨이':               { serving:'38g', servings:13,  kcal:120, protein:20,  carbs:11,   fat:0.3, fiber:0,   sodium:150 },
+  '크레아틴 모노하이드레이트':{ serving:'5g',  servings:50,  kcal:0,   protein:0,   carbs:0,    fat:0,   creatine:5.0           },
+  'bcaa':                     { serving:'7g',  servings:71,  kcal:15,  protein:0,   carbs:0,    fat:0,   leucine:4.0, iso:1.0, valine:1.0 },
+  'syntha-6 edge':            { serving:'47g', servings:40,  kcal:200, protein:24,  carbs:14,   fat:6.0, fiber:3.0, sodium:220 },
+  'syntha-6 original':        { serving:'47g', servings:48,  kcal:200, protein:22,  carbs:15,   fat:6.0, fiber:3.0, sodium:210 },
+  'syntha-6 isolate':         { serving:'47g', servings:20,  kcal:180, protein:25,  carbs:12,   fat:4.5, fiber:3.0, sodium:200 },
+  'true mass':                { serving:'335g',servings:16,  kcal:1230,protein:50,  carbs:211,  fat:16,  fiber:10,  sodium:590 },
+};
 
 /* ============================================================
    전역 데이터
@@ -449,32 +492,149 @@ function closeProductPage() {
   if (history.state?.productId) history.back();
 }
 
+/* ============================================================
+   영양정보 매칭
+   ============================================================ */
+function getNutrition(p) {
+  const nameLower = p.name.toLowerCase();
+  for (const [key, data] of Object.entries(NUTRITION_DATA)) {
+    if (nameLower.includes(key)) return data;
+  }
+  return null;
+}
+
+/* ============================================================
+   상품 페이지 패널 렌더러
+   ============================================================ */
+function renderPpEventsPanel(p, evts) {
+  if (!evts.length) return `<div class="pp-empty">이 상품에 적용 가능한 이벤트가 없습니다</div>`;
+
+  return `
+    <div class="pp-section">
+      <div class="pp-section-head">적용할 이벤트 선택</div>
+      <div class="pp-evt-toggles">
+        ${evts.map(e => `
+          <label class="pp-evt-toggle">
+            <input type="checkbox" class="pp-event-cb" value="${e.id}" checked onchange="updatePpCalc(${p.id})">
+            <span class="pp-evt-toggle-chip">
+              <span class="pp-event-dot" style="background:${e.color}"></span>
+              <span>${escHtml(e.brandLabel)} <strong>-${e.discountPct}%</strong></span>
+            </span>
+          </label>`).join('')}
+      </div>
+      <div class="pp-calc-row">
+        <span class="pp-calc-label">이벤트 적용 예상가</span>
+        <span class="pp-calc-price" id="ppCalcPrice">-</span>
+      </div>
+    </div>
+
+    ${evts.map(e => `
+    <div class="pp-evt-card">
+      <div class="pp-evt-card-header" style="border-left:4px solid ${e.color}">
+        <span class="pp-evt-badge" style="background:${e.color}">-${e.discountPct}%</span>
+        <span class="pp-evt-title">${escHtml(e.name)}</span>
+      </div>
+
+      <div class="pp-tip-box">
+        <div class="pp-tip-title">💡 이벤트 조건</div>
+        <div class="pp-tip-sub">아래 조건에 해당하는 분께 적용됩니다</div>
+        <ul class="pp-tip-list">
+          ${(e.conditions || []).map(c => `<li>${escHtml(c)}</li>`).join('')}
+        </ul>
+      </div>
+
+      <div class="pp-steps-box">
+        <div class="pp-steps-title">📋 참여 방법 &amp; 쿠폰 적용</div>
+        <ol class="pp-steps">
+          ${(e.howTo || []).map((step, i) => `
+            <li class="pp-step">
+              <span class="pp-step-num" style="background:${e.color}">${i + 1}</span>
+              <span class="pp-step-text">${escHtml(step)}</span>
+            </li>`).join('')}
+        </ol>
+      </div>
+
+      <div class="pp-coupon-row">
+        <span class="pp-coupon-note">📌 ${escHtml(e.couponNote || '')}</span>
+        <a class="pp-evt-link" href="${escHtml(safeUrl(e.link))}" target="_blank" rel="noopener noreferrer">이벤트 보러가기 →</a>
+      </div>
+    </div>`).join('')}`;
+}
+
+function renderPpInfoPanel(p) {
+  const rows = [
+    { label: '브랜드',    value: p.brand },
+    { label: '맛',        value: p.flavor || '-' },
+    { label: '용량',      value: p.weight || '-' },
+    { label: '종류',      value: getSubCat(p) || '-' },
+    { label: '판매 채널', value: p.store  || '-' },
+  ];
+  return `
+    <div class="pp-section">
+      <div class="pp-section-head">상품 정보 요약</div>
+      <p class="pp-section-sub">복잡한 정보를 한번에 정리했어요!</p>
+      <div class="pp-info-card">
+        ${rows.map(r => `
+          <div class="pp-info-row">
+            <span class="pp-info-label">${escHtml(r.label)}</span>
+            <span class="pp-info-value">${escHtml(r.value)}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function renderPpNutritionPanel(p, nut) {
+  if (!nut) return `<div class="pp-empty">영양 정보를 찾을 수 없습니다</div>`;
+
+  const mainRows = [
+    { label:'열량',   value:`${nut.kcal} kcal`,  bar: null },
+    { label:'단백질', value:`${nut.protein}g`,    bar:{ val:nut.protein, max:30, color:'#1A69E5' }, key:true },
+    { label:'탄수화물',value:`${nut.carbs}g`,      bar:{ val:nut.carbs,   max:30, color:'#FF9500' } },
+    { label:'지방',   value:`${nut.fat}g`,         bar:{ val:nut.fat,     max:15, color:'#FF3B30' } },
+  ];
+  const extraRows = [
+    nut.fiber   != null && { label:'식이섬유',  value:`${nut.fiber}g`   },
+    nut.sodium  != null && { label:'나트륨',    value:`${nut.sodium}mg` },
+    nut.creatine!= null && { label:'크레아틴',  value:`${nut.creatine}g`, key:true },
+    nut.leucine != null && { label:'류신(BCAA)', value:`${nut.leucine}g`, key:true },
+    nut.iso     != null && { label:'이소류신',  value:`${nut.iso}g`     },
+    nut.valine  != null && { label:'발린',      value:`${nut.valine}g`  },
+  ].filter(Boolean);
+
+  return `
+    <div class="pp-section">
+      <div class="pp-section-head">영양 정보</div>
+      <p class="pp-section-sub">1회 제공량 <strong>${escHtml(nut.serving)}</strong> 기준 (약 ${nut.servings}회 제공)</p>
+      <div class="pp-nutrition-bars">
+        ${mainRows.filter(r => r.bar).map(r => `
+          <div class="pp-macro-row">
+            <span class="pp-macro-label">${r.label}</span>
+            <div class="pp-macro-track"><div class="pp-macro-fill" style="width:${Math.min(100,(r.bar.val/r.bar.max)*100)}%;background:${r.bar.color}"></div></div>
+            <span class="pp-macro-val">${r.value}</span>
+          </div>`).join('')}
+      </div>
+      <div class="pp-info-card" style="margin-top:14px">
+        ${[...mainRows, ...extraRows].map(r => `
+          <div class="pp-info-row${r.key ? ' pp-info-row--key' : ''}">
+            <span class="pp-info-label">${escHtml(r.label)}</span>
+            <span class="pp-info-value">${escHtml(r.value)}</span>
+          </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+/* ============================================================
+   상품 페이지 메인 렌더러
+   ============================================================ */
 function renderProductPageContent(p) {
   const pct      = discountPct(p.originalPrice, p.salePrice);
   const delivery = deliveryInfo(p.store);
   const thumb    = getThumbUrl(p);
   const safeLink = escHtml(safeUrl(p.link));
   const evts     = getProductEvents(p);
-
-  const eventsHtml = evts.length ? `
-    <div class="pp-events-wrap">
-      <div class="pp-section-title">🎁 적용 가능한 이벤트</div>
-      ${evts.map(e => `
-        <label class="pp-event-item">
-          <span class="pp-event-dot" style="background:${e.color}"></span>
-          <div class="pp-event-info">
-            <div class="pp-event-name">${escHtml(e.name)}</div>
-            <div class="pp-event-meta">추가 <strong>${e.discountPct}%</strong> 할인 · ~${e.endDate}</div>
-          </div>
-          <input type="checkbox" class="pp-event-cb" value="${e.id}"
-            ${state.activeEventIds.has(e.id) ? 'checked' : ''}
-            onchange="updatePpCalc(${p.id})">
-        </label>`).join('')}
-      <div class="pp-calc">
-        <span class="pp-calc-label">이벤트 적용 예상가</span>
-        <span class="pp-calc-price" id="ppCalcPrice">${formatKRW(p.salePrice)}</span>
-      </div>
-    </div>` : '';
+  const nut      = getNutrition(p);
+  const bestPct  = evts.length ? Math.max(...evts.map(e => e.discountPct)) : 0;
+  const bestPrice= bestPct ? Math.round(p.salePrice * (1 - bestPct / 100)) : null;
 
   el('productPageBody').innerHTML = `
     <div class="pp-img-wrap">
@@ -484,6 +644,7 @@ function renderProductPageContent(p) {
            <span class="pp-img-fallback" style="display:none">${p.emoji}</span>`
         : `<span class="pp-img-fallback">${p.emoji}</span>`}
     </div>
+
     <div class="pp-info">
       <div class="pp-brand-row">
         <span class="pp-brand">${escHtml(p.brand)}</span>
@@ -496,20 +657,51 @@ function renderProductPageContent(p) {
         <span class="pp-pct">▼${pct}%</span>
       </div>
     </div>
-    ${eventsHtml}
-    <div class="pp-actions">
-      <button class="pp-buy-btn" data-link="${safeLink}">구매하기 →</button>
+
+    ${bestPrice ? `
+    <div class="pp-event-tip-box">
+      <span class="pp-event-tip-emoji">🎁</span>
+      <div>
+        <div class="pp-event-tip-label">이벤트 적용 시 최저가</div>
+        <div class="pp-event-tip-price">${formatKRW(bestPrice)}
+          <span class="pp-event-tip-save">최대 ${bestPct}% 추가 할인</span>
+        </div>
+      </div>
+    </div>` : ''}
+
+    <div class="pp-tab-bar">
+      <button class="pp-tab active" data-tab="events">이벤트</button>
+      <button class="pp-tab" data-tab="info">상품 정보</button>
+      <button class="pp-tab" data-tab="nutrition">영양 정보</button>
+    </div>
+
+    <div class="pp-panel" id="ppPanelEvents">${renderPpEventsPanel(p, evts)}</div>
+    <div class="pp-panel pp-panel--hidden" id="ppPanelInfo">${renderPpInfoPanel(p)}</div>
+    <div class="pp-panel pp-panel--hidden" id="ppPanelNutrition">${renderPpNutritionPanel(p, nut)}</div>
+
+    <div class="pp-cta">
+      <button class="pp-buy-cta" data-link="${safeLink}" id="ppBuyBtn">구매하기 →</button>
     </div>`;
 
   updatePpCalc(p.id);
 
-  el('productPageBody').querySelector('.pp-buy-btn')
-    .addEventListener('click', function() { handleBuyClick(this.dataset.link); });
+  el('productPageBody').querySelectorAll('.pp-tab').forEach(tab => {
+    tab.addEventListener('click', () => {
+      el('productPageBody').querySelectorAll('.pp-tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      ['events','info','nutrition'].forEach(name => {
+        const panel = document.getElementById(`ppPanel${name[0].toUpperCase()+name.slice(1)}`);
+        if (panel) panel.classList.toggle('pp-panel--hidden', name !== tab.dataset.tab);
+      });
+    });
+  });
+
+  el('ppBuyBtn').addEventListener('click', function() { handleBuyClick(this.dataset.link); });
 }
 
 function updatePpCalc(pid) {
   const p = PRODUCTS.find(x => x.id === pid);
-  const priceEl = el('ppCalcPrice');
+  const priceEl = document.getElementById('ppCalcPrice');
   if (!p || !priceEl) return;
   const checked = [...document.querySelectorAll('.pp-event-cb:checked')];
   const evts = checked.map(cb => EVENTS.find(e => e.id === parseInt(cb.value))).filter(Boolean);
