@@ -231,6 +231,19 @@ body {
   padding: 3px 0;
 }
 .filter-btn:hover { color: var(--blue); }
+.event-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--blue);
+  cursor: pointer;
+  padding: 3px 0;
+}
+.event-filter-btn:hover { opacity: .75; }
 .filter-count {
   background: var(--blue);
   color: var(--white);

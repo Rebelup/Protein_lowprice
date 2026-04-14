@@ -42,6 +42,8 @@ const EVENTS = [
 let PRODUCTS           = [];
 let currentUser        = null;
 let pendingProductLink = null;
+let ALL_FLAVORS        = [];   // buildDynamicFilters() 이후 채워짐
+let ALL_WEIGHTS        = [];   // buildDynamicFilters() 이후 채워짐
 
 const ALL_BRANDS        = ['마이프로틴', 'BSN'];
 const ALL_PRODUCT_TYPES = ['단백질 파우더', 'BCAA', '크레아틴', '영양제'];
@@ -144,6 +146,8 @@ let state = {
   sort:         'price_asc',
   brands:       new Set(ALL_BRANDS),
   productTypes: new Set(ALL_PRODUCT_TYPES),
+  flavors:      new Set(),   // 제품 로드 후 채워짐
+  weights:      new Set(),   // 제품 로드 후 채워짐
 };
 
 /* ============================================================
@@ -262,7 +266,12 @@ function getThumbUrl(p) {
    필터 배지 카운트
    ============================================================ */
 function updateFilterCount() {
-  const deselected = (ALL_BRANDS.length - state.brands.size) + (ALL_PRODUCT_TYPES.length - state.productTypes.size);
+  const allFlavors = [...document.querySelectorAll('.flavor-cb')].map(c => c.value);
+  const allWeights = [...document.querySelectorAll('.weight-cb')].map(c => c.value);
+  const deselected = (ALL_BRANDS.length - state.brands.size)
+                   + (ALL_PRODUCT_TYPES.length - state.productTypes.size)
+                   + (allFlavors.length - state.flavors.size)
+                   + (allWeights.length - state.weights.size);
   const countEl = el('filterCount');
   const filterBtn = el('filterBtn');
   if (deselected > 0) {
@@ -281,9 +290,7 @@ function updateFilterCount() {
 function getFiltered() {
   let list = PRODUCTS;
 
-  if (state.category === 'hotdeal') {
-    list = list.filter(p => discountPct(p.originalPrice, p.salePrice) >= 30);
-  } else if (state.category !== 'all') {
+  if (state.category !== 'all') {
     list = list.filter(p => p.category === state.category);
   }
 
@@ -299,6 +306,8 @@ function getFiltered() {
       }
       if (!state.brands.has(p.brand)) return false;
       if (!state.productTypes.has(getSubCat(p))) return false;
+      if (state.flavors.size && !state.flavors.has(p.flavor)) return false;
+      if (state.weights.size && !state.weights.has(p.weight)) return false;
       if (state.activeOnly && daysUntil(p.expiryDate) <= 0) return false;
       return true;
     })
@@ -397,8 +406,7 @@ function render() {
   el('resultCount').textContent = items.length;
 
   // 핫딜 배너 토글
-  el('hotdealBanner').classList.toggle('hidden', state.category !== 'hotdeal');
-  el('top10Section').classList.toggle('hidden', state.category === 'hotdeal');
+  el('top10Section').classList.remove('hidden');
 
   if (items.length === 0) {
     grid.innerHTML     = '';
@@ -826,6 +834,52 @@ function initCheckboxGroup(allCbId, cbClass) {
   return cbs;
 }
 
+/* ============================================================
+   동적 필터 (맛 / 용량) 빌드 — 제품 로드 후 호출
+   ============================================================ */
+function buildDynamicFilters() {
+  const WEIGHT_ORDER = ['250g','500g','912g','1kg','1.5kg','1.87kg','2.27kg','2.5kg'];
+
+  ALL_FLAVORS = [...new Set(PRODUCTS.map(p => p.flavor).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, 'ko'));
+  ALL_WEIGHTS = [...new Set(PRODUCTS.map(p => p.weight).filter(Boolean))]
+    .sort((a, b) => {
+      const ai = WEIGHT_ORDER.indexOf(a), bi = WEIGHT_ORDER.indexOf(b);
+      return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+    });
+
+  state.flavors = new Set(ALL_FLAVORS);
+  state.weights = new Set(ALL_WEIGHTS);
+
+  function buildGroup(containerId, allCbId, cbClass, items) {
+    const group = el(containerId);
+    group.textContent = '';
+
+    const allLabel = document.createElement('label');
+    allLabel.className = 'filter-sheet-item select-all-item';
+    const allCb = document.createElement('input');
+    allCb.type = 'checkbox'; allCb.id = allCbId; allCb.checked = true;
+    const allSpan = document.createElement('span');
+    allSpan.textContent = '전체 선택';
+    allLabel.append(allCb, allSpan);
+    group.appendChild(allLabel);
+
+    items.forEach(val => {
+      const label = document.createElement('label');
+      label.className = 'filter-sheet-item checked';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.className = cbClass; cb.value = val; cb.checked = true;
+      const span = document.createElement('span');
+      span.textContent = val;
+      label.append(cb, span);
+      group.appendChild(label);
+    });
+  }
+
+  buildGroup('flavorFilterGroup', 'flavorSelectAll', 'flavor-cb', ALL_FLAVORS);
+  buildGroup('weightFilterGroup', 'weightSelectAll', 'weight-cb', ALL_WEIGHTS);
+}
+
 function initListeners() {
   const searchInput  = el('searchInput');
   const sheetOverlay = el('sheetOverlay');
@@ -896,26 +950,31 @@ function initListeners() {
     });
   });
 
-  /* 필터 시트 — 브랜드 + 종류 */
-  const brandCbs = initCheckboxGroup('brandSelectAll', 'brand-cb');
-  const typeCbs  = initCheckboxGroup('typeSelectAll', 'type-cb');
+  /* 필터 시트 — 브랜드 + 종류 + 맛 + 용량 */
+  const brandCbs  = initCheckboxGroup('brandSelectAll',  'brand-cb');
+  const typeCbs   = initCheckboxGroup('typeSelectAll',   'type-cb');
+  const flavorCbs = initCheckboxGroup('flavorSelectAll', 'flavor-cb');
+  const weightCbs = initCheckboxGroup('weightSelectAll', 'weight-cb');
 
   el('filterBtn').addEventListener('click', () => { filterSheet.classList.remove('hidden'); sheetOverlay.classList.remove('hidden'); });
   el('filterSheetClose').addEventListener('click', () => { filterSheet.classList.add('hidden'); sheetOverlay.classList.add('hidden'); });
 
   el('filterReset').addEventListener('click', () => {
-    [brandCbs, typeCbs].forEach(cbs => cbs.forEach(cb => {
+    [brandCbs, typeCbs, flavorCbs, weightCbs].forEach(cbs => cbs.forEach(cb => {
       cb.checked = true;
       cb.closest('.filter-sheet-item').classList.add('checked');
     }));
-    el('brandSelectAll').checked = true;
-    el('brandSelectAll').closest('.filter-sheet-item').classList.add('checked');
-    el('typeSelectAll').checked = true;
-    el('typeSelectAll').closest('.filter-sheet-item').classList.add('checked');
+    ['brandSelectAll','typeSelectAll','flavorSelectAll','weightSelectAll'].forEach(id => {
+      const cb = el(id);
+      cb.checked = true;
+      cb.closest('.filter-sheet-item').classList.add('checked');
+    });
   });
   el('filterApply').addEventListener('click', () => {
     state.brands       = new Set([...brandCbs].filter(cb => cb.checked).map(cb => cb.value));
     state.productTypes = new Set([...typeCbs].filter(cb => cb.checked).map(cb => cb.value));
+    state.flavors      = new Set([...flavorCbs].filter(cb => cb.checked).map(cb => cb.value));
+    state.weights      = new Set([...weightCbs].filter(cb => cb.checked).map(cb => cb.value));
     updateFilterCount();
     filterSheet.classList.add('hidden');
     sheetOverlay.classList.add('hidden');
@@ -924,7 +983,7 @@ function initListeners() {
 
   /* 빈 상태 초기화 */
   el('resetFilters').addEventListener('click', () => {
-    state = { search:'', category:'all', subCat:null, activeOnly:false, sort:'price_asc', brands:new Set(ALL_BRANDS), productTypes:new Set(ALL_PRODUCT_TYPES) };
+    state = { search:'', category:'all', subCat:null, activeOnly:false, sort:'price_asc', brands:new Set(ALL_BRANDS), productTypes:new Set(ALL_PRODUCT_TYPES), flavors:new Set(ALL_FLAVORS), weights:new Set(ALL_WEIGHTS) };
     searchInput.value = '';
     document.querySelectorAll('#categoryFilter .tab').forEach((t,i) => t.classList.toggle('active', i===0));
     el('filterActive').checked = false;
@@ -991,6 +1050,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   try {
     await loadProducts();
+    buildDynamicFilters();
     renderTop10();
     initListeners();
     renderSubcatChips();

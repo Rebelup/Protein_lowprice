@@ -44,7 +44,6 @@
   <div class="category-tabs-wrap">
     <div class="category-tabs" id="categoryFilter">
       <button class="tab active" data-category="all">전체</button>
-      <button class="tab tab-hotdeal" data-category="hotdeal">🔥 핫딜</button>
       <button class="tab" data-category="보충제">보충제</button>
     </div>
     <!-- 세부 카테고리 칩 -->
@@ -66,9 +65,13 @@
         <span>필터</span>
         <span class="filter-count hidden" id="filterCount">0</span>
       </button>
+      <div class="filter-divider"></div>
+      <button class="event-filter-btn" id="eventBtn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 12v10H4V12"/><path d="M22 7H2v5h20V7z"/><path d="M12 22V7"/><path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z"/><path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z"/></svg>
+        <span>이벤트</span>
+      </button>
     </div>
     <div class="filter-checks">
-      <button class="tab tab-event" id="eventBtn">🎁 이벤트</button>
       <label class="filter-check">
         <input type="checkbox" id="filterActive" />
         <span>품절제외</span>
@@ -118,6 +121,20 @@
           <label class="filter-sheet-item"><input type="checkbox" class="type-cb" value="BCAA" checked /><span>BCAA</span></label>
           <label class="filter-sheet-item"><input type="checkbox" class="type-cb" value="크레아틴" checked /><span>크레아틴</span></label>
           <label class="filter-sheet-item"><input type="checkbox" class="type-cb" value="영양제" checked /><span>영양제</span></label>
+        </div>
+      </div>
+
+      <div class="filter-section fs-flavor">
+        <div class="filter-group-title">맛</div>
+        <div class="filter-group" id="flavorFilterGroup">
+          <!-- JS가 동적으로 채움 -->
+        </div>
+      </div>
+
+      <div class="filter-section fs-weight">
+        <div class="filter-group-title">용량</div>
+        <div class="filter-group" id="weightFilterGroup">
+          <!-- JS가 동적으로 채움 -->
         </div>
       </div>
 
