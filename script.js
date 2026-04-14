@@ -258,19 +258,21 @@ async function loadThumbnailsInBackground() {
     results.forEach(r => {
       if (r.status === 'fulfilled' && r.value.url) {
         cache[r.value.id] = r.value.url;
-        // 메모리 내 PRODUCTS 도 업데이트
+        // 메모리 내 PRODUCTS 업데이트
         const prod = PRODUCTS.find(p => p.id === r.value.id);
         if (prod) {
           prod.thumbnail = r.value.url;
           // 렌더링된 이미지 즉시 교체
-          const imgEl = document.querySelector(`[data-pid="${prod.id}"] .thumb-img`);
-          if (imgEl) {
+          document.querySelectorAll(`[data-pid="${prod.id}"] .thumb-img`).forEach(imgEl => {
             imgEl.src = r.value.url;
             imgEl.style.display = 'block';
-            const fallback = document.querySelector(`[data-pid="${prod.id}"] .card-img-fallback`);
-            if (fallback) fallback.style.display = 'none';
-          }
+          });
+          document.querySelectorAll(`[data-pid="${prod.id}"] .card-img-fallback`).forEach(fb => {
+            fb.style.display = 'none';
+          });
         }
+        // Supabase DB 에도 저장 (이후 페이지 로드 시 바로 사용)
+        db.from('products').update({ thumbnail: r.value.url }).eq('id', r.value.id).then(() => {});
         updated = true;
       }
     });
@@ -374,6 +376,7 @@ function renderTop10() {
             <span class="price-main">${formatKRW(p.salePrice)}</span>
             <span class="price-down">▼${pct}%</span>
           </div>
+          ${(() => { const ep = getEventBestPrice(p); return ep ? `<div class="top10-event-price">🎁 이벤트 ${formatKRW(ep)}</div>` : ''; })()}
         </div>
       </div>`;
   }).join('');
@@ -518,7 +521,10 @@ function renderPpEventsPanel(p, evts) {
     <div class="pp-evt-card">
       <div class="pp-evt-card-header">
         <span class="pp-evt-badge" style="background:${e.color}">-${e.discountPct}%</span>
-        <span class="pp-evt-title">${escHtml(e.name)}</span>
+        <div class="pp-evt-header-text">
+          <span class="pp-evt-title">${escHtml(e.name)}</span>
+          ${(e.startDate || e.endDate) ? `<span class="pp-evt-dates">${e.startDate ? e.startDate.replaceAll('-','.') : '?'} ~ ${e.endDate ? e.endDate.replaceAll('-','.') : '상시'}</span>` : ''}
+        </div>
       </div>
 
       ${(e.conditions || []).length ? `
@@ -636,9 +642,9 @@ function renderProductPageContent(p) {
     </div>
 
     <div class="pp-info">
-      <div class="pp-brand-row">
+      <div class="pp-brand-block">
         <span class="pp-brand">${escHtml(p.brand)}</span>
-        <span class="card-delivery ${delivery.cls}">${delivery.label}</span>
+        <span class="pp-store-name">${delivery.label}</span>
       </div>
       <div class="pp-name">${escHtml(p.name)}</div>
       <div class="pp-price-row">
@@ -659,6 +665,7 @@ function renderProductPageContent(p) {
     <div class="pp-panel pp-panel--hidden" id="ppPanelNutrition">${renderPpNutritionPanel(p, nut)}</div>
 
     <div class="pp-cta">
+      <button class="pp-cart-cta" data-pid="${p.id}" id="ppCartBtn">🛒 담기</button>
       <button class="pp-buy-cta" data-link="${safeLink}" id="ppBuyBtn">구매하기 →</button>
     </div>`;
 
@@ -676,14 +683,7 @@ function renderProductPageContent(p) {
   });
 
   el('ppBuyBtn').addEventListener('click', function() { handleBuyClick(this.dataset.link); });
-
-  /* 아코디언 — 참여 방법 */
-  el('productPageBody').addEventListener('click', e => {
-    const toggle = e.target.closest('.pp-steps-toggle');
-    if (!toggle) return;
-    const box = toggle.closest('.pp-accordion');
-    box.classList.toggle('open');
-  });
+  el('ppCartBtn').addEventListener('click', function() { addToCart(parseInt(this.dataset.pid)); });
 }
 
 function updatePpCalc(pid) {
@@ -1297,6 +1297,14 @@ function initListeners() {
   });
   el('eventSheetClose').addEventListener('click', closeEventSheet);
 
+  /* 상품 페이지 — 아코디언 (위임, 한 번만 등록) */
+  el('productPageBody').addEventListener('click', e => {
+    const toggle = e.target.closest('.pp-steps-toggle');
+    if (!toggle) return;
+    const box = toggle.closest('.pp-accordion');
+    box.classList.toggle('open');
+  });
+
   /* 상품 페이지 뒤로가기 */
   el('productPageBack').addEventListener('click', closeProductPage);
   window.addEventListener('popstate', () => {
@@ -1306,6 +1314,7 @@ function initListeners() {
       page.addEventListener('transitionend', () => {
         page.classList.add('hidden');
         el('productPageBody').textContent = '';
+        document.body.style.overflow = '';
       }, { once: true });
     }
   });
