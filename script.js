@@ -386,12 +386,19 @@ function renderTop10() {
    상품 카드 렌더링
    ============================================================ */
 function renderCard(p) {
-  const pct      = discountPct(p.originalPrice, p.salePrice);
-  const delivery = deliveryInfo(p.store);
-  const viewers  = viewerCount(p.id);
-  const thumb    = getThumbUrl(p);
-  const showBadge = pct >= 30;
-  const isHotdeal = pct >= 40;
+  const delivery  = deliveryInfo(p.store);
+  const thumb     = getThumbUrl(p);
+  const ep        = getEventBestPrice(p);   // 이벤트 적용 시 최저가 (없으면 null)
+
+  // 이벤트 적용 중이면 이벤트가 기준, 아니면 판매가 기준
+  const displayPrice = ep ?? p.salePrice;
+  const displayPct   = Math.round(((p.originalPrice - displayPrice) / p.originalPrice) * 100);
+  const isHotdeal    = displayPct >= 40;
+  const showBadge    = displayPct >= 30;
+
+  const today    = new Date().toISOString().slice(0, 10);
+  const storeKey = p.store === '마이프로틴' ? 'myprotein' : p.store === 'BSN' ? 'bsn' : '';
+  const hasEvent = storeKey && EVENTS.some(e => e.active && e.endDate >= today && e.brand === storeKey);
 
   return `
     <article class="product-card" data-pid="${p.id}" onclick="openProductDetail(${p.id})">
@@ -412,16 +419,11 @@ function renderCard(p) {
         <div class="card-name">${p.name}</div>
         <div class="card-orig">정가 ${formatKRW(p.originalPrice)}</div>
         <div class="card-price-row">
-          <span class="card-price">${formatKRW(p.salePrice)}</span>
-          <span class="card-discount">▼${pct}%</span>
+          <span class="card-price ${ep ? 'card-price--event' : ''}">${formatKRW(displayPrice)}</span>
+          <span class="card-discount">▼${displayPct}%</span>
+          ${ep ? '<span class="card-event-tag">🎁 이벤트가</span>' : ''}
         </div>
-        ${(() => {
-          const today = new Date().toISOString().slice(0, 10);
-          const storeKey = p.store === '마이프로틴' ? 'myprotein' : p.store === 'BSN' ? 'bsn' : '';
-          const hasEvent = storeKey && EVENTS.some(e => e.active && e.endDate >= today && e.brand === storeKey);
-          return hasEvent ? `<div class="card-event-badge">🎁 공식 홈 이벤트 중</div>` : '';
-        })()}
-        ${(() => { const ep = getEventBestPrice(p); return ep ? `<div class="card-event-price">이벤트 최저가 <strong>${formatKRW(ep)}</strong></div>` : ''; })()}
+        ${hasEvent && !ep ? `<div class="card-event-badge">🎁 공식 홈 이벤트 중</div>` : ''}
       </div>
     </article>`;
 }
