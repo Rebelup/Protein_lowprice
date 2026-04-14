@@ -1254,10 +1254,11 @@ function buildDynamicFilters() {
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
     });
 
-  // 브랜드 · 카테고리: PRODUCTS 기준으로 자동 생성 (filter_options 레이블 우선 사용)
+  // 브랜드: PRODUCTS 기준 자동 생성 (filter_options 레이블 우선 사용)
   ALL_BRANDS = [...new Set(PRODUCTS.map(p => p.brand).filter(Boolean))]
     .map(v => ({ value: v, label: _brandLabelMap.get(v) || v }));
-  ALL_PRODUCT_TYPES = [...new Set(PRODUCTS.map(p => p.category).filter(Boolean))]
+  // 카테고리: getSubCat() 기준 (필터 체크와 동일한 로직으로 값 생성)
+  ALL_PRODUCT_TYPES = [...new Set(PRODUCTS.map(p => getSubCat(p)))]
     .map(v => ({ value: v, label: _catLabelMap.get(v) || v }));
 
   state.brands       = new Set(ALL_BRANDS.map(b => b.value));
