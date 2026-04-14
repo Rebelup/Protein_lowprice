@@ -803,19 +803,28 @@ body {
 /* =====================
    EVENT PRICE ON CARD
    ===================== */
+/* 이벤트 적용 중일 때 가격 색상 */
+.card-price--event {
+  color: #0077CC;
+}
+/* 이벤트가 태그 (가격 옆 인라인) */
+.card-event-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: #0077CC;
+  background: #EBF5FF;
+  border-radius: 4px;
+  padding: 2px 5px;
+  align-self: center;
+  white-space: nowrap;
+}
+/* 이벤트 없지만 행사 진행 중 안내 */
 .card-event-badge {
   font-size: 11px;
   color: #0077CC;
   font-weight: 700;
   margin-top: 4px;
 }
-.card-event-price {
-  font-size: 11.5px;
-  color: var(--sub);
-  margin-top: 2px;
-  font-weight: 500;
-}
-.card-event-price strong { font-weight: 800; color: #0077CC; }
 
 /* =====================
    EVENT TAB BUTTON

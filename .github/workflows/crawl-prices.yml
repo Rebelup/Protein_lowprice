@@ -1,0 +1,21 @@
+name: Daily Price Crawl
+
+on:
+  schedule:
+    # 매일 KST 00:00 (UTC 15:00)
+    - cron: '0 15 * * *'
+  # 수동 실행도 가능
+  workflow_dispatch:
+
+jobs:
+  crawl:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger crawl-prices Edge Function
+        run: |
+          curl -X POST \
+            "${{ secrets.SUPABASE_URL }}/functions/v1/crawl-prices" \
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
+            -H "Content-Type: application/json" \
+            -d '{}' \
+            --fail-with-body
