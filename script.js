@@ -479,6 +479,7 @@ function openProductPage(productId) {
   page.classList.remove('hidden');
   page.getBoundingClientRect();
   page.classList.add('page-open');
+  document.body.style.overflow = 'hidden';
   history.pushState({ productId }, '', `?product=${productId}`);
 }
 
@@ -488,6 +489,7 @@ function closeProductPage() {
   page.addEventListener('transitionend', () => {
     page.classList.add('hidden');
     el('productPageBody').textContent = '';
+    document.body.style.overflow = '';
   }, { once: true });
   if (history.state?.productId) history.back();
 }
@@ -561,7 +563,7 @@ function renderPpEventsPanel(p, evts) {
 
       <div class="pp-coupon-row">
         <span class="pp-coupon-note">📌 ${escHtml(e.couponNote || '')}</span>
-        <a class="pp-evt-link" href="${escHtml(safeUrl(e.link))}" target="_blank" rel="noopener noreferrer">이벤트 보러가기 →</a>
+        <a class="pp-evt-link" href="${escHtml(safeUrl(e.link))}" target="_blank" rel="noopener noreferrer">쿠폰코드/이벤트 보러가기 →</a>
       </div>
     </div>`).join('')}`;
 }
@@ -788,20 +790,71 @@ function closeEventSheet() {
 function renderEventChips() {
   const container = el('eventChips');
   container.textContent = '';
-  EVENTS.forEach(e => {
-    const btn = document.createElement('button');
-    btn.className = 'event-chip' + (state.activeEventIds.has(e.id) ? ' active' : '');
-    btn.dataset.eventId = e.id;
 
-    const dot = document.createElement('span');
-    dot.className = 'event-chip-dot';
-    dot.style.background = e.color;
+  const today = new Date().toISOString().slice(0, 10);
+  const ongoing = EVENTS.filter(e => e.active && e.endDate >= today);
+  const upcoming = EVENTS.filter(e => !e.active || e.endDate < today);
 
-    const label = document.createElement('span');
-    label.textContent = `${e.brandLabel} ${e.discountPct}% 할인`;
+  /* ─── Tab bar ─── */
+  const tabBar = document.createElement('div');
+  tabBar.className = 'es-tab-bar';
+  [['진행중', 'ongoing', ongoing.length], ['예정', 'upcoming', upcoming.length]].forEach(([label, key, count], i) => {
+    const tab = document.createElement('button');
+    tab.className = 'es-tab' + (i === 0 ? ' active' : '');
+    tab.dataset.tab = key;
+    tab.innerHTML = `${label}<span class="es-tab-count">${count}</span>`;
+    tabBar.appendChild(tab);
+  });
+  container.appendChild(tabBar);
 
-    btn.append(dot, label);
-    container.appendChild(btn);
+  /* ─── Cards list ─── */
+  const cardsList = document.createElement('div');
+  cardsList.className = 'es-cards-list';
+  container.appendChild(cardsList);
+
+  renderEventCards(ongoing, cardsList);
+
+  tabBar.addEventListener('click', e => {
+    const tab = e.target.closest('.es-tab');
+    if (!tab) return;
+    tabBar.querySelectorAll('.es-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    renderEventCards(tab.dataset.tab === 'ongoing' ? ongoing : upcoming, cardsList);
+  });
+}
+
+function renderEventCards(events, container) {
+  container.textContent = '';
+  if (!events.length) {
+    const empty = document.createElement('div');
+    empty.className = 'es-empty';
+    empty.textContent = '해당하는 이벤트가 없습니다.';
+    container.appendChild(empty);
+    return;
+  }
+  events.forEach(e => {
+    const isActive = state.activeEventIds.has(e.id);
+    const [y, m, d] = e.endDate.split('-');
+    const endLabel = `~${y}.${m}.${d}`;
+    const condPreview = (e.conditions || []).slice(0, 2).map(c => `• ${c}`).join('\n');
+
+    const card = document.createElement('div');
+    card.className = 'es-card' + (isActive ? ' applied' : '');
+    card.dataset.eventId = e.id;
+    card.innerHTML = `
+      <div class="es-card-accent" style="background:${e.color}"></div>
+      <div class="es-card-body">
+        <div class="es-card-row1">
+          <span class="es-badge" style="background:${e.color}">-${e.discountPct}%</span>
+          <span class="es-brand-label">${escHtml(e.brandLabel)}</span>
+          <span class="es-end-date">${endLabel}</span>
+        </div>
+        <div class="es-card-name">${escHtml(e.name)}</div>
+        <div class="es-card-desc">${escHtml(e.desc)}</div>
+        ${condPreview ? `<ul class="es-card-conds">${(e.conditions || []).slice(0, 2).map(c => `<li>${escHtml(c)}</li>`).join('')}</ul>` : ''}
+      </div>
+      <button class="es-toggle${isActive ? ' active' : ''}" data-event-id="${e.id}" type="button">${isActive ? '적용중' : '적용'}</button>`;
+    container.appendChild(card);
   });
 }
 
@@ -1242,19 +1295,24 @@ function initListeners() {
     render();
   });
 
-  /* 이벤트 칩 토글 */
+  /* 이벤트 카드 토글 */
   el('eventChips').addEventListener('click', e => {
-    const btn = e.target.closest('.event-chip');
+    const btn = e.target.closest('.es-toggle');
     if (!btn) return;
     const id = parseInt(btn.dataset.eventId);
+    const card = btn.closest('.es-card');
     if (state.activeEventIds.has(id)) {
       state.activeEventIds.delete(id);
+      card.classList.remove('applied');
       btn.classList.remove('active');
+      btn.textContent = '적용';
     } else {
       state.activeEventIds.add(id);
+      card.classList.add('applied');
       btn.classList.add('active');
+      btn.textContent = '적용중';
     }
-    render(); // 카드 이벤트 가격 업데이트
+    render();
   });
   el('eventSheetClose').addEventListener('click', closeEventSheet);
 
