@@ -125,6 +125,17 @@ function viewerCount(id) {
   return ((id * 7 + 3) % 19) + 3;
 }
 
+/** 상품명에서 맛 표기 제거 (카드/페이지 표시용) */
+function displayName(p) {
+  if (!p.flavor) return p.name;
+  const f = p.flavor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return p.name
+    .replace(new RegExp('\\s*[\\(（]' + f + '[\\)）]\\s*$'), '')
+    .replace(new RegExp('\\s*[-–—]\\s*' + f + '\\s*$'), '')
+    .replace(new RegExp('\\s+' + f + '\\s*$'), '')
+    .trim() || p.name;
+}
+
 /** 보충제 세부 분류 */
 function getSubCat(p) {
   const n = p.name.toLowerCase();
@@ -219,20 +230,21 @@ async function loadProducts() {
   if (error) throw new Error(error.message);
 
   PRODUCTS = data.map(p => ({
-    id:            p.id,
-    name:          p.name,
-    brand:         p.brand,
-    store:         p.store,
-    category:      p.category,
-    flavor:        p.flavor,
-    weight:        p.weight,
-    grams:         p.grams,
-    emoji:         p.emoji,
-    thumbnail:     p.thumbnail || null,
-    originalPrice: p.original_price,
-    salePrice:     p.sale_price,
-    expiryDate:    p.expiry_date,
-    link:          p.link || '#',
+    id:              p.id,
+    name:            p.name,
+    brand:           p.brand,
+    store:           p.store,
+    category:        p.category,
+    flavor:          p.flavor,
+    availableFlavors: p.available_flavors || [],
+    weight:          p.weight,
+    grams:           p.grams,
+    emoji:           p.emoji,
+    thumbnail:       p.thumbnail || null,
+    originalPrice:   p.original_price,
+    salePrice:       p.sale_price,
+    expiryDate:      p.expiry_date,
+    link:            p.link || '#',
   }));
 }
 
@@ -438,7 +450,7 @@ function renderCard(p) {
       </div>
       <div class="card-body">
         <div class="card-delivery ${delivery.cls}">${escHtml(delivery.label)}</div>
-        <div class="card-name">${escHtml(p.name)}</div>
+        <div class="card-name">${escHtml(displayName(p))}</div>
         <div class="card-orig">정가 ${formatKRW(p.originalPrice)}</div>
         <div class="card-price-row">
           <span class="card-price ${ep ? 'card-price--event' : ''}">${formatKRW(displayPrice)}</span>
@@ -710,12 +722,21 @@ function renderProductPageContent(p) {
         <span class="pp-brand">${escHtml(p.brand)}</span>
         <span class="pp-store-name">${delivery.label}</span>
       </div>
-      <div class="pp-name">${escHtml(p.name)}</div>
+      <div class="pp-name">${escHtml(displayName(p))}</div>
       <div class="pp-price-row">
         <span class="pp-orig">${formatKRW(p.originalPrice)}</span>
         <span class="pp-sale">${formatKRW(p.salePrice)}</span>
         <span class="pp-pct">▼${pct}%</span>
       </div>
+      ${p.availableFlavors.length > 0 ? `
+      <div class="pp-flavor-row">
+        <span class="pp-flavor-label">맛</span>
+        <div class="pp-flavor-chips">
+          ${p.availableFlavors.map(f =>
+            `<span class="pp-flavor-chip${f === p.flavor ? ' active' : ''}">${escHtml(f)}</span>`
+          ).join('')}
+        </div>
+      </div>` : ''}
     </div>
 
     <div class="pp-tab-bar">
@@ -729,9 +750,6 @@ function renderProductPageContent(p) {
     <div class="pp-panel pp-panel--hidden" id="ppPanelNutrition">${renderPpNutritionPanel(p, nut)}</div>
 
     <div class="pp-cta">
-      ${(p.flavor && PRODUCTS.filter(x => x.link === p.link && x.id !== p.id).length > 0)
-        ? `<div class="pp-flavor-notice">이 상품은 <strong>${escHtml(p.flavor)}</strong> 맛입니다.<br>구매 페이지에서 직접 맛을 선택해 주세요.</div>`
-        : ''}
       <button class="pp-cart-cta" data-pid="${p.id}" id="ppCartBtn">🛒 담기</button>
       <button class="pp-buy-cta" data-link="${safeLink}" id="ppBuyBtn">구매하기 →</button>
     </div>`;
@@ -900,6 +918,13 @@ function renderEventCards(events, container) {
         ${condPreview ? `<ul class="es-card-conds">${(e.conditions || []).slice(0, 2).map(c => `<li>${escHtml(c)}</li>`).join('')}</ul>` : ''}
       </div>
       <button class="es-toggle${isActive ? ' active' : ''}" data-event-id="${e.id}" type="button">${isActive ? '적용중' : '적용'}</button>`;
+    if (e.link) {
+      card.style.cursor = 'pointer';
+      card.addEventListener('click', ev => {
+        if (ev.target.closest('.es-toggle')) return;
+        window.open(e.link, '_blank', 'noopener,noreferrer');
+      });
+    }
     container.appendChild(card);
   });
 }

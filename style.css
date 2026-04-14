@@ -2282,16 +2282,41 @@ body {
 /* =====================================================
    STICKY BUY CTA
    ===================================================== */
-.pp-flavor-notice {
-  width: 100%;
-  background: #fff8e1;
-  border: 1px solid #ffe082;
+.pp-flavor-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #f0f4ff;
+  border: 1px solid #d0deff;
   border-radius: 10px;
   padding: 10px 12px;
+  margin-top: 10px;
+}
+.pp-flavor-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-sub);
+  white-space: nowrap;
+  padding-top: 3px;
+}
+.pp-flavor-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.pp-flavor-chip {
   font-size: 13px;
-  color: #795548;
-  line-height: 1.5;
-  margin-bottom: 2px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 20px;
+  padding: 3px 10px;
+  color: var(--text);
+}
+.pp-flavor-chip.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: #fff;
+  font-weight: 700;
 }
 .pp-cta {
   position: sticky;
@@ -2301,7 +2326,6 @@ body {
   padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
   margin-top: 20px;
   display: flex;
-  flex-wrap: wrap;
   gap: 10px;
 }
 .pp-cart-cta {

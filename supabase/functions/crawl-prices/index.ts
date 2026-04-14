@@ -31,6 +31,8 @@ interface ScrapedProduct {
   name: string; brand: string; store: string; category: string;
   original_price: number; sale_price: number; link: string;
   thumbnail?: string; emoji?: string;
+  flavor?: string;
+  available_flavors?: string[];
 }
 interface ScrapedEvent {
   brand: string; brand_label: string; name: string; description?: string;
@@ -42,7 +44,7 @@ interface SiteResult {
   site: string; products: ScrapedProduct[]; events: ScrapedEvent[];
   error?: string; debug?: string;
 }
-interface ShopifyVariant { price: string; compare_at_price: string | null; }
+interface ShopifyVariant { price: string; compare_at_price: string | null; title?: string; option1?: string; }
 interface ShopifyProduct {
   title: string; product_type: string; tags: string[];
   handle: string; images: { src: string }[]; variants: ShopifyVariant[];
@@ -121,12 +123,17 @@ async function scrapeBSN(): Promise<SiteResult> {
       for (const p of d.products) {
         const v = p.variants[0]; if (!v) continue;
         const sale = krw(v.price); if (!sale) continue;
+        const allFlavors = [...new Set(
+          p.variants.map(vv => (vv.option1 || vv.title || '').trim()).filter(Boolean)
+        )];
         products.push({
           name: p.title, brand: 'BSN', store: 'BSN',
           category: shopifyCat(p.tags, p.product_type),
           original_price: krw(v.compare_at_price) || sale, sale_price: sale,
           link: `https://www.bsn.co.kr/products/${p.handle}`,
           thumbnail: p.images[0]?.src, emoji: '💪',
+          flavor: allFlavors[0],
+          available_flavors: allFlavors.length > 0 ? allFlavors : undefined,
         });
       }
       if (d.products.length < 250) break;
@@ -166,12 +173,17 @@ async function scrapeON(): Promise<SiteResult> {
       for (const p of d.products) {
         const v = p.variants[0]; if (!v) continue;
         const sale = krw(v.price); if (!sale) continue;
+        const allFlavors = [...new Set(
+          p.variants.map(vv => (vv.option1 || vv.title || '').trim()).filter(Boolean)
+        )];
         products.push({
           name: p.title, brand: 'ON (Optimum Nutrition)', store: 'ON 공식몰',
           category: shopifyCat(p.tags, p.product_type),
           original_price: krw(v.compare_at_price) || sale, sale_price: sale,
           link: `${BASE}/products/${p.handle}`,
           thumbnail: p.images[0]?.src, emoji: '🥇',
+          flavor: allFlavors[0],
+          available_flavors: allFlavors.length > 0 ? allFlavors : undefined,
         });
       }
       if (d.products.length < 250) break;
@@ -317,6 +329,26 @@ async function scrapeMyProtein(): Promise<SiteResult> {
     }
   }
 
+  // 같은 링크를 공유하는 MyProtein 상품들 → available_flavors 및 flavor 채우기
+  const byLink = new Map<string, ScrapedProduct[]>();
+  for (const p of products) {
+    if (!byLink.has(p.link)) byLink.set(p.link, []);
+    byLink.get(p.link)!.push(p);
+  }
+  for (const group of byLink.values()) {
+    // 맛 추출: 이름 안의 괄호 내용 또는 마지막 단어
+    const flavors = group.map(p => {
+      const m = p.name.match(/[\(（]([^\)）]+)[\)）]/);
+      if (m) return m[1].trim();
+      const parts = p.name.split(/\s+/);
+      return parts[parts.length - 1] ?? p.name;
+    });
+    group.forEach((p, i) => {
+      if (!p.flavor) p.flavor = flavors[i] || undefined;
+      p.available_flavors = flavors.filter(Boolean);
+    });
+  }
+
   // 쿠폰/이벤트
   try {
     const h = await getHtml(`${BASE}/c/voucher-codes/`, `${BASE}/`);
@@ -425,12 +457,14 @@ async function upsertProducts(prods: ScrapedProduct[]) {
       .maybeSingle();
 
     if (ex) {
-      const needsUpdate = ex.sale_price !== p.sale_price || (!ex.thumbnail && p.thumbnail);
+      const needsUpdate = ex.sale_price !== p.sale_price || (!ex.thumbnail && p.thumbnail) || p.available_flavors;
       if (needsUpdate) {
         await supabase.from('products').update({
           sale_price: p.sale_price, original_price: p.original_price,
           link: p.link, updated_at: new Date().toISOString(),
           ...(p.thumbnail ? { thumbnail: p.thumbnail } : {}),
+          ...(p.flavor !== undefined ? { flavor: p.flavor } : {}),
+          ...(p.available_flavors ? { available_flavors: p.available_flavors } : {}),
         }).eq('id', ex.id);
         upd++;
       }
@@ -441,6 +475,8 @@ async function upsertProducts(prods: ScrapedProduct[]) {
         emoji: p.emoji ?? '💊', thumbnail: p.thumbnail ?? null,
         original_price: p.original_price, sale_price: p.sale_price,
         link: p.link, scrape_url: p.link, updated_at: new Date().toISOString(),
+        ...(p.flavor !== undefined ? { flavor: p.flavor } : {}),
+        ...(p.available_flavors ? { available_flavors: p.available_flavors } : {}),
       });
       if (!error) ins++;
       else console.error('insert error:', error.message, p.name);
