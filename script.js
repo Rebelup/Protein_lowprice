@@ -395,8 +395,9 @@ function getFiltered() {
       }
       if (state.brands.size && !state.brands.has(p.brand)) return false;
       if (state.productTypes.size && !state.productTypes.has(getSubCat(p))) return false;
-      if (state.flavors.size && !state.flavors.has(p.flavor)) return false;
-      if (state.weights.size && !state.weights.has(p.weight)) return false;
+      // flavor/weight: null 값을 가진 상품은 필터 통과 (선택지 없는 상품 제외 방지)
+      if (state.flavors.size && p.flavor && !state.flavors.has(p.flavor)) return false;
+      if (state.weights.size && p.weight && !state.weights.has(p.weight)) return false;
       if (state.activeOnly && daysUntil(p.expiryDate) <= 0) return false;
       return true;
     })
@@ -1404,7 +1405,7 @@ function initListeners() {
 
   /* 빈 상태 초기화 */
   el('resetFilters').addEventListener('click', () => {
-    state = { search:'', category:'all', subCat:null, activeOnly:false, sort:'price_asc', brands:new Set(ALL_BRANDS.map(b => b.value)), productTypes:new Set(ALL_PRODUCT_TYPES.map(t => t.value)), flavors:new Set(ALL_FLAVORS), weights:new Set(ALL_WEIGHTS), activeEventIds:new Set(EVENTS.map(e => e.id)) };
+    state = { search:'', category:'all', subCat:null, activeOnly:false, sort:'price_asc', visibleCount:PAGE_SIZE, brands:new Set(ALL_BRANDS.map(b => b.value)), productTypes:new Set(ALL_PRODUCT_TYPES.map(t => t.value)), flavors:new Set(ALL_FLAVORS), weights:new Set(ALL_WEIGHTS), activeEventIds:new Set(EVENTS.map(e => e.id)) };
     searchInput.value = '';
     document.querySelectorAll('#categoryFilter .tab').forEach((t,i) => t.classList.toggle('active', i===0));
     el('filterActive').checked = false;
