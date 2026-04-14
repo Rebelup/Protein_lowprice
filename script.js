@@ -114,6 +114,8 @@ function daysUntil(dateStr) {
 function deliveryInfo(store) {
   if (store === '마이프로틴') return { label: '마이프로틴 공식 몰', cls: 'myprotein' };
   if (store === 'BSN')       return { label: 'BSN 공식 몰',        cls: 'bsn' };
+  if (store === 'ON 공식몰') return { label: 'ON 공식 몰',         cls: 'bsn' };
+  if (store === 'NS스토어')  return { label: 'NS스토어',           cls: 'normal' };
   return { label: store,                                            cls: 'normal' };
 }
 function viewerCount(id) {
@@ -1151,8 +1153,8 @@ function buildDynamicFilters() {
   // items: string[] 또는 {value, label}[]
   function buildGroup(containerId, allCbId, cbClass, items) {
     const group = el(containerId);
-    // select-all-item 제외하고 이전 항목 제거
-    [...group.querySelectorAll(':not(.select-all-item)')].forEach(e => e.remove());
+    // 직계 자식 중 select-all-item이 아닌 것만 제거 (내부 요소 건드리지 않음)
+    [...group.children].filter(c => !c.classList.contains('select-all-item')).forEach(e => e.remove());
     const allCb = group.querySelector(`#${allCbId}`) || (() => {
       const allLabel = document.createElement('label');
       allLabel.className = 'filter-sheet-item select-all-item';
