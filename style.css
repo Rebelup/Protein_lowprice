@@ -2161,3 +2161,40 @@ body {
   transition: opacity .15s;
 }
 .pp-buy-cta:hover { opacity: .88; }
+
+/* =====================================================
+   ACCORDION (참여 방법)
+   ===================================================== */
+.pp-steps-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sub);
+}
+.pp-accordion-chevron {
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
+  color: var(--muted);
+}
+.pp-accordion.open .pp-accordion-chevron {
+  transform: rotate(180deg);
+}
+.pp-steps-body {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.35s ease;
+}
+.pp-accordion.open .pp-steps-body {
+  max-height: 600px;
+}
+.pp-steps {
+  padding: 0 16px 14px;
+}

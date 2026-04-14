@@ -543,15 +543,20 @@ function renderPpEventsPanel(p, evts) {
         </ul>
       </div>
 
-      <div class="pp-steps-box">
-        <div class="pp-steps-title">📋 참여 방법 &amp; 쿠폰 적용</div>
-        <ol class="pp-steps">
-          ${(e.howTo || []).map((step, i) => `
-            <li class="pp-step">
-              <span class="pp-step-num" style="background:${e.color}">${i + 1}</span>
-              <span class="pp-step-text">${escHtml(step)}</span>
-            </li>`).join('')}
-        </ol>
+      <div class="pp-steps-box pp-accordion">
+        <button class="pp-steps-toggle" type="button">
+          <span>📋 참여 방법 &amp; 쿠폰 적용</span>
+          <svg class="pp-accordion-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="pp-steps-body">
+          <ol class="pp-steps">
+            ${(e.howTo || []).map((step, i) => `
+              <li class="pp-step">
+                <span class="pp-step-num" style="background:${e.color}">${i + 1}</span>
+                <span class="pp-step-text">${escHtml(step)}</span>
+              </li>`).join('')}
+          </ol>
+        </div>
       </div>
 
       <div class="pp-coupon-row">
@@ -697,6 +702,14 @@ function renderProductPageContent(p) {
   });
 
   el('ppBuyBtn').addEventListener('click', function() { handleBuyClick(this.dataset.link); });
+
+  /* 아코디언 — 참여 방법 */
+  el('productPageBody').addEventListener('click', e => {
+    const toggle = e.target.closest('.pp-steps-toggle');
+    if (!toggle) return;
+    const box = toggle.closest('.pp-accordion');
+    box.classList.toggle('open');
+  });
 }
 
 function updatePpCalc(pid) {
@@ -1130,6 +1143,9 @@ function initListeners() {
   searchInput.addEventListener('input', debouncedRender);
   searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(); state.search = searchInput.value.trim(); render(); } });
   el('searchBtn').addEventListener('click', () => { state.search = searchInput.value.trim(); render(); });
+
+  /* 이벤트 버튼 (필터 행) */
+  el('eventBtn').addEventListener('click', openEventSheet);
 
   /* 상품 상세 시트 이벤트 위임 (detail-buy-btn, js-open-event) */
   el('detailSheetInner').addEventListener('click', e => {
