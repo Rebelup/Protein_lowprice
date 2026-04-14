@@ -15,53 +15,31 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 /* ============================================================
-   이벤트 데이터 (정적)
+   이벤트 데이터 (Supabase에서 로드)
    ============================================================ */
-const EVENTS = [
-  {
-    id: 1, brand: 'myprotein', brandLabel: '마이프로틴',
-    name: '마이프로틴 할인코드 모음',
-    desc: '할인 코드 적용 시 최대 35% 추가 할인.',
-    discountPct: 35, color: '#0077CC',
-    active: true, endDate: '2026-12-31',
-    link: 'https://www.myprotein.co.kr/c/voucher-codes/?affil=thgppc&thg_ppc_campaign=821750852&gclid=Cj0KCQjwqPLOBhCiARIsAKRMPZppFlpuWJQZWpknDNHBpdmJXWLzmVpzTa3tTRozHc-6vpTKUTywYu8aAnx9EALw_wcB',
-    conditions: [
-      '마이프로틴 공식 홈페이지(myprotein.co.kr)에서 구매 시 적용',
-      '신규 및 기존 회원 모두 사용 가능',
-      '1회 주문당 1개 쿠폰코드만 적용 가능',
-      '이미 할인 중인 일부 상품은 중복 적용 불가',
-    ],
-    howTo: [
-      '마이프로틴 공식 사이트(myprotein.co.kr) 접속',
-      '원하는 상품 선택 후 장바구니 담기',
-      '장바구니 → 주문하기 페이지로 이동',
-      '"프로모션 코드" 입력란에 할인코드 입력 후 적용',
-      '최대 35% 할인가 확인 후 구매 완료',
-    ],
-    couponNote: '이벤트 페이지에서 현재 사용 가능한 최신 코드를 확인하세요.',
-  },
-  {
-    id: 2, brand: 'bsn', brandLabel: 'BSN',
-    name: "BSN Let's BSN 이벤트",
-    desc: '공식 홈페이지에서 신타6 구매 시 최대 20% 할인 프로모션.',
-    discountPct: 20, color: '#E53935',
-    active: true, endDate: '2026-06-30',
-    link: 'https://www.bsn.co.kr/pages/lets-bsn',
-    conditions: [
-      'BSN 공식 홈페이지(bsn.co.kr)에서 구매 시 적용',
-      "Let's BSN 이벤트 기간(~2026.06.30) 내 구매",
-      '신규 및 기존 회원 모두 적용 가능',
-    ],
-    howTo: [
-      'BSN 공식 홈페이지(bsn.co.kr) 접속',
-      "상단 메뉴에서 'Let's BSN' 이벤트 페이지 클릭",
-      '이벤트 조건 확인 후 원하는 신타6 제품 선택',
-      '장바구니 담기 → 결제 진행',
-      '이벤트 할인가 자동 적용 확인 후 구매 완료',
-    ],
-    couponNote: '별도 쿠폰코드 없이 이벤트 기간 내 자동 할인 적용됩니다.',
-  },
-];
+let EVENTS = [];
+
+async function loadEvents() {
+  const { data, error } = await db.from('events').select('*').order('id');
+  if (error) { console.error('Events load error:', error.message); return; }
+  EVENTS = (data || []).map(e => ({
+    id:          e.id,
+    brand:       e.brand,
+    brandLabel:  e.brand_label,
+    name:        e.name,
+    desc:        e.description || '',
+    discountPct: e.discount_pct,
+    color:       e.color || '#0077CC',
+    active:      e.active,
+    startDate:   e.start_date,
+    endDate:     e.end_date || '',
+    link:        e.link || '',
+    conditions:  e.conditions || [],
+    howTo:       e.how_to || [],
+    couponNote:  e.coupon_note || '',
+    couponCode:  e.coupon_code || '',
+  }));
+}
 
 /* ============================================================
    영양 정보 데이터 (1회 제공량 기준)
@@ -124,9 +102,9 @@ function daysUntil(dateStr) {
   return Math.ceil((new Date(dateStr) - today) / 86400000);
 }
 function deliveryInfo(store) {
-  if (store === '마이프로틴') return { label: '🔵 마이프로틴몰', cls: 'myprotein' };
-  if (store === 'BSN')       return { label: '🔴 BSN코리아',    cls: 'bsn' };
-  return { label: `📦 ${store}`, cls: 'normal' };
+  if (store === '마이프로틴') return { label: '마이프로틴 공식 몰', cls: 'myprotein' };
+  if (store === 'BSN')       return { label: 'BSN 공식 몰',        cls: 'bsn' };
+  return { label: store,                                            cls: 'normal' };
 }
 function viewerCount(id) {
   return ((id * 7 + 3) % 19) + 3;
@@ -191,7 +169,7 @@ let state = {
   productTypes: new Set(ALL_PRODUCT_TYPES),
   flavors:        new Set(),   // 제품 로드 후 채워짐
   weights:        new Set(),   // 제품 로드 후 채워짐
-  activeEventIds: new Set(EVENTS.map(e => e.id)), // 활성 이벤트 (기본=전체)
+  activeEventIds: new Set(), // 이벤트 로드 후 채워짐
 };
 
 /* ============================================================
@@ -434,7 +412,13 @@ function renderCard(p) {
           <span class="card-price">${formatKRW(p.salePrice)}</span>
           <span class="card-discount">▼${pct}%</span>
         </div>
-        ${(() => { const ep = getEventBestPrice(p); return ep ? `<div class="card-event-price">🎁 이벤트 최저가 <strong>${formatKRW(ep)}</strong></div>` : ''; })()}
+        ${(() => {
+          const today = new Date().toISOString().slice(0, 10);
+          const storeKey = p.store === '마이프로틴' ? 'myprotein' : p.store === 'BSN' ? 'bsn' : '';
+          const hasEvent = storeKey && EVENTS.some(e => e.active && e.endDate >= today && e.brand === storeKey);
+          return hasEvent ? `<div class="card-event-badge">🎁 공식 홈 이벤트 중</div>` : '';
+        })()}
+        ${(() => { const ep = getEventBestPrice(p); return ep ? `<div class="card-event-price">이벤트 최저가 <strong>${formatKRW(ep)}</strong></div>` : ''; })()}
       </div>
     </article>`;
 }
@@ -532,18 +516,18 @@ function renderPpEventsPanel(p, evts) {
 
     ${evts.map(e => `
     <div class="pp-evt-card">
-      <div class="pp-evt-card-header" style="border-left:4px solid ${e.color}">
+      <div class="pp-evt-card-header">
         <span class="pp-evt-badge" style="background:${e.color}">-${e.discountPct}%</span>
         <span class="pp-evt-title">${escHtml(e.name)}</span>
       </div>
 
-      <div class="pp-tip-box">
-        <div class="pp-tip-title">💡 이벤트 조건</div>
-        <div class="pp-tip-sub">아래 조건에 해당하는 분께 적용됩니다</div>
-        <ul class="pp-tip-list">
-          ${(e.conditions || []).map(c => `<li>${escHtml(c)}</li>`).join('')}
+      ${(e.conditions || []).length ? `
+      <div class="pp-conditions-box">
+        <div class="pp-conditions-title">💡 이벤트 조건</div>
+        <ul class="pp-conditions-list">
+          ${e.conditions.map(c => `<li>${escHtml(c)}</li>`).join('')}
         </ul>
-      </div>
+      </div>` : ''}
 
       <div class="pp-steps-box pp-accordion">
         <button class="pp-steps-toggle" type="button">
@@ -570,11 +554,10 @@ function renderPpEventsPanel(p, evts) {
 
 function renderPpInfoPanel(p) {
   const rows = [
-    { label: '브랜드',    value: p.brand },
-    { label: '맛',        value: p.flavor || '-' },
-    { label: '용량',      value: p.weight || '-' },
-    { label: '종류',      value: getSubCat(p) || '-' },
-    { label: '판매 채널', value: p.store  || '-' },
+    { label: '브랜드', value: p.brand },
+    { label: '맛',     value: p.flavor || '-' },
+    { label: '용량',   value: p.weight || '-' },
+    { label: '종류',   value: getSubCat(p) || '-' },
   ];
   return `
     <div class="pp-section">
@@ -664,17 +647,6 @@ function renderProductPageContent(p) {
         <span class="pp-pct">▼${pct}%</span>
       </div>
     </div>
-
-    ${bestPrice ? `
-    <div class="pp-event-tip-box">
-      <span class="pp-event-tip-emoji">🎁</span>
-      <div>
-        <div class="pp-event-tip-label">이벤트 적용 시 최저가</div>
-        <div class="pp-event-tip-price">${formatKRW(bestPrice)}
-          <span class="pp-event-tip-save">최대 ${bestPct}% 추가 할인</span>
-        </div>
-      </div>
-    </div>` : ''}
 
     <div class="pp-tab-bar">
       <button class="pp-tab active" data-tab="events">이벤트</button>
@@ -780,6 +752,14 @@ function setupDragToClose(sheetEl, closeFn) {
 /* ============================================================
    이벤트 시트
    ============================================================ */
+function updateEventBtnCount() {
+  const badge = el('eventActiveCount');
+  if (!badge) return;
+  const cnt = state.activeEventIds.size;
+  badge.textContent = cnt;
+  badge.classList.toggle('hidden', cnt === 0);
+}
+
 function openEventSheet() {
   renderEventChips();
   openSheet(el('eventSheet'), el('sheetOverlay'));
@@ -1312,6 +1292,7 @@ function initListeners() {
       btn.classList.add('active');
       btn.textContent = '적용중';
     }
+    updateEventBtnCount();
     render();
   });
   el('eventSheetClose').addEventListener('click', closeEventSheet);
@@ -1385,10 +1366,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   try {
+    await loadEvents();
+    state.activeEventIds = new Set(EVENTS.map(e => e.id)); // 기본: 전체 활성
     await loadProducts();
     buildDynamicFilters();
     renderTop10();
     initListeners();
+    updateEventBtnCount();
     renderSubcatChips();
     render();
     showLoading(false);

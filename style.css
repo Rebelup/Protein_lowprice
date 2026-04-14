@@ -244,6 +244,16 @@ body {
   padding: 3px 0;
 }
 .event-filter-btn:hover { opacity: .75; }
+.event-active-count {
+  background: var(--blue);
+  color: var(--white);
+  font-size: 10px;
+  font-weight: 800;
+  border-radius: 99px;
+  padding: 1px 5px;
+  min-width: 16px;
+  text-align: center;
+}
 .filter-count {
   background: var(--blue);
   color: var(--white);
@@ -787,13 +797,19 @@ body {
 /* =====================
    EVENT PRICE ON CARD
    ===================== */
+.card-event-badge {
+  font-size: 11px;
+  color: #0077CC;
+  font-weight: 700;
+  margin-top: 4px;
+}
 .card-event-price {
   font-size: 11.5px;
-  color: #0077CC;
-  margin-top: 3px;
+  color: var(--sub);
+  margin-top: 2px;
   font-weight: 500;
 }
-.card-event-price strong { font-weight: 800; }
+.card-event-price strong { font-weight: 800; color: #0077CC; }
 
 /* =====================
    EVENT TAB BUTTON
@@ -2083,23 +2099,6 @@ body {
   border-radius: 2px;
 }
 
-/* =====================================================
-   PRODUCT PAGE — EVENT TIP BOX (yellow)
-   ===================================================== */
-.pp-event-tip-box {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  background: #FFFBEA;
-  border: 1px solid #FFE580;
-  border-radius: 14px;
-  margin: 12px 16px 0;
-  padding: 14px 16px;
-}
-.pp-event-tip-emoji { font-size: 26px; flex-shrink: 0; }
-.pp-event-tip-label { font-size: 12px; color: #8C6E00; font-weight: 600; margin-bottom: 3px; }
-.pp-event-tip-price { font-size: 20px; font-weight: 800; color: var(--text); }
-.pp-event-tip-save  { font-size: 12px; font-weight: 700; color: var(--blue); margin-left: 6px; }
 
 /* =====================================================
    PRODUCT PAGE — PANEL & SECTION SHARED
@@ -2170,17 +2169,15 @@ body {
 }
 .pp-evt-title { font-size: 14px; font-weight: 700; color: var(--text); }
 
-/* Tip box (yellow bg) */
-.pp-tip-box {
-  background: #FFFBEA;
-  padding: 14px 16px;
-  border-bottom: 1px solid #FFE58080;
+/* 이벤트 조건 박스 */
+.pp-conditions-box {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border);
 }
-.pp-tip-title { font-size: 13px; font-weight: 700; color: #8C6E00; margin-bottom: 2px; }
-.pp-tip-sub   { font-size: 12px; color: #8C6E00; margin-bottom: 8px; }
-.pp-tip-list  { margin: 0; padding-left: 18px; }
-.pp-tip-list li {
-  font-size: 13px; color: var(--text); margin-bottom: 4px; line-height: 1.5;
+.pp-conditions-title { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 6px; }
+.pp-conditions-list  { margin: 0; padding-left: 18px; }
+.pp-conditions-list li {
+  font-size: 12.5px; color: var(--sub); margin-bottom: 3px; line-height: 1.55;
 }
 
 /* Steps (like 공고 일정 in screenshot) */
