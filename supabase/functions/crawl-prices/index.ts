@@ -1,5 +1,5 @@
 /**
- * crawl-prices Edge Function  v4.0
+ * crawl-prices Edge Function  v5.0
  *
  * 지원 사이트:
  *   1. BSN Korea (bsn.co.kr) — Shopify
@@ -7,11 +7,13 @@
  *   3. MyProtein Korea (myprotein.co.kr) — THG Commerce / Next.js
  *   4. NS Store (ns-store.co.kr) — Cafe24
  *
- * v4.0 변경사항:
- *   - SiteResult에 debug 필드 추가 (크롤링 실패 원인 파악용)
- *   - parseNextData: regex 대신 문자열 검색 + pageProps 키 탐색
- *   - scrapeMyProtein: 디버그 정보 + 데이터 경로 확장
- *   - scrapeNSStore: 디버그 정보 + 다중 URL 패턴 + Cafe24 패턴 개선
+ * v5.0 변경사항:
+ *   - 요청 타임아웃 25s → 8s (전체 실행 시간 대폭 단축)
+ *   - 사이트별 40초 하드 타임아웃 추가
+ *   - upsert 기준: link → name+store (중복 링크 문제 해결)
+ *   - MyProtein: /_next/data/ JSON API 우선 시도
+ *   - NSStore: 최대 6개 코드만 시도
+ *   - debug 필드 유지 (원인 파악용)
  */
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
@@ -20,6 +22,9 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
+
+const REQ_TIMEOUT  = 8_000;   // 요청당 최대 8초
+const SITE_TIMEOUT = 40_000;  // 사이트당 최대 40초
 
 /* ── 공통 타입 ─────────────────────────────────────────── */
 interface ScrapedProduct {
@@ -53,7 +58,7 @@ const HEADERS = {
 async function getHtml(url: string, ref = ''): Promise<string> {
   const r = await fetch(url, {
     headers: { ...HEADERS, Accept: 'text/html,application/xhtml+xml', ...(ref ? { Referer: ref } : {}) },
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(REQ_TIMEOUT),
   });
   if (!r.ok) throw new Error(`HTTP ${r.status} — ${url}`);
   return r.text();
@@ -62,10 +67,20 @@ async function getHtml(url: string, ref = ''): Promise<string> {
 async function getJson<T>(url: string, ref = ''): Promise<T> {
   const r = await fetch(url, {
     headers: { ...HEADERS, Accept: 'application/json', ...(ref ? { Referer: ref } : {}) },
-    signal: AbortSignal.timeout(25000),
+    signal: AbortSignal.timeout(REQ_TIMEOUT),
   });
   if (!r.ok) throw new Error(`HTTP ${r.status} — ${url}`);
   return r.json() as Promise<T>;
+}
+
+/** 사이트 단위 타임아웃 래퍼 */
+function withSiteTimeout(fn: () => Promise<SiteResult>, site: string): Promise<SiteResult> {
+  return Promise.race([
+    fn(),
+    new Promise<SiteResult>(resolve =>
+      setTimeout(() => resolve({ site, products: [], events: [], error: `site timeout ${SITE_TIMEOUT}ms` }), SITE_TIMEOUT)
+    ),
+  ]);
 }
 
 function krw(v: unknown): number {
@@ -107,7 +122,8 @@ async function scrapeBSN(): Promise<SiteResult> {
         const v = p.variants[0]; if (!v) continue;
         const sale = krw(v.price); if (!sale) continue;
         products.push({
-          name: p.title, brand: 'BSN', store: 'BSN', category: shopifyCat(p.tags, p.product_type),
+          name: p.title, brand: 'BSN', store: 'BSN',
+          category: shopifyCat(p.tags, p.product_type),
           original_price: krw(v.compare_at_price) || sale, sale_price: sale,
           link: `https://www.bsn.co.kr/products/${p.handle}`,
           thumbnail: p.images[0]?.src, emoji: '💪',
@@ -177,75 +193,66 @@ async function scrapeON(): Promise<SiteResult> {
 
 /* ══════════════════════════════════════════════════════
    3. MyProtein Korea — THG Commerce (Next.js)
-   v4.0: 문자열 검색으로 __NEXT_DATA__ 추출 + 디버그 정보
+   v5.0: /_next/data/ JSON API 우선 시도 → __NEXT_DATA__ 폴백
 ══════════════════════════════════════════════════════ */
 
-/** pageProps 내에서 products 배열처럼 보이는 경로를 재귀 탐색 */
-function findProductArrays(obj: Record<string, unknown>, prefix = '', depth = 0): string[] {
-  if (depth > 5) return [];
-  const results: string[] = [];
-  for (const [k, v] of Object.entries(obj)) {
-    const path = prefix ? `${prefix}.${k}` : k;
-    if (Array.isArray(v) && v.length > 0 && typeof v[0] === 'object' && v[0] !== null) {
-      const sample = v[0] as Record<string, unknown>;
-      if ('price' in sample || 'title' in sample || 'name' in sample || 'sku' in sample) {
-        results.push(`${path}[${v.length}]`);
-      }
-    } else if (typeof v === 'object' && v !== null) {
-      results.push(...findProductArrays(v as Record<string, unknown>, path, depth + 1));
-    }
-  }
-  return results;
+function extractProductsFromNextProps(pp: Record<string, unknown>): Record<string, unknown>[] {
+  return (
+    pp?.products?.products ??
+    pp?.categoryPage?.products?.products ??
+    pp?.categoryPage?.productList?.products ??
+    pp?.initialData?.products?.products ??
+    pp?.productListPage?.products?.products ??
+    pp?.serverProps?.initialData?.products?.products ??
+    pp?.data?.productListPage?.products?.products ??
+    pp?.listingPage?.products?.products ??
+    pp?.pageData?.products?.products ??
+    (pp?.products as Record<string, unknown>)?.list ??
+    []
+  ) as Record<string, unknown>[];
 }
 
 function parseNextData(html: string): { products: Record<string, unknown>[]; debug: string } {
-  // regex 대신 문자열 검색으로 더 안정적으로 태그 추출
   let startIdx = html.indexOf('<script id="__NEXT_DATA__"');
   if (startIdx === -1) startIdx = html.indexOf("<script id='__NEXT_DATA__'");
   if (startIdx === -1) {
-    const scriptCount = (html.match(/<script/g) ?? []).length;
-    return { products: [], debug: `no __NEXT_DATA__; ${scriptCount} <script> tags; html=${html.length}chars` };
+    return { products: [], debug: `no __NEXT_DATA__; html=${html.length}chars` };
   }
-
   const jsonStart = html.indexOf('>', startIdx) + 1;
   const jsonEnd   = html.indexOf('</script>', jsonStart);
-  if (jsonEnd === -1) {
-    return { products: [], debug: '__NEXT_DATA__ found but no closing </script>' };
-  }
+  if (jsonEnd === -1) return { products: [], debug: '__NEXT_DATA__ tag not closed' };
 
   const jsonStr = html.slice(jsonStart, jsonEnd).trim();
   try {
     const nd = JSON.parse(jsonStr);
     const pp = (nd?.props?.pageProps ?? {}) as Record<string, unknown>;
-    const topKeys = Object.keys(pp).slice(0, 12).join(',');
+    const prods = extractProductsFromNextProps(pp);
+    if (prods.length > 0) return { products: prods, debug: `__NEXT_DATA__ OK: ${prods.length}` };
 
-    // 알려진 경로들
-    const prods = (
-      pp?.products?.products ??
-      pp?.categoryPage?.products?.products ??
-      pp?.initialData?.products?.products ??
-      pp?.productListPage?.products?.products ??
-      pp?.serverProps?.initialData?.products?.products ??
-      pp?.data?.productListPage?.products?.products ??
-      pp?.listingPage?.products?.products ??
-      pp?.pageData?.products?.products ??
-      (pp?.products as Record<string, unknown>)?.list ??
-      []
-    ) as Record<string, unknown>[];
-
-    if (prods.length > 0) {
-      return { products: prods, debug: `OK: ${prods.length} products` };
-    }
-
-    // 탐색으로 products-like 배열 위치 파악
-    const found = findProductArrays(pp).slice(0, 8);
-    return {
-      products: [],
-      debug: `pageProps keys: [${topKeys}]; product-like arrays: ${found.join(' | ') || 'none'}; json=${jsonStr.length}chars`,
-    };
+    const topKeys = Object.keys(pp).slice(0, 10).join(',');
+    return { products: [], debug: `pageProps keys=[${topKeys}]; json=${jsonStr.length}chars` };
   } catch (e) {
-    return { products: [], debug: `JSON.parse error: ${(e as Error).message}; jsonLen=${jsonStr.length}` };
+    return { products: [], debug: `JSON error: ${(e as Error).message}` };
   }
+}
+
+function mapThgProduct(p: Record<string, unknown>, cat: string, base: string): ScrapedProduct | null {
+  const priceObj  = (p?.price ?? {}) as Record<string, unknown>;
+  const sale      = krw(priceObj?.value ?? (p?.specialOffer as Record<string, unknown>)?.price ?? 0);
+  if (!sale) return null;
+  const orig      = krw(priceObj?.rrp ?? sale);
+  const imgList   = ((p?.images as Record<string, unknown>)?.list as { url: string }[]) ?? [];
+  const defaultImg = (p?.images as Record<string, unknown>)?.defaultImage as { url: string } | undefined;
+  const thumb     = imgList[0]?.url ?? defaultImg?.url ?? undefined;
+  const url       = String(p?.url ?? p?.canonicalUrl ?? '');
+  const name      = String(p.title ?? p.name ?? '').trim();
+  if (!name) return null;
+  return {
+    name, brand: '마이프로틴', store: '마이프로틴', category: cat,
+    original_price: orig, sale_price: sale,
+    link: url.startsWith('http') ? url : `${base}${url}`,
+    thumbnail: thumb, emoji: '🔵',
+  };
 }
 
 async function scrapeMyProtein(): Promise<SiteResult> {
@@ -254,59 +261,58 @@ async function scrapeMyProtein(): Promise<SiteResult> {
   const debugParts: string[] = [];
   const BASE = 'https://www.myprotein.co.kr';
 
-  // 카테고리별 URL 후보 (두 가지 패턴 시도)
-  const CATS: [string[], string][] = [
-    [['/c/protein/?pageSize=96', '/c/protein/'],                    '단백질 파우더'],
-    [['/c/creatine/?pageSize=96', '/c/creatine/'],                  '크레아틴'],
-    [['/c/amino-acids/?pageSize=96', '/c/amino-acids/'],            'BCAA'],
-    [['/c/vitamins-and-supplements/?pageSize=96', '/c/vitamins-and-supplements/'], '영양제'],
+  const CATS: [string, string][] = [
+    ['/c/protein/',                    '단백질 파우더'],
+    ['/c/creatine/',                   '크레아틴'],
+    ['/c/amino-acids/',                'BCAA'],
+    ['/c/vitamins-and-supplements/',   '영양제'],
   ];
 
-  for (const [paths, cat] of CATS) {
-    let parsed = false;
-    for (const path of paths) {
-      if (parsed) break;
-      try {
-        const html = await getHtml(`${BASE}${path}`, `${BASE}/`);
-        const { products: list, debug: parseDebug } = parseNextData(html);
-        debugParts.push(`[${cat}:${path}] ${parseDebug}`);
+  // Step 1: buildId 추출 (/_next/data/ API 사용을 위해)
+  let buildId = '';
+  try {
+    const mainHtml = await getHtml(`${BASE}/`, `${BASE}/`);
+    const m = mainHtml.match(/"buildId"\s*:\s*"([^"]{8,})"/);
+    buildId = m?.[1] ?? '';
+    debugParts.push(`buildId=${buildId || 'not found'}`);
+  } catch (e) {
+    debugParts.push(`main page error: ${(e as Error).message}`);
+  }
 
-        if (list.length) {
-          parsed = true;
-          for (const p of list) {
-            const priceObj = (p?.price ?? {}) as Record<string, unknown>;
-            const sale = krw(priceObj?.value ?? (p?.specialOffer as Record<string, unknown>)?.price ?? 0);
-            if (!sale) continue;
-            const orig = krw(priceObj?.rrp ?? sale);
-            const imgList = ((p?.images as Record<string, unknown>)?.list as { url: string }[]) ?? [];
-            const defaultImg = (p?.images as Record<string, unknown>)?.defaultImage as { url: string } | undefined;
-            const thumb = imgList[0]?.url ?? defaultImg?.url ?? undefined;
-            const url = String(p?.url ?? p?.canonicalUrl ?? '');
-            products.push({
-              name: String(p.title ?? p.name ?? ''), brand: '마이프로틴', store: '마이프로틴',
-              category: cat, original_price: orig, sale_price: sale,
-              link: url.startsWith('http') ? url : `${BASE}${url}`,
-              thumbnail: thumb, emoji: '🔵',
-            });
-          }
+  for (const [path, cat] of CATS) {
+    let got = false;
+
+    // 시도 1: /_next/data/ JSON API (buildId 있을 때)
+    if (buildId && !got) {
+      try {
+        const cleanPath = path.replace(/^\//, '').replace(/\/$/, '');
+        const apiUrl = `${BASE}/_next/data/${buildId}/${cleanPath}.json?pageSize=96`;
+        const data = await getJson<{ pageProps?: Record<string, unknown> }>(apiUrl, `${BASE}/`);
+        const prods = extractProductsFromNextProps(data?.pageProps ?? {});
+        if (prods.length > 0) {
+          prods.forEach(p => { const sp = mapThgProduct(p, cat, BASE); if (sp) products.push(sp); });
+          debugParts.push(`[${cat}] /_next/data/: ${prods.length} products`);
+          got = true;
         } else {
-          // HTML 폴백: alt 텍스트 기반 가격 추출
-          const cardRe = /href="(\/p\/[^"]+)"[^>]*>\s*<img[^>]+(?:src|data-src)="(https?:\/\/[^"]+)"[^>]*alt="([^"]{3,100})"[\s\S]{0,800}?(?:₩|KRW|￦)\s*([\d,]+)/g;
-          let fallbackCount = 0;
-          for (const mm of html.matchAll(cardRe)) {
-            const sale = krw(mm[4]); if (!sale) continue;
-            products.push({
-              name: mm[3].trim(), brand: '마이프로틴', store: '마이프로틴',
-              category: cat, original_price: sale, sale_price: sale,
-              link: `${BASE}${mm[1]}`, thumbnail: mm[2], emoji: '🔵',
-            });
-            fallbackCount++;
-            parsed = true;
-          }
-          if (fallbackCount > 0) debugParts.push(`[${cat} fallback] ${fallbackCount} products via alt`);
+          debugParts.push(`[${cat}] /_next/data/: 0 (pageProps keys=${Object.keys(data?.pageProps ?? {}).slice(0,5).join(',')})`);
         }
       } catch (e) {
-        debugParts.push(`[${cat}:${path}] FETCH ERROR: ${(e as Error).message}`);
+        debugParts.push(`[${cat}] /_next/data/ error: ${(e as Error).message}`);
+      }
+    }
+
+    // 시도 2: HTML __NEXT_DATA__ 파싱
+    if (!got) {
+      try {
+        const html = await getHtml(`${BASE}${path}?pageSize=96`, `${BASE}/`);
+        const { products: list, debug: pd } = parseNextData(html);
+        debugParts.push(`[${cat}] HTML: ${pd}`);
+        if (list.length > 0) {
+          list.forEach(p => { const sp = mapThgProduct(p, cat, BASE); if (sp) products.push(sp); });
+          got = true;
+        }
+      } catch (e) {
+        debugParts.push(`[${cat}] HTML error: ${(e as Error).message}`);
       }
     }
   }
@@ -325,102 +331,65 @@ async function scrapeMyProtein(): Promise<SiteResult> {
     });
   } catch { /* 스킵 */ }
 
-  return { site: 'MyProtein', products, events, debug: debugParts.slice(0, 12).join(' || ') };
+  return { site: 'MyProtein', products, events, debug: debugParts.join(' || ') };
 }
 
 /* ══════════════════════════════════════════════════════
    4. NS Store — Cafe24 (PC 사이트)
-   v4.0: 디버그 정보 + 다중 URL + 개선된 Cafe24 파서
+   v5.0: 최대 6개 코드, 디버그 유지
 ══════════════════════════════════════════════════════ */
 async function scrapeNSStore(): Promise<SiteResult> {
   const products: ScrapedProduct[] = [];
   const events: ScrapedEvent[] = [];
   const debugParts: string[] = [];
-  const BASES = ['https://www.ns-store.co.kr', 'https://ns-store.co.kr'];
-  let BASE = BASES[0];
+  const BASE = 'https://www.ns-store.co.kr';
 
-  // 접근 가능한 BASE URL 탐색
-  for (const b of BASES) {
-    try {
-      const h = await getHtml(`${b}/`, `${b}/`);
-      BASE = b;
-      const catCodes = new Set<string>();
-      for (const cm of h.matchAll(/goods_list\.php\?cateCd=(\d{4,})/g)) catCodes.add(cm[1]);
-      debugParts.push(`BASE=${b} OK; html=${h.length}chars; cateCodes=${catCodes.size}(${[...catCodes].slice(0,5).join(',')}); hasGoodsNo=${h.includes('goodsNo')}`);
-      break;
-    } catch (e) {
-      debugParts.push(`BASE=${b} ERROR: ${(e as Error).message}`);
-    }
-  }
-
-  // 카테고리 코드 재수집 (성공한 BASE 기준)
+  // 메인 페이지에서 카테고리 코드 수집
   const catCodes = new Set<string>();
   try {
     const mainHtml = await getHtml(`${BASE}/`, `${BASE}/`);
-    for (const cm of mainHtml.matchAll(/goods_list\.php\?cateCd=(\d{4,})/g)) catCodes.add(cm[1]);
-    // 짧은 코드도 수집
     for (const cm of mainHtml.matchAll(/cateCd=(\d{3,})/g)) catCodes.add(cm[1]);
-  } catch { /* 스킵 */ }
+    debugParts.push(`main OK; catCodes=${catCodes.size}(${[...catCodes].slice(0,5).join(',')})`);
+  } catch (e) {
+    debugParts.push(`main ERROR: ${(e as Error).message}`);
+  }
 
-  // 코드 없으면 Cafe24 일반 코드 시도
-  const codesToTry = catCodes.size > 0 ? [...catCodes] : [
-    '0100000001','0100000002','0100000003','0100000004',
-    '001001','001002','001003','001004',
-    '0001','0002','0003','0004','0005',
-  ];
+  const codesToTry = catCodes.size > 0
+    ? [...catCodes].slice(0, 6)
+    : ['0100000001','0100000002','001001','001002','0001','0002'];
 
-  for (const code of codesToTry.slice(0, 20)) {
+  for (const code of codesToTry) {
     try {
       const html = await getHtml(`${BASE}/goods/goods_list.php?cateCd=${code}`, `${BASE}/`);
-      const beforeCount = products.length;
+      const before = products.length;
 
-      // 이미지 맵 (goodsNo → thumbnail)
+      // 이미지 맵
       const imgMap: Record<string, string> = {};
-      for (const im of html.matchAll(/goodsNo=(\d+)[^\s"]*[\s\S]{0,1200}?<img[^>]+(?:src|data-src)="((?:https?:)?\/\/[^"]+\.(jpg|jpeg|png|webp)(?:\?[^"]*)?)"[^>]*>/gi)) {
+      for (const im of html.matchAll(/goodsNo=(\d+)[^\s"]*[\s\S]{0,800}?<img[^>]+(?:src|data-src)="((?:https?:)?\/\/[^"]+\.(jpg|jpeg|png|webp)(?:\?[^"]*)?)"/gi)) {
         if (!imgMap[im[1]]) imgMap[im[1]] = im[2].startsWith('//') ? 'https:' + im[2] : im[2];
       }
 
-      // Cafe24 상품 카드 패턴 1: goods_view 링크 + 클래스 기반
-      const re1 = /href="(\/goods\/goods_view\.php\?goodsNo=(\d+)[^"]*)"[\s\S]{0,3000}?(?:class="[^"]*(?:goods_name|item_name|prd_name|name)[^"]*"[^>]*>|<strong\s+class="[^"]*name[^"]*"[^>]*>)\s*(?:<[^>]+>)*\s*([^<]{2,120})\s*(?:<\/[^>]+>)*[\s\S]{0,1000}?(?:class="[^"]*(?:sale_?price|final_?price|goods_price|selling_price|price)[^"]*"[^>]*>[\s<>a-z/"=]*)([\d,]+)/g;
+      // 패턴 1: class 기반 이름+가격
+      const re1 = /href="(\/goods\/goods_view\.php\?goodsNo=(\d+)[^"]*)"[\s\S]{0,3000}?(?:class="[^"]*(?:goods_name|item_name|prd_name|name)[^"]*"[^>]*>|<strong\s+class="[^"]*name[^"]*"[^>]*>)\s*(?:<[^>]+>)*\s*([^<]{2,120})\s*(?:<\/[^>]+>)*[\s\S]{0,1000}?(?:class="[^"]*(?:sale_?price|final_?price|goods_price|selling_price|price)[^"]*"[^>]*>[\s<>\/a-z"=]*)((?:\d{1,3},)*\d{1,3})/g;
       for (const m of html.matchAll(re1)) {
         const sale = krw(m[4]); if (!sale) continue;
-        products.push({
-          name: m[3].trim().replace(/\s+/g, ' '), brand: 'NS', store: 'NS스토어',
-          category: classifyByName(m[3]),
-          original_price: sale, sale_price: sale,
-          link: `${BASE}${m[1]}`,
-          thumbnail: imgMap[m[2]],
-          emoji: '🟢',
-        });
+        products.push({ name: m[3].trim().replace(/\s+/g, ' '), brand: 'NS', store: 'NS스토어', category: classifyByName(m[3]), original_price: sale, sale_price: sale, link: `${BASE}${m[1]}`, thumbnail: imgMap[m[2]], emoji: '🟢' });
       }
 
-      // Cafe24 패턴 2: alt 텍스트에서 이름, 가격
-      if (products.length === beforeCount) {
-        const re2 = /href="(\/goods\/goods_view\.php\?goodsNo=(\d+))"[^>]*>[\s\S]{0,200}?alt="([^"]{3,120})"[\s\S]{0,2000}?([\d,]+)원/g;
+      // 패턴 2: alt 텍스트 기반 (패턴1 실패 시)
+      if (products.length === before) {
+        const re2 = /href="(\/goods\/goods_view\.php\?goodsNo=(\d+))"[^>]*>[\s\S]{0,200}?alt="([^"]{3,120})"[\s\S]{0,2000}?((?:\d{1,3},)*\d{1,3})원/g;
         for (const m of html.matchAll(re2)) {
           const sale = krw(m[4]); if (!sale) continue;
-          products.push({
-            name: m[3].trim(), brand: 'NS', store: 'NS스토어',
-            category: classifyByName(m[3]),
-            original_price: sale, sale_price: sale,
-            link: `${BASE}${m[1]}`,
-            thumbnail: imgMap[m[2]],
-            emoji: '🟢',
-          });
+          products.push({ name: m[3].trim(), brand: 'NS', store: 'NS스토어', category: classifyByName(m[3]), original_price: sale, sale_price: sale, link: `${BASE}${m[1]}`, thumbnail: imgMap[m[2]], emoji: '🟢' });
         }
       }
 
-      const added = products.length - beforeCount;
-      if (added > 0) {
-        debugParts.push(`cateCd=${code}: +${added} products`);
-      } else {
-        // 빈 페이지인지 or 제품 파싱 실패인지 확인
-        const hasGoods = html.includes('goodsNo') || html.includes('goods_view');
-        if (hasGoods) debugParts.push(`cateCd=${code}: html has goods links but regex no match (len=${html.length})`);
-        // 빈 카테고리는 조용히 스킵
-      }
+      const added = products.length - before;
+      if (added > 0) debugParts.push(`cateCd=${code}: +${added}`);
+      else if (html.includes('goodsNo')) debugParts.push(`cateCd=${code}: has goodsNo but no match (len=${html.length})`);
     } catch (e) {
-      debugParts.push(`cateCd=${code}: FETCH ERR ${(e as Error).message}`);
+      debugParts.push(`cateCd=${code}: ${(e as Error).message}`);
     }
   }
 
@@ -434,34 +403,33 @@ async function scrapeNSStore(): Promise<SiteResult> {
     const html = await getHtml(`${BASE}/event/event_list.php`, `${BASE}/`);
     const re = /href="(\/event\/event_view\.php\?[^"]+)"[\s\S]{0,600}?(?:class="[^"]*(?:subject|tit)[^"]*"|<strong>)\s*([^<]{5,100})/g;
     for (const m of [...html.matchAll(re)].slice(0, 5)) {
-      events.push({
-        brand: 'ns', brand_label: 'NS스토어', name: m[2].trim().replace(/\s+/g, ' '),
-        description: 'NS스토어 진행 중인 이벤트.', color: '#4CAF50',
-        active: true, link: `${BASE}${m[1]}`,
-      });
+      events.push({ brand: 'ns', brand_label: 'NS스토어', name: m[2].trim().replace(/\s+/g, ' '), description: 'NS스토어 진행 중인 이벤트.', color: '#4CAF50', active: true, link: `${BASE}${m[1]}` });
     }
   } catch { /* 스킵 */ }
 
-  return { site: 'NSStore', products, events, debug: debugParts.slice(0, 20).join(' || ') };
+  return { site: 'NSStore', products, events, debug: debugParts.join(' || ') };
 }
 
-/* ── DB 업서트 ─────────────────────────────────────────── */
+/* ── DB 업서트 (name+store 기준 — 중복 링크 문제 해결) ─── */
 async function upsertProducts(prods: ScrapedProduct[]) {
   let ins = 0, upd = 0;
   for (const p of prods) {
+    if (!p.name?.trim()) continue;
+
+    // name + store 조합으로 기존 행 탐색
     const { data: ex } = await supabase
       .from('products')
       .select('id, sale_price, thumbnail')
-      .eq('link', p.link)
+      .eq('name', p.name)
+      .eq('store', p.store)
       .maybeSingle();
 
     if (ex) {
       const needsUpdate = ex.sale_price !== p.sale_price || (!ex.thumbnail && p.thumbnail);
       if (needsUpdate) {
         await supabase.from('products').update({
-          sale_price: p.sale_price,
-          original_price: p.original_price,
-          updated_at: new Date().toISOString(),
+          sale_price: p.sale_price, original_price: p.original_price,
+          link: p.link, updated_at: new Date().toISOString(),
           ...(p.thumbnail ? { thumbnail: p.thumbnail } : {}),
         }).eq('id', ex.id);
         upd++;
@@ -475,7 +443,7 @@ async function upsertProducts(prods: ScrapedProduct[]) {
         link: p.link, scrape_url: p.link, updated_at: new Date().toISOString(),
       });
       if (!error) ins++;
-      else console.error('insert error:', error.message, p.link);
+      else console.error('insert error:', error.message, p.name);
     }
   }
   return { inserted: ins, updated: upd };
@@ -509,7 +477,7 @@ Deno.serve(async (req) => {
   for (const site of targets) {
     if (!scrapers[site]) continue;
     try {
-      const r = await scrapers[site]();
+      const r = await withSiteTimeout(scrapers[site], site);
       const [{ inserted, updated }] = await Promise.all([
         upsertProducts(r.products),
         upsertEvents(r.events),

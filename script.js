@@ -70,7 +70,10 @@ const NUTRITION_DATA = {
 /* ============================================================
    전역 데이터
    ============================================================ */
+const PAGE_SIZE        = 24;   // 무한 스크롤 한 번에 로드할 개수
 let PRODUCTS           = [];
+let _filteredCache     = [];   // getFiltered() 결과 캐시 (무한스크롤용)
+let _scrollObserver    = null;
 let currentUser        = null;
 let pendingProductLink = null;
 let ALL_FLAVORS        = [];   // buildDynamicFilters() 이후 채워짐
@@ -184,6 +187,7 @@ let state = {
   flavors:        new Set(),   // 제품 로드 후 채워짐
   weights:        new Set(),   // 제품 로드 후 채워짐
   activeEventIds: new Set(), // 이벤트 로드 후 채워짐
+  visibleCount: PAGE_SIZE,   // 무한 스크롤 현재 표시 수
 };
 
 /* ============================================================
@@ -442,27 +446,69 @@ function renderCard(p) {
 }
 
 /* ============================================================
+   무한 스크롤 헬퍼
+   ============================================================ */
+function _detachScrollObserver() {
+  if (_scrollObserver) { _scrollObserver.disconnect(); _scrollObserver = null; }
+}
+
+function _attachScrollObserver() {
+  _detachScrollObserver();
+  if (state.visibleCount >= _filteredCache.length) return;
+
+  let sentinel = el('scrollSentinel');
+  if (!sentinel) {
+    sentinel = document.createElement('div');
+    sentinel.id = 'scrollSentinel';
+    sentinel.style.cssText = 'height:1px;';
+    el('productGrid').insertAdjacentElement('afterend', sentinel);
+  }
+
+  _scrollObserver = new IntersectionObserver(([entry]) => {
+    if (!entry.isIntersecting) return;
+    const from = state.visibleCount;
+    const to   = Math.min(from + PAGE_SIZE, _filteredCache.length);
+    state.visibleCount = to;
+
+    // 기존 카드에 이어 붙이기 (전체 재렌더 없음 → 성능 향상)
+    const grid = el('productGrid');
+    const tmp  = document.createElement('div');
+    tmp.innerHTML = _filteredCache.slice(from, to).map(renderCard).join('');
+    while (tmp.firstChild) grid.appendChild(tmp.firstChild);
+
+    if (state.visibleCount >= _filteredCache.length) _detachScrollObserver();
+  }, { rootMargin: '400px' });
+
+  _scrollObserver.observe(sentinel);
+}
+
+/* ============================================================
    전체 렌더
    ============================================================ */
 function render() {
-  const items = getFiltered();
+  _filteredCache     = getFiltered();
+  state.visibleCount = PAGE_SIZE;        // 필터/정렬 바뀔 때마다 첫 페이지로 리셋
+  _detachScrollObserver();
+
   const grid  = el('productGrid');
   const empty = el('emptyState');
 
-  el('resultCount').textContent = items.length;
-
-  // 핫딜 배너 토글
+  el('resultCount').textContent = _filteredCache.length;
   el('top10Section').classList.remove('hidden');
 
-  if (items.length === 0) {
+  if (_filteredCache.length === 0) {
     grid.innerHTML     = '';
     grid.style.display = 'none';
     empty.classList.remove('hidden');
-  } else {
-    grid.innerHTML     = items.map(renderCard).join('');
-    grid.style.display = 'grid';
-    empty.classList.add('hidden');
+    return;
   }
+
+  const visible = _filteredCache.slice(0, PAGE_SIZE);
+  grid.innerHTML     = visible.map(renderCard).join('');
+  grid.style.display = 'grid';
+  empty.classList.add('hidden');
+
+  _attachScrollObserver();
 }
 
 /* ============================================================
