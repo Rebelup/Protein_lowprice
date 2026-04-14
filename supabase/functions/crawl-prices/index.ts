@@ -395,8 +395,10 @@ Deno.serve(async (req) => {
     if (!scrapers[site]) continue;
     try {
       const r = await scrapers[site]();
-      const { inserted, updated } = await upsertProducts(r.products);
-      await upsertEvents(r.events);
+      const [{ inserted, updated }] = await Promise.all([
+        upsertProducts(r.products),
+        upsertEvents(r.events),
+      ]);
       summary[site] = {
         products_found: r.products.length, inserted, updated,
         events_found: r.events.length, error: r.error ?? null,
