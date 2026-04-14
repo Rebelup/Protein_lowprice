@@ -1,5 +1,5 @@
 /**
- * crawl-prices Edge Function  v2.0
+ * crawl-prices Edge Function  v3.0
  *
  * 지원 사이트:
  *   1. BSN Korea (bsn.co.kr) — Shopify
@@ -78,6 +78,14 @@ function shopifyCat(tags: string[], type: string): string {
   return '보충제';
 }
 
+function classifyByName(name: string): string {
+  const n = name.toLowerCase();
+  if (/bcaa|amino|아미노/.test(n)) return 'BCAA';
+  if (/creatine|크레아틴/.test(n)) return '크레아틴';
+  if (/vitamin|비타민|omega|오메가|zinc|magnesium/.test(n)) return '영양제';
+  return '단백질 파우더';
+}
+
 /* ══════════════════════════════════════════════════════
    1. BSN Korea — Shopify
 ══════════════════════════════════════════════════════ */
@@ -103,7 +111,6 @@ async function scrapeBSN(): Promise<SiteResult> {
       }
       if (d.products.length < 250) break;
     }
-    // 이벤트
     try {
       const h = await getHtml('https://www.bsn.co.kr/pages/lets-bsn', 'https://www.bsn.co.kr/');
       const disc = h.match(/(\d+)\s*%/)?.[1];
@@ -149,7 +156,6 @@ async function scrapeON(): Promise<SiteResult> {
       }
       if (d.products.length < 250) break;
     }
-    // 프로모션
     try {
       const h = await getHtml(`${BASE}/pages/promotions`, `${BASE}/`);
       const disc = h.match(/(\d+)\s*%/)?.[1];
@@ -167,7 +173,26 @@ async function scrapeON(): Promise<SiteResult> {
 
 /* ══════════════════════════════════════════════════════
    3. MyProtein Korea — THG Commerce (Next.js)
+   핵심 수정: __NEXT_DATA__ 정규식을 태그 내용 전체 캡처로 변경
 ══════════════════════════════════════════════════════ */
+function parseNextData(html: string): Record<string, unknown>[] {
+  // 태그 내용 전체를 캡처 (이전: (\{[\s\S]*?\}) → 중첩 JSON을 잘라버리는 버그)
+  const m = html.match(/<script[^>]+id=["']__NEXT_DATA__["'][^>]*>([\s\S]*?)<\/script>/);
+  if (!m) return [];
+  try {
+    const nd = JSON.parse(m[1]);
+    const pp = nd?.props?.pageProps ?? {};
+    return (
+      pp?.products?.products ??
+      pp?.categoryPage?.products?.products ??
+      pp?.initialData?.products?.products ??
+      pp?.productListPage?.products?.products ??
+      pp?.serverProps?.initialData?.products?.products ??
+      []
+    ) as Record<string, unknown>[];
+  } catch { return []; }
+}
+
 async function scrapeMyProtein(): Promise<SiteResult> {
   const products: ScrapedProduct[] = [];
   const events: ScrapedEvent[] = [];
@@ -182,47 +207,45 @@ async function scrapeMyProtein(): Promise<SiteResult> {
   for (const [path, cat] of CATS) {
     try {
       const html = await getHtml(`${BASE}${path}`, `${BASE}/`);
+      const list = parseNextData(html);
 
-      // __NEXT_DATA__ 파싱 시도
-      const ndMatch = html.match(/<script id="__NEXT_DATA__"[^>]*>(\{[\s\S]*?\})<\/script>/);
-      if (ndMatch) {
-        try {
-          const nd = JSON.parse(ndMatch[1]);
-          const pp = nd?.props?.pageProps ?? {};
-          const list: Record<string, unknown>[] =
-            pp?.products?.products ??
-            pp?.categoryPage?.products?.products ??
-            pp?.initialData?.products?.products ?? [];
-          for (const p of list) {
-            const priceObj = p?.price as Record<string, unknown> ?? {};
-            const sale = krw(priceObj?.value ?? (p?.specialOffer as Record<string,unknown>)?.price ?? 0);
-            const orig = krw(priceObj?.rrp ?? sale);
-            if (!sale) continue;
-            const imgList = ((p?.images as Record<string,unknown>)?.list as {url:string}[]) ?? [];
-            products.push({
-              name: String(p.title ?? p.name ?? ''), brand: '마이프로틴', store: '마이프로틴',
-              category: cat, original_price: orig, sale_price: sale,
-              link: `${BASE}${p.url ?? ''}`, thumbnail: imgList[0]?.url, emoji: '🔵',
-            });
-          }
-          continue;
-        } catch { /* HTML 폴백 */ }
-      }
-
-      // HTML 폴백
-      const ms = [...html.matchAll(/href="(\/p\/[^"]+)"[\s\S]{0,300}?>([^<]{5,80})<\/[\s\S]{0,100}?(?:₩|KRW)\s*([\d,]+)/g)];
-      for (const m of ms) {
-        const sale = krw(m[3]); if (!sale) continue;
-        products.push({ name: m[2].trim(), brand: '마이프로틴', store: '마이프로틴', category: cat, original_price: sale, sale_price: sale, link: `${BASE}${m[1]}`, emoji: '🔵' });
+      if (list.length) {
+        for (const p of list) {
+          const priceObj = (p?.price ?? {}) as Record<string, unknown>;
+          const sale = krw(priceObj?.value ?? (p?.specialOffer as Record<string, unknown>)?.price ?? 0);
+          if (!sale) continue;
+          const orig = krw(priceObj?.rrp ?? sale);
+          const imgList = ((p?.images as Record<string, unknown>)?.list as { url: string }[]) ?? [];
+          const defaultImg = (p?.images as Record<string, unknown>)?.defaultImage as { url: string } | undefined;
+          const thumb = imgList[0]?.url ?? defaultImg?.url ?? undefined;
+          const url = String(p?.url ?? p?.canonicalUrl ?? '');
+          products.push({
+            name: String(p.title ?? p.name ?? ''), brand: '마이프로틴', store: '마이프로틴',
+            category: cat, original_price: orig, sale_price: sale,
+            link: url.startsWith('http') ? url : `${BASE}${url}`,
+            thumbnail: thumb, emoji: '🔵',
+          });
+        }
+      } else {
+        // HTML 폴백 — 카드에서 이름·가격·이미지 추출
+        const cardRe = /href="(\/p\/[^"]+)"[^>]*>[\s\S]{0,600}?<img[^>]+src="(https?:\/\/[^"]+)"[\s\S]{0,400}?class="[^"]*productName[^"]*"[^>]*>([^<]{3,100})<[\s\S]{0,300}?(?:₩|KRW)\s*([\d,]+)/g;
+        for (const mm of html.matchAll(cardRe)) {
+          const sale = krw(mm[4]); if (!sale) continue;
+          products.push({
+            name: mm[3].trim(), brand: '마이프로틴', store: '마이프로틴',
+            category: cat, original_price: sale, sale_price: sale,
+            link: `${BASE}${mm[1]}`, thumbnail: mm[2], emoji: '🔵',
+          });
+        }
       }
     } catch { /* 카테고리 스킵 */ }
   }
 
-  // 쿠폰/이벤트 페이지
+  // 쿠폰/이벤트
   try {
     const h = await getHtml(`${BASE}/c/voucher-codes/`, `${BASE}/`);
-    const discs = [...h.matchAll(/(\d+)\s*%/g)];
-    const max = discs.length ? Math.max(...discs.map(m => +m[1]).filter(n => n <= 80)) : 35;
+    const discs = [...h.matchAll(/(\d+)\s*%/g)].map(m => +m[1]).filter(n => n > 0 && n <= 80);
+    const max = discs.length ? Math.max(...discs) : 35;
     events.push({
       brand: 'myprotein', brand_label: '마이프로틴', name: '마이프로틴 할인코드 모음',
       description: `할인 코드 적용 시 최대 ${max}% 추가 할인.`, discount_pct: max,
@@ -236,40 +259,68 @@ async function scrapeMyProtein(): Promise<SiteResult> {
 }
 
 /* ══════════════════════════════════════════════════════
-   4. NS Store — Cafe24
+   4. NS Store — Cafe24 (PC 사이트)
+   메인 페이지에서 카테고리 코드를 동적으로 추출
 ══════════════════════════════════════════════════════ */
 async function scrapeNSStore(): Promise<SiteResult> {
   const products: ScrapedProduct[] = [];
   const events: ScrapedEvent[] = [];
-  const BASE = 'https://m.ns-store.co.kr';
-  const CATS: [string, string][] = [
-    ['001', '단백질 파우더'], ['002', 'BCAA'], ['003', '크레아틴'], ['004', '영양제'],
+  const BASE = 'https://www.ns-store.co.kr';
+
+  // 메인 페이지에서 카테고리 코드 수집
+  const catCodes = new Set<string>();
+  try {
+    const mainHtml = await getHtml(`${BASE}/`, `${BASE}/`);
+    for (const cm of mainHtml.matchAll(/goods_list\.php\?cateCd=(\d{4,})/g)) {
+      catCodes.add(cm[1]);
+    }
+  } catch { /* 스킵 */ }
+
+  // 발견된 카테고리가 없으면 알려진 코드 시도
+  const codesToTry = catCodes.size > 0 ? [...catCodes] : [
+    '0100000001','0100000002','0100000003','0100000004','0100000005',
+    '001001','001002','001003','002001','003001',
   ];
 
-  for (const [code, cat] of CATS) {
+  for (const code of codesToTry.slice(0, 15)) {
     try {
-      const html = await getHtml(
-        `${BASE}/goods/goods_list.php?cateCd=${code}`, `${BASE}/`
-      );
-      // Cafe24 상품 카드 패턴
-      const re = /href="(\/goods\/goods_view\.php\?goodsNo=(\d+))"[\s\S]{0,1200}?class="[^"]*goods_name[^"]*"[^>]*>([^<]+)<[\s\S]{0,600}?class="[^"]*(?:sale_?price|final_?price|goods_price)[^"]*"[^>]*>([\d,]+)/g;
-      for (const m of [...html.matchAll(re)]) {
+      const html = await getHtml(`${BASE}/goods/goods_list.php?cateCd=${code}`, `${BASE}/`);
+
+      // 상품 번호 → 이미지 URL 매핑
+      const imgMap: Record<string, string> = {};
+      for (const im of html.matchAll(/goodsNo=(\d+)[^"]*"[\s\S]{0,800}?<img[^>]+src="((?:https?:)?\/\/[^"]+(?:goods|product|upload|thumb)[^"]*\.(jpg|jpeg|png|webp))[^"]*"/gi)) {
+        if (!imgMap[im[1]]) imgMap[im[1]] = im[2].startsWith('//') ? 'https:' + im[2] : im[2];
+      }
+
+      // 상품 카드: 링크·이름·가격
+      const re = /href="(\/goods\/goods_view\.php\?goodsNo=(\d+)[^"]*)"[\s\S]{0,2500}?class="[^"]*(?:goods_name|item_name|prd_name)[^"]*"[^>]*>\s*([^<]{3,100})\s*<[\s\S]{0,800}?class="[^"]*(?:sale_?price|final_?price|goods_price|selling_price)[^"]*"[^>]*>\s*([\d,]+)/g;
+      for (const m of html.matchAll(re)) {
         const sale = krw(m[4]); if (!sale) continue;
+        const thumb = imgMap[m[2]];
         products.push({
-          name: m[3].trim(), brand: 'NS', store: 'NS스토어', category: cat,
-          original_price: sale, sale_price: sale, link: `${BASE}${m[1]}`, emoji: '🟢',
+          name: m[3].trim(), brand: 'NS', store: 'NS스토어',
+          category: classifyByName(m[3]),
+          original_price: sale, sale_price: sale,
+          link: `${BASE}${m[1]}`,
+          thumbnail: thumb,
+          emoji: '🟢',
         });
       }
     } catch { /* 스킵 */ }
   }
 
-  // 이벤트 목록
+  // 중복 링크 제거
+  const seen = new Set<string>();
+  const unique = products.filter(p => { if (seen.has(p.link)) return false; seen.add(p.link); return true; });
+  products.length = 0; unique.forEach(p => products.push(p));
+
+  // 이벤트
   try {
     const html = await getHtml(`${BASE}/event/event_list.php`, `${BASE}/`);
-    const re = /href="(\/event\/event_view\.php\?[^"]+)"[\s\S]{0,500}?(?:class="[^"]*subject[^"]*"|<strong>)\s*([^<]{5,100})</g;
+    const re = /href="(\/event\/event_view\.php\?[^"]+)"[\s\S]{0,600}?(?:class="[^"]*(?:subject|tit)[^"]*"|<strong>)\s*([^<]{5,100})/g;
     for (const m of [...html.matchAll(re)].slice(0, 5)) {
       events.push({
-        brand: 'ns', brand_label: 'NS스토어', name: m[2].trim(),
+        brand: 'ns', brand_label: 'NS스토어', name: m[2].trim().replace(/\s+/g, ' '),
         description: 'NS스토어 진행 중인 이벤트.', color: '#4CAF50',
         active: true, link: `${BASE}${m[1]}`,
       });
@@ -283,24 +334,33 @@ async function scrapeNSStore(): Promise<SiteResult> {
 async function upsertProducts(prods: ScrapedProduct[]) {
   let ins = 0, upd = 0;
   for (const p of prods) {
-    const { data: ex } = await supabase.from('products').select('id,sale_price').eq('link', p.link).maybeSingle();
+    const { data: ex } = await supabase
+      .from('products')
+      .select('id, sale_price, thumbnail')
+      .eq('link', p.link)
+      .maybeSingle();
+
     if (ex) {
-      if (ex.sale_price !== p.sale_price) {
+      // 가격 변경 또는 썸네일 없을 때 업데이트
+      const needsUpdate = ex.sale_price !== p.sale_price || (!ex.thumbnail && p.thumbnail);
+      if (needsUpdate) {
         await supabase.from('products').update({
-          sale_price: p.sale_price, original_price: p.original_price,
+          sale_price: p.sale_price,
+          original_price: p.original_price,
           updated_at: new Date().toISOString(),
           ...(p.thumbnail ? { thumbnail: p.thumbnail } : {}),
         }).eq('id', ex.id);
         upd++;
       }
     } else {
-      await supabase.from('products').insert({
-        name: p.name, brand: p.brand, store: p.store, category: '보충제',
+      const { error } = await supabase.from('products').insert({
+        name: p.name, brand: p.brand, store: p.store,
+        category: classifyByName(p.name),
         emoji: p.emoji ?? '💊', thumbnail: p.thumbnail ?? null,
         original_price: p.original_price, sale_price: p.sale_price,
         link: p.link, scrape_url: p.link, updated_at: new Date().toISOString(),
       });
-      ins++;
+      if (!error) ins++;
     }
   }
   return { inserted: ins, updated: upd };
@@ -323,7 +383,6 @@ async function upsertEvents(evts: ScrapedEvent[]) {
 
 /* ── 메인 핸들러 ─────────────────────────────────────────── */
 Deno.serve(async (req) => {
-  // Supabase 내장 JWT 검증(verify_jwt=true)이 Bearer 토큰을 처리하므로 별도 체크 불필요
   const body = await req.json().catch(() => ({})) as { sites?: string[] };
   const targets = body.sites ?? ['bsn', 'on', 'myprotein', 'nsstore'];
 
