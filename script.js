@@ -343,8 +343,8 @@ function getFiltered() {
         const q = state.search.toLowerCase();
         if (!p.name.toLowerCase().includes(q) && !p.brand.toLowerCase().includes(q)) return false;
       }
-      if (!state.brands.has(p.brand)) return false;
-      if (!state.productTypes.has(getSubCat(p))) return false;
+      if (state.brands.size && !state.brands.has(p.brand)) return false;
+      if (state.productTypes.size && !state.productTypes.has(getSubCat(p))) return false;
       if (state.flavors.size && !state.flavors.has(p.flavor)) return false;
       if (state.weights.size && !state.weights.has(p.weight)) return false;
       if (state.activeOnly && daysUntil(p.expiryDate) <= 0) return false;
