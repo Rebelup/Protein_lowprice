@@ -114,9 +114,9 @@ function getProductEvents(p) {
   });
 }
 
-/** 이벤트 적용 시 최저가 계산 */
+/** 이벤트 적용 시 최저가 계산 (활성화된 이벤트만) */
 function getEventBestPrice(p) {
-  const evts = getProductEvents(p);
+  const evts = getProductEvents(p).filter(e => state.activeEventIds.has(e.id));
   if (!evts.length) return null;
   const best = Math.max(...evts.map(e => e.discountPct));
   return Math.round(p.salePrice * (1 - best / 100));
@@ -146,8 +146,9 @@ let state = {
   sort:         'price_asc',
   brands:       new Set(ALL_BRANDS),
   productTypes: new Set(ALL_PRODUCT_TYPES),
-  flavors:      new Set(),   // 제품 로드 후 채워짐
-  weights:      new Set(),   // 제품 로드 후 채워짐
+  flavors:        new Set(),   // 제품 로드 후 채워짐
+  weights:        new Set(),   // 제품 로드 후 채워짐
+  activeEventIds: new Set(EVENTS.map(e => e.id)), // 활성 이벤트 (기본=전체)
 };
 
 /* ============================================================
@@ -422,88 +423,99 @@ function render() {
 /* ============================================================
    상품 상세 페이지 (바텀시트)
    ============================================================ */
-function openProductDetail(productId) {
+/* ============================================================
+   상품 페이지 (풀스크린, 오른쪽에서 슬라이드)
+   ============================================================ */
+function openProductDetail(productId) { openProductPage(productId); } // 하위 호환
+
+function openProductPage(productId) {
   const p = PRODUCTS.find(x => x.id === productId);
   if (!p) return;
+  renderProductPageContent(p);
+  const page = el('productPage');
+  page.classList.remove('hidden');
+  page.getBoundingClientRect();
+  page.classList.add('page-open');
+  history.pushState({ productId }, '', `?product=${productId}`);
+}
+
+function closeProductPage() {
+  const page = el('productPage');
+  page.classList.remove('page-open');
+  page.addEventListener('transitionend', () => {
+    page.classList.add('hidden');
+    el('productPageBody').textContent = '';
+  }, { once: true });
+  if (history.state?.productId) history.back();
+}
+
+function renderProductPageContent(p) {
   const pct      = discountPct(p.originalPrice, p.salePrice);
   const delivery = deliveryInfo(p.store);
   const thumb    = getThumbUrl(p);
-  const evts     = getProductEvents(p);
   const safeLink = escHtml(safeUrl(p.link));
+  const evts     = getProductEvents(p);
 
   const eventsHtml = evts.length ? `
-    <div class="detail-events-wrap">
-      <div class="detail-events-title">🎁 적용 가능한 이벤트</div>
+    <div class="pp-events-wrap">
+      <div class="pp-section-title">🎁 적용 가능한 이벤트</div>
       ${evts.map(e => `
-        <label class="detail-event-card" style="--ec:${e.color}">
-          <div class="detail-event-card-left">
-            <span class="detail-event-dot" style="background:${e.color}"></span>
-            <div>
-              <div class="detail-event-name">${escHtml(e.name)}</div>
-              <div class="detail-event-desc">${escHtml(e.desc)}</div>
-              <div class="detail-event-meta">추가 <strong>${e.discountPct}%</strong> 할인 · ~${e.endDate}</div>
-            </div>
+        <label class="pp-event-item">
+          <span class="pp-event-dot" style="background:${e.color}"></span>
+          <div class="pp-event-info">
+            <div class="pp-event-name">${escHtml(e.name)}</div>
+            <div class="pp-event-meta">추가 <strong>${e.discountPct}%</strong> 할인 · ~${e.endDate}</div>
           </div>
-          <input type="checkbox" class="detail-event-cb" value="${e.id}" onchange="updateDetailCalc(${p.id})">
+          <input type="checkbox" class="pp-event-cb" value="${e.id}"
+            ${state.activeEventIds.has(e.id) ? 'checked' : ''}
+            onchange="updatePpCalc(${p.id})">
         </label>`).join('')}
-      <div class="detail-calc">
-        <div class="detail-calc-label">이벤트 적용 후 예상가</div>
-        <div class="detail-calc-price" id="detailCalcPrice">${formatKRW(p.salePrice)}</div>
-        <div class="detail-calc-note" id="detailCalcNote">이벤트를 선택하면 할인가가 업데이트됩니다</div>
+      <div class="pp-calc">
+        <span class="pp-calc-label">이벤트 적용 예상가</span>
+        <span class="pp-calc-price" id="ppCalcPrice">${formatKRW(p.salePrice)}</span>
       </div>
-    </div>` : `<div class="detail-no-events">이 상품에 적용 가능한 이벤트가 없습니다</div>`;
+    </div>` : '';
 
-  el('detailSheetInner').innerHTML = `
-    <div class="detail-close-row">
-      <button class="detail-close-btn" onclick="closeProductDetail()">✕ 닫기</button>
-    </div>
-    <div class="detail-img-wrap ${!thumb ? 'thumb-loading' : ''}">
+  el('productPageBody').innerHTML = `
+    <div class="pp-img-wrap">
       ${thumb
-        ? `<img src="${escHtml(thumb)}" alt="${escHtml(p.name)}" onerror="this.style.display='none';this.nextSibling.style.display='flex'">
-           <span class="detail-img-fallback" style="display:none">${p.emoji}</span>`
-        : `<span class="detail-img-fallback">${p.emoji}</span>`}
+        ? `<img src="${escHtml(thumb)}" alt="${escHtml(p.name)}"
+             onerror="this.style.display='none';this.nextSibling.style.display='flex'">
+           <span class="pp-img-fallback" style="display:none">${p.emoji}</span>`
+        : `<span class="pp-img-fallback">${p.emoji}</span>`}
     </div>
-    <div class="detail-info">
-      <div class="detail-delivery ${delivery.cls}">${delivery.label}</div>
-      <div class="detail-brand">${escHtml(p.brand)}</div>
-      <div class="detail-name">${escHtml(p.name)}</div>
-      <div class="detail-price-section">
-        <div class="detail-orig">정가 ${formatKRW(p.originalPrice)}</div>
-        <div class="detail-sale-row">
-          <span class="detail-sale-price">${formatKRW(p.salePrice)}</span>
-          <span class="detail-pct">▼${pct}%</span>
-        </div>
+    <div class="pp-info">
+      <div class="pp-brand-row">
+        <span class="pp-brand">${escHtml(p.brand)}</span>
+        <span class="card-delivery ${delivery.cls}">${delivery.label}</span>
+      </div>
+      <div class="pp-name">${escHtml(p.name)}</div>
+      <div class="pp-price-row">
+        <span class="pp-orig">${formatKRW(p.originalPrice)}</span>
+        <span class="pp-sale">${formatKRW(p.salePrice)}</span>
+        <span class="pp-pct">▼${pct}%</span>
       </div>
     </div>
     ${eventsHtml}
-    <div class="detail-actions">
-      <button class="detail-event-page-btn js-open-event">이벤트 보기</button>
-      <button class="detail-buy-btn" data-link="${safeLink}">구매하기</button>
+    <div class="pp-actions">
+      <button class="pp-buy-btn" data-link="${safeLink}">구매하기 →</button>
     </div>`;
 
-  el('detailSheet').classList.remove('hidden');
-  el('sheetOverlay').classList.remove('hidden');
+  updatePpCalc(p.id);
+
+  el('productPageBody').querySelector('.pp-buy-btn')
+    .addEventListener('click', function() { handleBuyClick(this.dataset.link); });
 }
 
-function closeProductDetail() {
-  el('detailSheet').classList.add('hidden');
-  el('sheetOverlay').classList.add('hidden');
-}
-
-function updateDetailCalc(pid) {
+function updatePpCalc(pid) {
   const p = PRODUCTS.find(x => x.id === pid);
-  if (!p) return;
-  const checked = [...document.querySelectorAll('.detail-event-cb:checked')];
+  const priceEl = el('ppCalcPrice');
+  if (!p || !priceEl) return;
+  const checked = [...document.querySelectorAll('.pp-event-cb:checked')];
   const evts = checked.map(cb => EVENTS.find(e => e.id === parseInt(cb.value))).filter(Boolean);
-  if (!evts.length) {
-    el('detailCalcPrice').textContent = formatKRW(p.salePrice);
-    el('detailCalcNote').textContent  = '이벤트를 선택하면 할인가가 업데이트됩니다';
-    return;
-  }
+  if (!evts.length) { priceEl.textContent = formatKRW(p.salePrice); return; }
   const best = Math.max(...evts.map(e => e.discountPct));
-  const final = Math.round(p.salePrice * (1 - best / 100));
-  el('detailCalcPrice').textContent = formatKRW(final);
-  el('detailCalcNote').textContent  = `${best}% 추가 할인 적용 (${formatKRW(p.salePrice)} → ${formatKRW(final)})`;
+  priceEl.textContent = formatKRW(Math.round(p.salePrice * (1 - best / 100)));
 }
 
 function handleBuyClick(link) {
@@ -516,35 +528,75 @@ function handleBuyClick(link) {
 }
 
 /* ============================================================
+   SHEET HELPERS — 슬라이드 애니메이션 + 드래그 투 클로즈
+   ============================================================ */
+function openSheet(sheetEl, overlayEl) {
+  sheetEl.classList.remove('hidden');
+  sheetEl.getBoundingClientRect(); // force reflow
+  sheetEl.classList.add('sheet-open');
+  if (overlayEl) {
+    overlayEl.classList.remove('hidden');
+    overlayEl.getBoundingClientRect();
+  }
+}
+
+function closeSheet(sheetEl, overlayEl) {
+  sheetEl.classList.remove('sheet-open');
+  sheetEl.addEventListener('transitionend', () => {
+    sheetEl.classList.add('hidden');
+    if (overlayEl) overlayEl.classList.add('hidden');
+  }, { once: true });
+}
+
+function setupDragToClose(sheetEl, closeFn) {
+  let startY = 0, curDy = 0, active = false;
+  sheetEl.addEventListener('touchstart', e => {
+    if (sheetEl.scrollTop > 0) return;
+    startY = e.touches[0].clientY; curDy = 0; active = true;
+    sheetEl.style.transition = 'none';
+  }, { passive: true });
+  sheetEl.addEventListener('touchmove', e => {
+    if (!active) return;
+    curDy = Math.max(0, e.touches[0].clientY - startY);
+    sheetEl.style.transform = `translateX(-50%) translateY(${curDy}px)`;
+  }, { passive: true });
+  sheetEl.addEventListener('touchend', () => {
+    if (!active) return;
+    active = false;
+    sheetEl.style.transition = '';
+    sheetEl.style.transform = '';
+    if (curDy > 120) closeFn();
+    curDy = 0;
+  });
+}
+
+/* ============================================================
    이벤트 시트
    ============================================================ */
-function openEventSheet(status) {
-  renderEventSheet(status || 'active');
-  el('eventSheet').classList.remove('hidden');
-  el('sheetOverlay').classList.remove('hidden');
+function openEventSheet() {
+  renderEventChips();
+  openSheet(el('eventSheet'), el('sheetOverlay'));
 }
 function closeEventSheet() {
-  el('eventSheet').classList.add('hidden');
-  el('sheetOverlay').classList.add('hidden');
+  closeSheet(el('eventSheet'), el('sheetOverlay'));
 }
-function renderEventSheet(status) {
-  const list = EVENTS.filter(e => status === 'active' ? e.active : !e.active);
-  el('eventSheetBody').innerHTML = list.length === 0
-    ? '<div class="event-empty">현재 진행중인 이벤트가 없습니다</div>'
-    : list.map(e => `
-      <div class="event-card">
-        <div class="event-card-dot" style="background:${e.color}"></div>
-        <div class="event-card-body">
-          <div class="event-card-brand">${escHtml(e.brandLabel)}</div>
-          <div class="event-card-name">${escHtml(e.name)}</div>
-          <div class="event-card-desc">${escHtml(e.desc)}</div>
-          <div class="event-card-meta">최대 <strong>${e.discountPct}%</strong> 추가 할인 · ~${e.endDate}</div>
-          <a class="event-card-link" href="${escHtml(safeUrl(e.link))}" target="_blank" rel="noopener noreferrer">이벤트 보러가기 →</a>
-        </div>
-      </div>`).join('');
-  // 탭 활성화
-  document.querySelectorAll('.event-status-tab').forEach(t => {
-    t.classList.toggle('active', t.dataset.status === status);
+function renderEventChips() {
+  const container = el('eventChips');
+  container.textContent = '';
+  EVENTS.forEach(e => {
+    const btn = document.createElement('button');
+    btn.className = 'event-chip' + (state.activeEventIds.has(e.id) ? ' active' : '');
+    btn.dataset.eventId = e.id;
+
+    const dot = document.createElement('span');
+    dot.className = 'event-chip-dot';
+    dot.style.background = e.color;
+
+    const label = document.createElement('span');
+    label.textContent = `${e.brandLabel} ${e.discountPct}% 할인`;
+
+    btn.append(dot, label);
+    container.appendChild(btn);
   });
 }
 
@@ -552,15 +604,13 @@ function renderEventSheet(status) {
    AUTH — 로그인 UI
    ============================================================ */
 function openLoginSheet() {
-  el('loginOverlay').classList.remove('hidden');
-  el('loginSheet').classList.remove('hidden');
   el('loginForm').classList.remove('hidden');
   el('signupForm').classList.add('hidden');
   clearErrors();
+  openSheet(el('loginSheet'), el('loginOverlay'));
 }
 function closeLoginSheet() {
-  el('loginOverlay').classList.add('hidden');
-  el('loginSheet').classList.add('hidden');
+  closeSheet(el('loginSheet'), el('loginOverlay'));
   pendingProductLink = null;
   clearErrors();
 }
@@ -696,12 +746,10 @@ function renderCartSheet() {
 
 function openCartSheet() {
   renderCartSheet();
-  el('cartSheet').classList.remove('hidden');
-  el('sheetOverlay').classList.remove('hidden');
+  openSheet(el('cartSheet'), el('sheetOverlay'));
 }
 function closeCartSheet() {
-  el('cartSheet').classList.add('hidden');
-  el('sheetOverlay').classList.add('hidden');
+  closeSheet(el('cartSheet'), el('sheetOverlay'));
 }
 
 /* ============================================================
@@ -729,12 +777,10 @@ function openUserSheet() {
     avatarEl.textContent = initial;
   }
 
-  el('userSheet').classList.remove('hidden');
-  el('sheetOverlay').classList.remove('hidden');
+  openSheet(el('userSheet'), el('sheetOverlay'));
 }
 function closeUserSheet() {
-  el('userSheet').classList.add('hidden');
-  el('sheetOverlay').classList.add('hidden');
+  closeSheet(el('userSheet'), el('sheetOverlay'));
 }
 
 /* ============================================================
@@ -925,27 +971,22 @@ function initListeners() {
   /* 품절제외 */
   el('filterActive').addEventListener('change', e => { state.activeOnly = e.target.checked; render(); });
 
-  /* 오버레이 → 모든 시트 닫기 */
+  /* 오버레이 → 열려 있는 시트 닫기 */
   sheetOverlay.addEventListener('click', () => {
-    sortSheet.classList.add('hidden');
-    filterSheet.classList.add('hidden');
-    el('cartSheet').classList.add('hidden');
-    el('userSheet').classList.add('hidden');
-    el('detailSheet').classList.add('hidden');
-    el('eventSheet').classList.add('hidden');
-    sheetOverlay.classList.add('hidden');
+    [sortSheet, filterSheet, el('cartSheet'), el('userSheet'), el('detailSheet'), el('eventSheet')]
+      .filter(s => !s.classList.contains('hidden'))
+      .forEach(s => closeSheet(s, sheetOverlay));
   });
 
   /* 정렬 시트 */
-  el('sortBtn').addEventListener('click', () => { sortSheet.classList.remove('hidden'); sheetOverlay.classList.remove('hidden'); });
+  el('sortBtn').addEventListener('click', () => openSheet(sortSheet, sheetOverlay));
   document.querySelectorAll('.sort-option').forEach(btn => {
     btn.addEventListener('click', () => {
       state.sort = btn.dataset.sort;
       document.querySelectorAll('.sort-option').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       sortLabel.textContent = btn.textContent.replace('✓', '').trim();
-      sortSheet.classList.add('hidden');
-      sheetOverlay.classList.add('hidden');
+      closeSheet(sortSheet, sheetOverlay);
       render();
     });
   });
@@ -956,8 +997,8 @@ function initListeners() {
   const flavorCbs = initCheckboxGroup('flavorSelectAll', 'flavor-cb');
   const weightCbs = initCheckboxGroup('weightSelectAll', 'weight-cb');
 
-  el('filterBtn').addEventListener('click', () => { filterSheet.classList.remove('hidden'); sheetOverlay.classList.remove('hidden'); });
-  el('filterSheetClose').addEventListener('click', () => { filterSheet.classList.add('hidden'); sheetOverlay.classList.add('hidden'); });
+  el('filterBtn').addEventListener('click', () => openSheet(filterSheet, sheetOverlay));
+  el('filterSheetClose').addEventListener('click', () => closeSheet(filterSheet, sheetOverlay));
 
   el('filterReset').addEventListener('click', () => {
     [brandCbs, typeCbs, flavorCbs, weightCbs].forEach(cbs => cbs.forEach(cb => {
@@ -976,14 +1017,13 @@ function initListeners() {
     state.flavors      = new Set([...flavorCbs].filter(cb => cb.checked).map(cb => cb.value));
     state.weights      = new Set([...weightCbs].filter(cb => cb.checked).map(cb => cb.value));
     updateFilterCount();
-    filterSheet.classList.add('hidden');
-    sheetOverlay.classList.add('hidden');
+    closeSheet(filterSheet, sheetOverlay);
     render();
   });
 
   /* 빈 상태 초기화 */
   el('resetFilters').addEventListener('click', () => {
-    state = { search:'', category:'all', subCat:null, activeOnly:false, sort:'price_asc', brands:new Set(ALL_BRANDS), productTypes:new Set(ALL_PRODUCT_TYPES), flavors:new Set(ALL_FLAVORS), weights:new Set(ALL_WEIGHTS) };
+    state = { search:'', category:'all', subCat:null, activeOnly:false, sort:'price_asc', brands:new Set(ALL_BRANDS), productTypes:new Set(ALL_PRODUCT_TYPES), flavors:new Set(ALL_FLAVORS), weights:new Set(ALL_WEIGHTS), activeEventIds:new Set(EVENTS.map(e => e.id)) };
     searchInput.value = '';
     document.querySelectorAll('#categoryFilter .tab').forEach((t,i) => t.classList.toggle('active', i===0));
     el('filterActive').checked = false;
@@ -994,12 +1034,42 @@ function initListeners() {
     render();
   });
 
-  /* 이벤트 시트 탭 */
-  el('eventStatusTabs').addEventListener('click', e => {
-    const tab = e.target.closest('.event-status-tab');
-    if (tab) renderEventSheet(tab.dataset.status);
+  /* 이벤트 칩 토글 */
+  el('eventChips').addEventListener('click', e => {
+    const btn = e.target.closest('.event-chip');
+    if (!btn) return;
+    const id = parseInt(btn.dataset.eventId);
+    if (state.activeEventIds.has(id)) {
+      state.activeEventIds.delete(id);
+      btn.classList.remove('active');
+    } else {
+      state.activeEventIds.add(id);
+      btn.classList.add('active');
+    }
+    render(); // 카드 이벤트 가격 업데이트
   });
   el('eventSheetClose').addEventListener('click', closeEventSheet);
+
+  /* 상품 페이지 뒤로가기 */
+  el('productPageBack').addEventListener('click', closeProductPage);
+  window.addEventListener('popstate', () => {
+    const page = el('productPage');
+    if (!page.classList.contains('hidden')) {
+      page.classList.remove('page-open');
+      page.addEventListener('transitionend', () => {
+        page.classList.add('hidden');
+        el('productPageBody').textContent = '';
+      }, { once: true });
+    }
+  });
+
+  /* 드래그 투 클로즈 — 모든 바텀시트 */
+  setupDragToClose(sortSheet,       () => closeSheet(sortSheet, sheetOverlay));
+  setupDragToClose(filterSheet,     () => closeSheet(filterSheet, sheetOverlay));
+  setupDragToClose(el('eventSheet'), closeEventSheet);
+  setupDragToClose(el('cartSheet'),  closeCartSheet);
+  setupDragToClose(el('userSheet'),  closeUserSheet);
+  setupDragToClose(el('loginSheet'), closeLoginSheet);
 
   /* 인증 버튼 */
   el('authBtn').addEventListener('click', openLoginSheet);

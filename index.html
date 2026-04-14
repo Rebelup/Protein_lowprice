@@ -84,6 +84,7 @@
 
   <!-- 정렬 바텀시트 -->
   <div class="sort-sheet hidden" id="sortSheet">
+    <div class="sheet-handle"></div>
     <div class="sort-sheet-title">정렬</div>
     <button class="sort-option active" data-sort="price_asc">가격 낮은순</button>
     <button class="sort-option" data-sort="price_desc">가격 높은순</button>
@@ -92,6 +93,7 @@
 
   <!-- 필터 바텀시트 -->
   <div class="filter-sheet hidden" id="filterSheet">
+    <div class="sheet-handle"></div>
     <div class="sheet-header">
       <span class="sheet-title">필터</span>
       <button class="sheet-close" id="filterSheetClose">✕</button>
@@ -232,22 +234,32 @@
 
   <!-- ===================== EVENT SHEET ===================== -->
   <div class="event-sheet hidden" id="eventSheet">
+    <div class="sheet-handle"></div>
     <div class="event-sheet-header">
       <div>
-        <div class="event-sheet-title">🎁 이벤트</div>
-        <div class="event-sheet-subtitle">할인 코드 &amp; 프로모션 모음</div>
+        <div class="event-sheet-title">🎁 이벤트 할인</div>
+        <div class="event-sheet-subtitle">적용할 이벤트를 선택하세요</div>
       </div>
       <button class="sheet-close" id="eventSheetClose">✕</button>
     </div>
-    <div class="event-status-tabs" id="eventStatusTabs">
-      <button class="event-status-tab active" data-status="active">진행중</button>
-      <button class="event-status-tab" data-status="upcoming">예정</button>
+    <div class="event-chips" id="eventChips"></div>
+    <div class="event-sheet-hint">선택한 이벤트 할인이 상품 카드 가격에 반영됩니다</div>
+  </div>
+
+  <!-- ===================== PRODUCT PAGE ===================== -->
+  <div class="product-page hidden" id="productPage">
+    <div class="pp-header">
+      <button class="pp-back" id="productPageBack">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span class="pp-title">상품 정보</span>
     </div>
-    <div class="event-sheet-body" id="eventSheetBody"></div>
+    <div class="pp-body" id="productPageBody"></div>
   </div>
 
   <!-- ===================== CART SHEET ===================== -->
   <div class="cart-sheet hidden" id="cartSheet">
+    <div class="sheet-handle"></div>
     <div class="cart-sheet-header">
       <span class="cart-sheet-title">장바구니</span>
       <button class="sheet-close" id="cartSheetClose">✕</button>
@@ -257,6 +269,7 @@
 
   <!-- ===================== USER INFO SHEET ===================== -->
   <div class="user-sheet hidden" id="userSheet">
+    <div class="sheet-handle"></div>
     <div class="user-sheet-header">
       <button class="login-close" id="userSheetClose">✕</button>
     </div>
