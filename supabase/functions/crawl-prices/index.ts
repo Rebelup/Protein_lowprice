@@ -323,14 +323,7 @@ async function upsertEvents(evts: ScrapedEvent[]) {
 
 /* ── 메인 핸들러 ─────────────────────────────────────────── */
 Deno.serve(async (req) => {
-  const auth = req.headers.get('Authorization') ?? '';
-  const key  = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
-  if (auth !== `Bearer ${key}`) {
-    return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-      status: 401, headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
+  // Supabase 내장 JWT 검증(verify_jwt=true)이 Bearer 토큰을 처리하므로 별도 체크 불필요
   const body = await req.json().catch(() => ({})) as { sites?: string[] };
   const targets = body.sites ?? ['bsn', 'on', 'myprotein', 'nsstore'];
 
