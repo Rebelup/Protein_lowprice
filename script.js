@@ -140,10 +140,13 @@ function getChipsForTab(tab) {
   return null;
 }
 
-/** 상품에 적용 가능한 이벤트 목록 */
+/** 상품에 적용 가능한 이벤트 목록 (만료 이벤트 제외) */
 function getProductEvents(p) {
   const brand = (p.brand || '').toLowerCase();
+  const today = new Date().toISOString().slice(0, 10);
   return EVENTS.filter(e => {
+    if (!e.active) return false;
+    if (e.endDate && e.endDate < today) return false;  // 만료 이벤트 제외
     if (e.brand === 'myprotein') return brand.includes('마이프로틴');
     if (e.brand === 'bsn')       return brand === 'bsn';
     if (e.brand === 'on')        return brand.includes('optimum');
@@ -726,6 +729,9 @@ function renderProductPageContent(p) {
     <div class="pp-panel pp-panel--hidden" id="ppPanelNutrition">${renderPpNutritionPanel(p, nut)}</div>
 
     <div class="pp-cta">
+      ${(p.flavor && PRODUCTS.filter(x => x.link === p.link && x.id !== p.id).length > 0)
+        ? `<div class="pp-flavor-notice">이 상품은 <strong>${escHtml(p.flavor)}</strong> 맛입니다.<br>구매 페이지에서 직접 맛을 선택해 주세요.</div>`
+        : ''}
       <button class="pp-cart-cta" data-pid="${p.id}" id="ppCartBtn">🛒 담기</button>
       <button class="pp-buy-cta" data-link="${safeLink}" id="ppBuyBtn">구매하기 →</button>
     </div>`;
@@ -875,8 +881,7 @@ function renderEventCards(events, container) {
   }
   events.forEach(e => {
     const isActive = state.activeEventIds.has(e.id);
-    const [y, m, d] = e.endDate.split('-');
-    const endLabel = `~${y}.${m}.${d}`;
+    const endLabel = e.endDate ? '~' + e.endDate.slice(0, 10).replace(/-/g, '.').slice(2) : '상시';
     const condPreview = (e.conditions || []).slice(0, 2).map(c => `• ${c}`).join('\n');
 
     const card = document.createElement('div');
