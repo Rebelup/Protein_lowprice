@@ -42,6 +42,16 @@ async function loadEvents() {
 }
 
 /* ============================================================
+   필터 옵션 (Supabase에서 로드)
+   ============================================================ */
+async function loadFilterOptions() {
+  const { data } = await db.from('filter_options').select('*').order('sort_order');
+  if (!data) return;
+  ALL_BRANDS        = data.filter(r => r.type === 'brand')   .map(r => ({ value: r.value, label: r.label }));
+  ALL_PRODUCT_TYPES = data.filter(r => r.type === 'category').map(r => ({ value: r.value, label: r.label }));
+}
+
+/* ============================================================
    영양 정보 데이터 (1회 제공량 기준)
    ============================================================ */
 const NUTRITION_DATA = {
@@ -65,9 +75,9 @@ let currentUser        = null;
 let pendingProductLink = null;
 let ALL_FLAVORS        = [];   // buildDynamicFilters() 이후 채워짐
 let ALL_WEIGHTS        = [];   // buildDynamicFilters() 이후 채워짐
+let ALL_BRANDS         = [];   // loadFilterOptions() 이후 채워짐 [{value, label}]
+let ALL_PRODUCT_TYPES  = [];   // loadFilterOptions() 이후 채워짐 [{value, label}]
 
-const ALL_BRANDS        = ['마이프로틴', 'BSN'];
-const ALL_PRODUCT_TYPES = ['단백질 파우더', 'BCAA', '크레아틴', '영양제'];
 const BOOSTER_SUB       = ['단백질 파우더', 'BCAA', '크레아틴', '영양제'];
 const THUMB_CACHE_KEY   = 'protein_thumb_v1';
 
@@ -130,7 +140,9 @@ function getProductEvents(p) {
   const brand = (p.brand || '').toLowerCase();
   return EVENTS.filter(e => {
     if (e.brand === 'myprotein') return brand.includes('마이프로틴');
-    if (e.brand === 'bsn') return brand === 'bsn';
+    if (e.brand === 'bsn')       return brand === 'bsn';
+    if (e.brand === 'on')        return brand.includes('optimum');
+    if (e.brand === 'ns')        return brand === 'ns';
     return false;
   });
 }
@@ -165,8 +177,8 @@ let state = {
   subCat:       null,
   activeOnly:   false,
   sort:         'price_asc',
-  brands:       new Set(ALL_BRANDS),
-  productTypes: new Set(ALL_PRODUCT_TYPES),
+  brands:       new Set(),   // loadFilterOptions() 후 채워짐
+  productTypes: new Set(),   // loadFilterOptions() 후 채워짐
   flavors:        new Set(),   // 제품 로드 후 채워짐
   weights:        new Set(),   // 제품 로드 후 채워짐
   activeEventIds: new Set(), // 이벤트 로드 후 채워짐
@@ -296,6 +308,7 @@ function updateFilterCount() {
                    + (ALL_PRODUCT_TYPES.length - state.productTypes.size)
                    + (allFlavors.length - state.flavors.size)
                    + (allWeights.length - state.weights.size);
+  // ALL_BRANDS/ALL_PRODUCT_TYPES는 {value,label}[] 이므로 .length 그대로 사용 가능
   const countEl = el('filterCount');
   const filterBtn = el('filterBtn');
   if (deselected > 0) {
@@ -393,17 +406,17 @@ function renderCard(p) {
   // 이벤트 적용 중이면 이벤트가 기준, 아니면 판매가 기준
   const displayPrice = ep ?? p.salePrice;
   const displayPct   = Math.round(((p.originalPrice - displayPrice) / p.originalPrice) * 100);
-  const isHotdeal    = displayPct >= 40;
-  const showBadge    = displayPct >= 30;
 
-  const today    = new Date().toISOString().slice(0, 10);
-  const storeKey = p.store === '마이프로틴' ? 'myprotein' : p.store === 'BSN' ? 'bsn' : '';
-  const hasEvent = storeKey && EVENTS.some(e => e.active && e.endDate >= today && e.brand === storeKey);
+  const today = new Date().toISOString().slice(0, 10);
+  // 현재 활성화된 이벤트 중 이 상품에 적용되는 것
+  const activeEvt = getProductEvents(p).filter(e => state.activeEventIds.has(e.id) && e.active)[0] ?? null;
+  const endLabel  = activeEvt?.endDate ? '~' + activeEvt.endDate.slice(5).replace('-', '.') : null;
 
   return `
     <article class="product-card" data-pid="${p.id}" onclick="openProductDetail(${p.id})">
       <div class="card-img-wrap ${!thumb ? 'thumb-loading' : ''}">
-        ${showBadge ? `<div class="badge-lowprice">${isHotdeal ? '🔥 핫딜' : '역대급최저가'}<br>${isHotdeal ? '지금 바로!' : '구매타이밍'}</div>` : ''}
+        ${ep ? '<div class="badge-event-img">🎁 이벤트가</div>' : ''}
+        ${endLabel ? `<div class="card-end-date">${endLabel}</div>` : ''}
         ${thumb
           ? `<img class="thumb-img" src="${thumb}" alt="${p.name}" loading="lazy"
                onerror="this.style.display='none';this.nextSibling.style.display='flex'" />
@@ -422,8 +435,6 @@ function renderCard(p) {
           <span class="card-price ${ep ? 'card-price--event' : ''}">${formatKRW(displayPrice)}</span>
           <span class="card-discount">▼${displayPct}%</span>
         </div>
-        ${ep ? '<div class="card-event-tag">🎁 이벤트가</div>' : ''}
-        ${hasEvent && !ep ? `<div class="card-event-badge">🎁 공식 홈 이벤트 중</div>` : ''}
       </div>
     </article>`;
 }
@@ -1137,31 +1148,40 @@ function buildDynamicFilters() {
   state.flavors = new Set(ALL_FLAVORS);
   state.weights = new Set(ALL_WEIGHTS);
 
+  // items: string[] 또는 {value, label}[]
   function buildGroup(containerId, allCbId, cbClass, items) {
     const group = el(containerId);
-    group.textContent = '';
+    // select-all-item 제외하고 이전 항목 제거
+    [...group.querySelectorAll(':not(.select-all-item)')].forEach(e => e.remove());
+    const allCb = group.querySelector(`#${allCbId}`) || (() => {
+      const allLabel = document.createElement('label');
+      allLabel.className = 'filter-sheet-item select-all-item';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.id = allCbId; cb.checked = true;
+      const span = document.createElement('span');
+      span.textContent = '전체 선택';
+      allLabel.append(cb, span);
+      group.appendChild(allLabel);
+      return cb;
+    })();
+    allCb.checked = true;
 
-    const allLabel = document.createElement('label');
-    allLabel.className = 'filter-sheet-item select-all-item';
-    const allCb = document.createElement('input');
-    allCb.type = 'checkbox'; allCb.id = allCbId; allCb.checked = true;
-    const allSpan = document.createElement('span');
-    allSpan.textContent = '전체 선택';
-    allLabel.append(allCb, allSpan);
-    group.appendChild(allLabel);
-
-    items.forEach(val => {
+    items.forEach(item => {
+      const value = typeof item === 'string' ? item : item.value;
+      const labelText = typeof item === 'string' ? item : item.label;
       const label = document.createElement('label');
       label.className = 'filter-sheet-item checked';
       const cb = document.createElement('input');
-      cb.type = 'checkbox'; cb.className = cbClass; cb.value = val; cb.checked = true;
+      cb.type = 'checkbox'; cb.className = cbClass; cb.value = value; cb.checked = true;
       const span = document.createElement('span');
-      span.textContent = val;
+      span.textContent = labelText;
       label.append(cb, span);
       group.appendChild(label);
     });
   }
 
+  buildGroup('brandFilterGroup',  'brandSelectAll',  'brand-cb',  ALL_BRANDS);
+  buildGroup('typeFilterGroup',   'typeSelectAll',   'type-cb',   ALL_PRODUCT_TYPES);
   buildGroup('flavorFilterGroup', 'flavorSelectAll', 'flavor-cb', ALL_FLAVORS);
   buildGroup('weightFilterGroup', 'weightSelectAll', 'weight-cb', ALL_WEIGHTS);
 }
@@ -1266,7 +1286,7 @@ function initListeners() {
 
   /* 빈 상태 초기화 */
   el('resetFilters').addEventListener('click', () => {
-    state = { search:'', category:'all', subCat:null, activeOnly:false, sort:'price_asc', brands:new Set(ALL_BRANDS), productTypes:new Set(ALL_PRODUCT_TYPES), flavors:new Set(ALL_FLAVORS), weights:new Set(ALL_WEIGHTS), activeEventIds:new Set(EVENTS.map(e => e.id)) };
+    state = { search:'', category:'all', subCat:null, activeOnly:false, sort:'price_asc', brands:new Set(ALL_BRANDS.map(b => b.value)), productTypes:new Set(ALL_PRODUCT_TYPES.map(t => t.value)), flavors:new Set(ALL_FLAVORS), weights:new Set(ALL_WEIGHTS), activeEventIds:new Set(EVENTS.map(e => e.id)) };
     searchInput.value = '';
     document.querySelectorAll('#categoryFilter .tab').forEach((t,i) => t.classList.toggle('active', i===0));
     el('filterActive').checked = false;
@@ -1379,6 +1399,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await loadEvents();
     state.activeEventIds = new Set(EVENTS.map(e => e.id)); // 기본: 전체 활성
+    await loadFilterOptions();
+    state.brands       = new Set(ALL_BRANDS.map(b => b.value));
+    state.productTypes = new Set(ALL_PRODUCT_TYPES.map(t => t.value));
     await loadProducts();
     buildDynamicFilters();
     renderTop10();
