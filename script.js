@@ -385,8 +385,8 @@ function renderTop10() {
           <span class="rank-badge ${rank === 1 ? 'rank-1' : ''}">${rank}</span>
         </div>
         <div class="top10-body">
-          <div class="delivery-tag ${delivery.cls}">${delivery.label}</div>
-          <div class="top10-name">${p.name}</div>
+          <div class="delivery-tag ${delivery.cls}">${escHtml(delivery.label)}</div>
+          <div class="top10-name">${escHtml(p.name)}</div>
           <div class="price-row">
             <span class="price-main">${formatKRW(p.salePrice)}</span>
             <span class="price-down">▼${pct}%</span>
@@ -430,8 +430,8 @@ function renderCard(p) {
           aria-label="장바구니에 추가">+</button>
       </div>
       <div class="card-body">
-        <div class="card-delivery ${delivery.cls}">${delivery.label}</div>
-        <div class="card-name">${p.name}</div>
+        <div class="card-delivery ${delivery.cls}">${escHtml(delivery.label)}</div>
+        <div class="card-name">${escHtml(p.name)}</div>
         <div class="card-orig">정가 ${formatKRW(p.originalPrice)}</div>
         <div class="card-price-row">
           <span class="card-price ${ep ? 'card-price--event' : ''}">${formatKRW(displayPrice)}</span>
