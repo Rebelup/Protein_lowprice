@@ -1,21 +1,51 @@
-name: Daily Price Crawl
+name: Daily Price & Event Crawl
 
 on:
   schedule:
-    # 매일 KST 00:00 (UTC 15:00)
+    # 매일 KST 00:00 = UTC 15:00
     - cron: '0 15 * * *'
-  # 수동 실행도 가능
+  # 수동 실행 (특정 사이트만 지정 가능)
   workflow_dispatch:
+    inputs:
+      sites:
+        description: '크롤링할 사이트 (쉼표 구분): bsn,on,myprotein,nsstore'
+        required: false
+        default: 'bsn,on,myprotein,nsstore'
 
 jobs:
   crawl:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
-      - name: Trigger crawl-prices Edge Function
+      - name: Crawl prices & events
         run: |
-          curl -X POST \
-            "${{ secrets.SUPABASE_URL }}/functions/v1/crawl-prices" \
+          SITES="${{ github.event.inputs.sites || 'bsn,on,myprotein,nsstore' }}"
+          # 쉼표로 구분된 사이트를 JSON 배열로 변환
+          SITES_JSON=$(echo "$SITES" | python3 -c "import sys,json; print(json.dumps(sys.stdin.read().strip().split(',')))")
+
+          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
+            "https://myficrjdmqbtsgmdxtiu.supabase.co/functions/v1/crawl-prices" \
             -H "Authorization: Bearer ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}" \
             -H "Content-Type: application/json" \
-            -d '{}' \
-            --fail-with-body
+            -d "{\"sites\": $SITES_JSON}")
+
+          HTTP_CODE=$(echo "$RESPONSE" | tail -1)
+          BODY=$(echo "$RESPONSE" | head -n -1)
+
+          echo "HTTP Status: $HTTP_CODE"
+          echo "Response: $BODY"
+
+          if [ "$HTTP_CODE" != "200" ]; then
+            echo "❌ Crawl failed with status $HTTP_CODE"
+            exit 1
+          fi
+
+          echo "✅ Crawl completed successfully"
+          # 결과 요약 출력
+          echo "$BODY" | python3 -c "
+          import sys, json
+          data = json.load(sys.stdin)
+          for site, info in data.get('summary', {}).items():
+              if isinstance(info, dict):
+                  print(f'{site}: found={info.get(\"products_found\",0)}, inserted={info.get(\"inserted\",0)}, updated={info.get(\"updated\",0)}, events={info.get(\"events_found\",0)}, error={info.get(\"error\")}')
+          "
