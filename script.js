@@ -42,13 +42,18 @@ async function loadEvents() {
 }
 
 /* ============================================================
-   필터 옵션 (Supabase에서 로드)
+   필터 옵션 — label 매핑용 (Supabase filter_options 테이블)
+   실제 ALL_BRANDS / ALL_PRODUCT_TYPES 는 buildDynamicFilters()에서
+   PRODUCTS 데이터 기준으로 자동 생성됨
    ============================================================ */
+let _brandLabelMap  = new Map(); // value → label
+let _catLabelMap    = new Map(); // value → label
+
 async function loadFilterOptions() {
   const { data } = await db.from('filter_options').select('*').order('sort_order');
   if (!data) return;
-  ALL_BRANDS        = data.filter(r => r.type === 'brand')   .map(r => ({ value: r.value, label: r.label }));
-  ALL_PRODUCT_TYPES = data.filter(r => r.type === 'category').map(r => ({ value: r.value, label: r.label }));
+  data.filter(r => r.type === 'brand')   .forEach(r => _brandLabelMap.set(r.value, r.label));
+  data.filter(r => r.type === 'category').forEach(r => _catLabelMap.set(r.value, r.label));
 }
 
 /* ============================================================
@@ -125,15 +130,41 @@ function viewerCount(id) {
   return ((id * 7 + 3) % 19) + 3;
 }
 
-/** 상품명에서 맛 표기 제거 (카드/페이지 표시용) */
+/**
+ * 상품명에서 맛 표기 제거 (카드/페이지 표시용)
+ * 같은 링크를 공유하는 상품이 있으면 → 공통 접두사 사용 (가장 정확)
+ * 단독 상품이면 → flavor 값을 이름에서 제거 시도
+ */
 function displayName(p) {
+  const siblings = PRODUCTS.filter(x => x.link === p.link && x.id !== p.id);
+  if (siblings.length > 0) {
+    const allNames = [p.name, ...siblings.map(x => x.name)];
+    let prefix = allNames[0];
+    for (const n of allNames.slice(1)) {
+      let i = 0;
+      while (i < prefix.length && i < n.length && prefix[i] === n[i]) i++;
+      prefix = prefix.slice(0, i);
+    }
+    return prefix.trim().replace(/[-\s·,]+$/, '').trim() || p.name;
+  }
   if (!p.flavor) return p.name;
+  // 단독 상품: 이름에서 flavor 부분을 제거
   const f = p.flavor.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   return p.name
-    .replace(new RegExp('\\s*[\\(（]' + f + '[\\)）]\\s*$'), '')
-    .replace(new RegExp('\\s*[-–—]\\s*' + f + '\\s*$'), '')
-    .replace(new RegExp('\\s+' + f + '\\s*$'), '')
-    .trim() || p.name;
+    .replace(new RegExp('\\s*[\\(（]' + f + '[^)）]*[\\)）]'), '')
+    .replace(new RegExp('\\s+' + f + '(\\s|$)'), ' ')
+    .trim().replace(/\s+/g, ' ') || p.name;
+}
+
+/**
+ * 이 상품에서 선택 가능한 맛 목록 반환
+ * DB available_flavors가 있으면 사용, 없으면 같은 링크 상품들의 flavor로 계산
+ */
+function getAvailableFlavors(p) {
+  if (p.availableFlavors && p.availableFlavors.length > 0) return p.availableFlavors;
+  const group = PRODUCTS.filter(x => x.link === p.link);
+  const flavors = group.map(x => x.flavor).filter(Boolean);
+  return [...new Set(flavors)];
 }
 
 /** 보충제 세부 분류 */
@@ -728,15 +759,15 @@ function renderProductPageContent(p) {
         <span class="pp-sale">${formatKRW(p.salePrice)}</span>
         <span class="pp-pct">▼${pct}%</span>
       </div>
-      ${p.availableFlavors.length > 0 ? `
+      ${(() => { const fl = getAvailableFlavors(p); return fl.length > 0 ? `
       <div class="pp-flavor-row">
         <span class="pp-flavor-label">맛</span>
         <div class="pp-flavor-chips">
-          ${p.availableFlavors.map(f =>
+          ${fl.map(f =>
             `<span class="pp-flavor-chip${f === p.flavor ? ' active' : ''}">${escHtml(f)}</span>`
           ).join('')}
         </div>
-      </div>` : ''}
+      </div>` : ''; })()}
     </div>
 
     <div class="pp-tab-bar">
@@ -1223,8 +1254,16 @@ function buildDynamicFilters() {
       return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
     });
 
-  state.flavors = new Set(ALL_FLAVORS);
-  state.weights = new Set(ALL_WEIGHTS);
+  // 브랜드 · 카테고리: PRODUCTS 기준으로 자동 생성 (filter_options 레이블 우선 사용)
+  ALL_BRANDS = [...new Set(PRODUCTS.map(p => p.brand).filter(Boolean))]
+    .map(v => ({ value: v, label: _brandLabelMap.get(v) || v }));
+  ALL_PRODUCT_TYPES = [...new Set(PRODUCTS.map(p => p.category).filter(Boolean))]
+    .map(v => ({ value: v, label: _catLabelMap.get(v) || v }));
+
+  state.brands       = new Set(ALL_BRANDS.map(b => b.value));
+  state.productTypes = new Set(ALL_PRODUCT_TYPES.map(t => t.value));
+  state.flavors      = new Set(ALL_FLAVORS);
+  state.weights      = new Set(ALL_WEIGHTS);
 
   // items: string[] 또는 {value, label}[]
   function buildGroup(containerId, allCbId, cbClass, items) {
@@ -1477,11 +1516,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   try {
     await loadEvents();
     state.activeEventIds = new Set(EVENTS.map(e => e.id)); // 기본: 전체 활성
-    await loadFilterOptions();
-    state.brands       = new Set(ALL_BRANDS.map(b => b.value));
-    state.productTypes = new Set(ALL_PRODUCT_TYPES.map(t => t.value));
+    await loadFilterOptions();   // label 매핑 로드
     await loadProducts();
-    buildDynamicFilters();
+    buildDynamicFilters();       // ALL_BRANDS/TYPES/FLAVORS/WEIGHTS + state 갱신
     renderTop10();
     initListeners();
     updateEventBtnCount();
