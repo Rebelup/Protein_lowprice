@@ -421,8 +421,8 @@ function renderCard(p) {
         <div class="card-price-row">
           <span class="card-price ${ep ? 'card-price--event' : ''}">${formatKRW(displayPrice)}</span>
           <span class="card-discount">▼${displayPct}%</span>
-          ${ep ? '<span class="card-event-tag">🎁 이벤트가</span>' : ''}
         </div>
+        ${ep ? '<div class="card-event-tag">🎁 이벤트가</div>' : ''}
         ${hasEvent && !ep ? `<div class="card-event-badge">🎁 공식 홈 이벤트 중</div>` : ''}
       </div>
     </article>`;
