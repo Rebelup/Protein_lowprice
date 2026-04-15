@@ -81,8 +81,12 @@ let _filteredCache     = [];   // getFiltered() 결과 캐시 (무한스크롤�
 let _scrollObserver    = null;
 // 상품 페이지 variant 선택 상태
 let _ppProd            = null;
-let _ppFlavor          = null;
-let _ppWeight          = null;
+let _ppSelected        = {};   // {flavor, weight, option3}
+const OPTION_DEFS = [
+  { key: 'flavor',  label: '맛'  },
+  { key: 'weight',  label: '용량' },
+  { key: 'option3', label: '타입' },
+];
 let currentUser        = null;
 let pendingProductLink = null;
 let ALL_FLAVORS        = [];   // buildDynamicFilters() 이후 채워짐
@@ -755,17 +759,22 @@ function renderPpNutritionPanel(p, nut) {
    상품 페이지 메인 렌더러
    ============================================================ */
 function renderProductPageContent(p) {
-  // variant 선택 상태 초기화
-  _ppProd   = p;
-  const _flavors0 = p.variants?.length
-    ? [...new Set(p.variants.map(v => v.flavor).filter(Boolean))]
-    : (p.availableFlavors?.length ? p.availableFlavors : (p.flavor ? [p.flavor] : []));
-  _ppFlavor = p.variants?.length
-    ? (p.variants.find(v => v.flavor === p.flavor)?.flavor || p.variants[0]?.flavor || null)
-    : (_flavors0[0] || null);
-  _ppWeight = p.variants?.length ? (p.weight || p.variants[0]?.weight || null) : null;
+  _ppProd = p;
+  // 선택 상태 초기화 (variants 있으면 cascade, 없으면 availableFlavors만)
+  _ppSelected = {};
+  if (p.variants?.length) {
+    const defFlavor = p.variants.find(v => v.flavor === p.flavor)?.flavor || p.variants[0]?.flavor || null;
+    _ppSelected.flavor = defFlavor;
+    const wOpts = _ppGetOptionsFor('weight', { flavor: defFlavor });
+    _ppSelected.weight  = wOpts.find(v => v.weight === p.weight)?.weight || wOpts[0]?.weight || null;
+    const o3Opts = _ppGetOptionsFor('option3', { flavor: defFlavor, weight: _ppSelected.weight });
+    _ppSelected.option3 = o3Opts[0]?.option3 || null;
+  } else {
+    const fallback = getAvailableFlavors(p);
+    _ppSelected.flavor = fallback[0] || null;
+  }
 
-  const selV    = _ppGetSelectedVariant();
+  const selV     = _ppGetSelectedVariant();
   const dispOrig = selV?.original_price ?? p.originalPrice;
   const dispSale = selV?.sale_price     ?? p.salePrice;
   const pct      = discountPct(dispOrig, dispSale);
@@ -775,8 +784,8 @@ function renderProductPageContent(p) {
   const evts     = getProductEvents(p);
   const nut      = getNutrition(p);
 
-  const flavors          = _flavors0.length ? _flavors0 : getAvailableFlavors(p);
-  const weightsForFlavor = _ppGetWeightsForFlavor(_ppFlavor);
+  // 옵션 없이 availableFlavors만 있는 경우 fallback chips
+  const fallbackFlavors = !p.variants?.length ? getAvailableFlavors(p) : [];
 
   el('productPageBody').innerHTML = `
     <div class="pp-img-wrap">
@@ -799,26 +808,18 @@ function renderProductPageContent(p) {
         <span class="pp-pct"  id="ppDiscPct">▼${pct}%</span>
       </div>
 
-      ${flavors.length > 0 ? `
-      <div class="pp-flavor-row">
-        <div class="pp-flavor-chips" id="ppFlavorChips">
-          ${flavors.map(f =>
-            `<span class="pp-flavor-chip${f === _ppFlavor ? ' active' : ''}" data-flavor="${escHtml(f)}">${escHtml(f)}</span>`
-          ).join('')}
-        </div>
-      </div>` : ''}
-
-      ${weightsForFlavor.length > 0 ? `
-      <div class="pp-flavor-row pp-weight-row">
-        <span class="pp-flavor-label">용량</span>
-        <div class="pp-weight-chips" id="ppWeightChips">
-          ${weightsForFlavor.map(v =>
-            `<span class="pp-weight-chip${v.weight === _ppWeight ? ' active' : ''}" data-weight="${escHtml(v.weight)}">
-              ${escHtml(v.weight)}<span class="pp-weight-price">${formatKRW(v.sale_price)}</span>
-            </span>`
-          ).join('')}
-        </div>
-      </div>` : ''}
+      <div id="ppOptionsContainer">
+        ${p.variants?.length
+          ? _ppBuildOptionsHtml(p.variants)
+          : fallbackFlavors.length ? `
+            <div class="pp-flavor-row">
+              <div class="pp-option-chips">
+                ${fallbackFlavors.map(f =>
+                  `<span class="pp-option-chip${f === _ppSelected.flavor ? ' active' : ''}" data-dim="flavor" data-value="${escHtml(f)}">${escHtml(f)}</span>`
+                ).join('')}
+              </div>
+            </div>` : ''}
+      </div>
     </div>
 
     <div class="pp-tab-bar">
@@ -849,73 +850,90 @@ function renderProductPageContent(p) {
     });
   });
 
-  el('productPageBody').querySelectorAll('.pp-flavor-chip[data-flavor]').forEach(chip => {
-    chip.addEventListener('click', () => _ppSelectFlavor(chip.dataset.flavor));
-  });
-  el('productPageBody').querySelectorAll('.pp-weight-chip[data-weight]').forEach(chip => {
-    chip.addEventListener('click', () => _ppSelectWeight(chip.dataset.weight));
+  // 옵션 칩 이벤트 (위임)
+  el('ppOptionsContainer').addEventListener('click', e => {
+    const chip = e.target.closest('.pp-option-chip');
+    if (chip) _ppSelectOption(chip.dataset.dim, chip.dataset.value);
   });
 
   el('ppBuyBtn').addEventListener('click', function() { handleBuyClick(this.dataset.link); });
   el('ppCartBtn').addEventListener('click', function() { addToCart(parseInt(this.dataset.pid)); });
 }
 
-/* ── 상품 페이지 variant 헬퍼 ────────────────────────────── */
-function _ppGetSelectedVariant() {
-  if (!_ppProd?.variants?.length) return null;
-  return _ppProd.variants.find(v =>
-    (!_ppFlavor || v.flavor === _ppFlavor) &&
-    (!_ppWeight || v.weight === _ppWeight)
-  ) || _ppProd.variants.find(v => !_ppFlavor || v.flavor === _ppFlavor)
-    || _ppProd.variants[0];
-}
+/* ── 상품 페이지 variant 헬퍼 (최대 3개 옵션 cascade) ─────── */
 
-function _ppGetWeightsForFlavor(flavor) {
+/** parentSel 조건 하에서 key 차원의 가능한 값 목록 반환 */
+function _ppGetOptionsFor(key, parentSel = {}) {
   if (!_ppProd?.variants?.length) return [];
-  const filtered = flavor
-    ? _ppProd.variants.filter(v => v.flavor === flavor)
-    : _ppProd.variants;
+  const filtered = _ppProd.variants.filter(v =>
+    Object.entries(parentSel).every(([k, val]) => !val || v[k] === val)
+  );
   const seen = new Map();
   for (const v of filtered) {
-    if (v.weight && !seen.has(v.weight)) seen.set(v.weight, v);
+    if (v[key] != null && v[key] !== '' && !seen.has(v[key])) seen.set(v[key], v);
   }
   return [...seen.values()];
 }
 
-function _ppSelectFlavor(flavor) {
-  _ppFlavor = flavor;
-  const weights = _ppGetWeightsForFlavor(flavor);
-  _ppWeight = weights[0]?.weight || null;
-
-  document.querySelectorAll('#ppFlavorChips .pp-flavor-chip').forEach(c => {
-    c.classList.toggle('active', c.dataset.flavor === flavor);
-  });
-
-  const wc = document.getElementById('ppWeightChips');
-  const wr = wc?.closest('.pp-weight-row');
-  if (wr) {
-    if (weights.length > 0) {
-      wr.style.display = '';
-      wc.innerHTML = weights.map(v =>
-        `<span class="pp-weight-chip${v.weight === _ppWeight ? ' active' : ''}" data-weight="${escHtml(v.weight)}">
-          ${escHtml(v.weight)}<span class="pp-weight-price">${formatKRW(v.sale_price)}</span>
-        </span>`
-      ).join('');
-      wc.querySelectorAll('.pp-weight-chip').forEach(c => {
-        c.addEventListener('click', () => _ppSelectWeight(c.dataset.weight));
-      });
-    } else {
-      wr.style.display = 'none';
-    }
-  }
-  _ppUpdatePrice();
+/** 현재 _ppSelected에 가장 잘 맞는 variant 반환 */
+function _ppGetSelectedVariant() {
+  if (!_ppProd?.variants?.length) return null;
+  const activeDims = OPTION_DEFS.filter(d => _ppProd.variants.some(v => v[d.key]));
+  // 모든 선택 조건 일치
+  const exact = _ppProd.variants.find(v =>
+    activeDims.every(d => !_ppSelected[d.key] || v[d.key] === _ppSelected[d.key])
+  );
+  if (exact) return exact;
+  // 첫 번째 조건만 일치
+  const first = activeDims[0];
+  return (first && _ppProd.variants.find(v => !_ppSelected[first.key] || v[first.key] === _ppSelected[first.key]))
+    || _ppProd.variants[0];
 }
 
-function _ppSelectWeight(weight) {
-  _ppWeight = weight;
-  document.querySelectorAll('#ppWeightChips .pp-weight-chip').forEach(c => {
-    c.classList.toggle('active', c.dataset.weight === weight);
-  });
+/** variants 배열로부터 cascade 옵션 HTML 생성 */
+function _ppBuildOptionsHtml(variants) {
+  if (!variants?.length) return '';
+  const activeDims = OPTION_DEFS.filter(d => variants.some(v => v[d.key] != null && v[d.key] !== ''));
+  if (!activeDims.length) return '';
+  let html = '';
+  for (let i = 0; i < activeDims.length; i++) {
+    const dim = activeDims[i];
+    const parentSel = {};
+    activeDims.slice(0, i).forEach(pd => { parentSel[pd.key] = _ppSelected[pd.key]; });
+    const opts = _ppGetOptionsFor(dim.key, parentSel);
+    if (!opts.length) continue;
+    const isLast = i === activeDims.length - 1;
+    html += `
+      <div class="pp-flavor-row${i > 0 ? ' pp-opt-sub-row' : ''}">
+        <span class="pp-flavor-label">${dim.label}</span>
+        <div class="pp-option-chips" id="ppOptionChips_${dim.key}">
+          ${opts.map(v => `
+            <span class="pp-option-chip${v[dim.key] === _ppSelected[dim.key] ? ' active' : ''}" data-dim="${dim.key}" data-value="${escHtml(String(v[dim.key]))}">
+              ${escHtml(String(v[dim.key]))}
+              ${isLast ? `<span class="pp-opt-price">${formatKRW(v.sale_price)}</span>` : ''}
+            </span>`).join('')}
+        </div>
+      </div>`;
+  }
+  return html;
+}
+
+/** 옵션 선택 시 cascade 갱신 + 가격 업데이트 */
+function _ppSelectOption(key, value) {
+  _ppSelected[key] = value;
+  // 하위 옵션 자동 선택 (첫 번째 가능한 값으로)
+  const idx = OPTION_DEFS.findIndex(d => d.key === key);
+  const parentSel = { ..._ppSelected };
+  for (const dim of OPTION_DEFS.slice(idx + 1)) {
+    const opts = _ppGetOptionsFor(dim.key, parentSel);
+    _ppSelected[dim.key] = opts[0]?.[dim.key] || null;
+    parentSel[dim.key] = _ppSelected[dim.key];
+  }
+  // 옵션 컨테이너 재렌더
+  const container = document.getElementById('ppOptionsContainer');
+  if (container && _ppProd?.variants?.length) {
+    container.innerHTML = _ppBuildOptionsHtml(_ppProd.variants);
+  }
   _ppUpdatePrice();
 }
 

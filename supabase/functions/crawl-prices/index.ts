@@ -58,7 +58,7 @@ function isDrinkProduct(tags: string[], type: string, title: string): boolean {
 }
 
 /* ── 인터페이스 ─────────────────────────────────────────── */
-interface VariantItem { flavor: string; weight: string; original_price: number; sale_price: number; }
+interface VariantItem { flavor: string; weight: string; option3?: string; original_price: number; sale_price: number; }
 interface ScrapedProduct {
   name: string; brand: string; store: string; category: string;
   original_price: number; sale_price: number; link: string;
@@ -119,18 +119,23 @@ function classifyByName(name: string): string {
 function parseShopifyVariants(variants: ShopifyVariant[], options: {name:string}[] = []): VariantItem[] {
   const fi = options.findIndex(o => /flav|맛|taste/i.test(o.name));
   const si = options.findIndex(o => /size|weight|용량|gram|lb/i.test(o.name));
+  // 3번째 옵션: 맛도 아니고 사이즈도 아닌 나머지
+  const ti = options.findIndex((_, i) => i !== fi && i !== si);
   const items: VariantItem[] = [];
   for (const v of variants) {
     if (v.available === false) continue; // 품절 제외
     const sale = krw(v.price); if(!sale) continue;
     const orig = krw(v.compare_at_price)||sale;
     const getOpt = (i:number) => i===0?v.option1??'':i===1?v.option2??'':i===2?v.option3??'':'';
-    let flavorRaw='', weightRaw='';
+    let flavorRaw='', weightRaw='', opt3Raw='';
     if(fi>=0 && si>=0){ flavorRaw=getOpt(fi); weightRaw=getOpt(si); }
     else if(fi>=0){ flavorRaw=getOpt(fi); }
     else if(si>=0){ weightRaw=getOpt(si); flavorRaw=v.option1??v.title??''; }
     else { flavorRaw=v.option1??v.title??''; weightRaw=v.option2??''; }
-    items.push({ flavor:translateKo(flavorRaw.trim()), weight:weightRaw.trim(), original_price:orig, sale_price:sale });
+    if(ti>=0) opt3Raw=getOpt(ti);
+    const item: VariantItem = { flavor:translateKo(flavorRaw.trim()), weight:weightRaw.trim(), original_price:orig, sale_price:sale };
+    if(opt3Raw.trim()) item.option3=translateKo(opt3Raw.trim());
+    items.push(item);
   }
   return items;
 }

@@ -2319,7 +2319,21 @@ body {
   font-weight: 700;
 }
 .pp-flavor-chip { cursor: pointer; }
-/* 중량 칩 */
+/* 통합 옵션 칩 (최대 3레벨 cascade) */
+.pp-opt-sub-row { background: #f5f8ff; border-color: #ccd9ff; margin-top: 6px; }
+.pp-option-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pp-option-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-size: 13px; background: #fff; border: 1.5px solid var(--border);
+  border-radius: 20px; padding: 5px 12px;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.pp-option-chip.active {
+  background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700;
+}
+.pp-opt-price { font-size: 11px; font-weight: 700; color: var(--blue); }
+.pp-option-chip.active .pp-opt-price { color: rgba(255,255,255,.85); }
+/* 하위호환 weight 칩 */
 .pp-weight-row { background: #f5f8ff; border-color: #ccd9ff; margin-top: 6px; }
 .pp-weight-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .pp-weight-chip {
