@@ -2318,6 +2318,21 @@ body {
   color: #fff;
   font-weight: 700;
 }
+.pp-flavor-chip { cursor: pointer; }
+/* 중량 칩 */
+.pp-weight-row { background: #f5f8ff; border-color: #ccd9ff; margin-top: 6px; }
+.pp-weight-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pp-weight-chip {
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  font-size: 13px; background: #fff; border: 1.5px solid var(--border);
+  border-radius: 10px; padding: 5px 10px; color: var(--text);
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.pp-weight-chip.active {
+  background: var(--blue); border-color: var(--blue); color: #fff; font-weight: 700;
+}
+.pp-weight-price { font-size: 11px; font-weight: 700; color: var(--blue); }
+.pp-weight-chip.active .pp-weight-price { color: rgba(255,255,255,.85); }
 .pp-cta {
   position: sticky;
   bottom: 0;

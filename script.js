@@ -79,6 +79,10 @@ const PAGE_SIZE        = 24;   // 무한 스크롤 한 번에 로드할 개수
 let PRODUCTS           = [];
 let _filteredCache     = [];   // getFiltered() 결과 캐시 (무한스크롤용)
 let _scrollObserver    = null;
+// 상품 페이지 variant 선택 상태
+let _ppProd            = null;
+let _ppFlavor          = null;
+let _ppWeight          = null;
 let currentUser        = null;
 let pendingProductLink = null;
 let ALL_FLAVORS        = [];   // buildDynamicFilters() 이후 채워짐
@@ -276,6 +280,8 @@ async function loadProducts() {
     salePrice:       p.sale_price,
     expiryDate:      p.expiry_date,
     link:            p.link || '#',
+    variants:        p.variants || [],
+    isDrink:         p.is_drink || false,
   }));
 }
 
@@ -382,6 +388,9 @@ function getFiltered() {
   if (state.category !== 'all') {
     list = list.filter(p => p.category === state.category);
   }
+
+  // 보충제 탭(및 전체): 음료/RTD 상품 제외
+  list = list.filter(p => !p.isDrink);
 
   if (state.subCat) {
     list = list.filter(p => getSubCat(p) === state.subCat);
@@ -731,14 +740,25 @@ function renderPpNutritionPanel(p, nut) {
    상품 페이지 메인 렌더러
    ============================================================ */
 function renderProductPageContent(p) {
-  const pct      = discountPct(p.originalPrice, p.salePrice);
+  // variant 선택 상태 초기화
+  _ppProd   = p;
+  _ppFlavor = p.variants?.length ? (p.flavor || p.variants[0]?.flavor || null) : null;
+  _ppWeight = p.variants?.length ? (p.weight || p.variants[0]?.weight || null) : null;
+
+  const selV    = _ppGetSelectedVariant();
+  const dispOrig = selV?.original_price ?? p.originalPrice;
+  const dispSale = selV?.sale_price     ?? p.salePrice;
+  const pct      = discountPct(dispOrig, dispSale);
   const delivery = deliveryInfo(p.store);
   const thumb    = getThumbUrl(p);
   const safeLink = escHtml(safeUrl(p.link));
   const evts     = getProductEvents(p);
   const nut      = getNutrition(p);
-  const bestPct  = evts.length ? Math.max(...evts.map(e => e.discountPct)) : 0;
-  const bestPrice= bestPct ? Math.round(p.salePrice * (1 - bestPct / 100)) : null;
+
+  const flavors          = p.variants?.length
+    ? [...new Set(p.variants.map(v => v.flavor).filter(Boolean))]
+    : getAvailableFlavors(p);
+  const weightsForFlavor = _ppGetWeightsForFlavor(_ppFlavor);
 
   el('productPageBody').innerHTML = `
     <div class="pp-img-wrap">
@@ -756,19 +776,32 @@ function renderProductPageContent(p) {
       </div>
       <div class="pp-name">${escHtml(displayName(p))}</div>
       <div class="pp-price-row">
-        <span class="pp-orig">${formatKRW(p.originalPrice)}</span>
-        <span class="pp-sale">${formatKRW(p.salePrice)}</span>
-        <span class="pp-pct">▼${pct}%</span>
+        <span class="pp-orig" id="ppOrigPrice">${formatKRW(dispOrig)}</span>
+        <span class="pp-sale" id="ppSalePrice">${formatKRW(dispSale)}</span>
+        <span class="pp-pct"  id="ppDiscPct">▼${pct}%</span>
       </div>
-      ${(() => { const fl = getAvailableFlavors(p); return fl.length > 0 ? `
+
+      ${flavors.length > 0 ? `
       <div class="pp-flavor-row">
         <span class="pp-flavor-label">맛</span>
-        <div class="pp-flavor-chips">
-          ${fl.map(f =>
-            `<span class="pp-flavor-chip${f === p.flavor ? ' active' : ''}">${escHtml(f)}</span>`
+        <div class="pp-flavor-chips" id="ppFlavorChips">
+          ${flavors.map(f =>
+            `<span class="pp-flavor-chip${f === _ppFlavor ? ' active' : ''}" data-flavor="${escHtml(f)}">${escHtml(f)}</span>`
           ).join('')}
         </div>
-      </div>` : ''; })()}
+      </div>` : ''}
+
+      ${weightsForFlavor.length > 0 ? `
+      <div class="pp-flavor-row pp-weight-row">
+        <span class="pp-flavor-label">용량</span>
+        <div class="pp-weight-chips" id="ppWeightChips">
+          ${weightsForFlavor.map(v =>
+            `<span class="pp-weight-chip${v.weight === _ppWeight ? ' active' : ''}" data-weight="${escHtml(v.weight)}">
+              ${escHtml(v.weight)}<span class="pp-weight-price">${formatKRW(v.sale_price)}</span>
+            </span>`
+          ).join('')}
+        </div>
+      </div>` : ''}
     </div>
 
     <div class="pp-tab-bar">
@@ -799,19 +832,98 @@ function renderProductPageContent(p) {
     });
   });
 
+  el('productPageBody').querySelectorAll('.pp-flavor-chip[data-flavor]').forEach(chip => {
+    chip.addEventListener('click', () => _ppSelectFlavor(chip.dataset.flavor));
+  });
+  el('productPageBody').querySelectorAll('.pp-weight-chip[data-weight]').forEach(chip => {
+    chip.addEventListener('click', () => _ppSelectWeight(chip.dataset.weight));
+  });
+
   el('ppBuyBtn').addEventListener('click', function() { handleBuyClick(this.dataset.link); });
   el('ppCartBtn').addEventListener('click', function() { addToCart(parseInt(this.dataset.pid)); });
 }
 
-function updatePpCalc(pid) {
+/* ── 상품 페이지 variant 헬퍼 ────────────────────────────── */
+function _ppGetSelectedVariant() {
+  if (!_ppProd?.variants?.length) return null;
+  return _ppProd.variants.find(v =>
+    (!_ppFlavor || v.flavor === _ppFlavor) &&
+    (!_ppWeight || v.weight === _ppWeight)
+  ) || _ppProd.variants.find(v => !_ppFlavor || v.flavor === _ppFlavor)
+    || _ppProd.variants[0];
+}
+
+function _ppGetWeightsForFlavor(flavor) {
+  if (!_ppProd?.variants?.length) return [];
+  const filtered = flavor
+    ? _ppProd.variants.filter(v => v.flavor === flavor)
+    : _ppProd.variants;
+  const seen = new Map();
+  for (const v of filtered) {
+    if (v.weight && !seen.has(v.weight)) seen.set(v.weight, v);
+  }
+  return [...seen.values()];
+}
+
+function _ppSelectFlavor(flavor) {
+  _ppFlavor = flavor;
+  const weights = _ppGetWeightsForFlavor(flavor);
+  _ppWeight = weights[0]?.weight || null;
+
+  document.querySelectorAll('#ppFlavorChips .pp-flavor-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.flavor === flavor);
+  });
+
+  const wc = document.getElementById('ppWeightChips');
+  const wr = wc?.closest('.pp-weight-row');
+  if (wr) {
+    if (weights.length > 0) {
+      wr.style.display = '';
+      wc.innerHTML = weights.map(v =>
+        `<span class="pp-weight-chip${v.weight === _ppWeight ? ' active' : ''}" data-weight="${escHtml(v.weight)}">
+          ${escHtml(v.weight)}<span class="pp-weight-price">${formatKRW(v.sale_price)}</span>
+        </span>`
+      ).join('');
+      wc.querySelectorAll('.pp-weight-chip').forEach(c => {
+        c.addEventListener('click', () => _ppSelectWeight(c.dataset.weight));
+      });
+    } else {
+      wr.style.display = 'none';
+    }
+  }
+  _ppUpdatePrice();
+}
+
+function _ppSelectWeight(weight) {
+  _ppWeight = weight;
+  document.querySelectorAll('#ppWeightChips .pp-weight-chip').forEach(c => {
+    c.classList.toggle('active', c.dataset.weight === weight);
+  });
+  _ppUpdatePrice();
+}
+
+function _ppUpdatePrice() {
+  const v = _ppGetSelectedVariant();
+  if (!v) return;
+  const origEl = document.getElementById('ppOrigPrice');
+  const saleEl = document.getElementById('ppSalePrice');
+  const pctEl  = document.getElementById('ppDiscPct');
+  if (origEl) origEl.textContent = formatKRW(v.original_price);
+  if (saleEl) saleEl.textContent = formatKRW(v.sale_price);
+  if (pctEl)  pctEl.textContent  = `▼${discountPct(v.original_price, v.sale_price)}%`;
+  if (_ppProd) updatePpCalc(_ppProd.id, v.sale_price);
+}
+
+function updatePpCalc(pid, overridePrice) {
   const p = PRODUCTS.find(x => x.id === pid);
   const priceEl = document.getElementById('ppCalcPrice');
   if (!p || !priceEl) return;
+  const basePrice = overridePrice ?? (_ppGetSelectedVariant()?.sale_price ?? p.salePrice);
   const checked = [...document.querySelectorAll('.pp-event-cb:checked')];
   const evts = checked.map(cb => EVENTS.find(e => e.id === parseInt(cb.value))).filter(Boolean);
-  if (!evts.length) { priceEl.textContent = formatKRW(p.salePrice); return; }
+  if (!evts.length) { priceEl.textContent = formatKRW(basePrice); return; }
   const best = Math.max(...evts.map(e => e.discountPct));
-  priceEl.textContent = formatKRW(Math.round(p.salePrice * (1 - best / 100)));
+  priceEl.textContent = formatKRW(Math.round(basePrice * (1 - best / 100)));
 }
 
 function handleBuyClick(link) {
