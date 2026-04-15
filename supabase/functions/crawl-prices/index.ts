@@ -262,7 +262,7 @@ async function scrapeMyProtein(): Promise<SiteResult> {
     ['/c/amino-acids/','BCAA'],['/c/vitamins-and-supplements/','영양제'],
   ];
   let buildId='';
-  try { const mh=await getHtml(`${BASE}/`,`${BASE}/`); buildId=mh.match(/"buildId"\s*:\s*"([^"]{8,})"/)?.[1]??''; dbg.push(`buildId=${buildId||'x'}`); }
+  try { const mh=await getHtml(`${BASE}/`,`${BASE}/`); const bm=mh.match(/buildId[^:]*:[^"]*"([A-Za-z0-9_\-]{8,})"/); buildId=bm?.[1]??''; dbg.push(`buildId=${buildId||'x'}`); }
   catch(e){ dbg.push(`main err:${(e as Error).message}`); }
   for (const [path,cat] of CATS) {
     let got=false;
