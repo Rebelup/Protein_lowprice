@@ -1,6 +1,6 @@
 /**
- * crawl-prices Edge Function  v6.0
- * v6.0: 영어→한글 번역, 맛+중량+가격 variants JSONB, group_id, is_drink
+ * crawl-prices Edge Function  v7.0
+ * v7.0: 품절 variants 제외, 이벤트 크롤링 개선 (쿠폰코드·조건·날짜)
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
@@ -73,7 +73,7 @@ interface ScrapedEvent {
   conditions?: string[]; coupon_code?: string; coupon_note?: string;
 }
 interface SiteResult { site: string; products: ScrapedProduct[]; events: ScrapedEvent[]; error?: string; debug?: string; }
-interface ShopifyVariant { price: string; compare_at_price: string | null; title?: string; option1?: string; option2?: string; option3?: string; }
+interface ShopifyVariant { price: string; compare_at_price: string | null; title?: string; option1?: string; option2?: string; option3?: string; available?: boolean; }
 interface ShopifyProduct {
   title: string; product_type: string; tags: string[];
   handle: string; images: { src: string }[];
@@ -121,6 +121,7 @@ function parseShopifyVariants(variants: ShopifyVariant[], options: {name:string}
   const si = options.findIndex(o => /size|weight|용량|gram|lb/i.test(o.name));
   const items: VariantItem[] = [];
   for (const v of variants) {
+    if (v.available === false) continue; // 품절 제외
     const sale = krw(v.price); if(!sale) continue;
     const orig = krw(v.compare_at_price)||sale;
     const getOpt = (i:number) => i===0?v.option1??'':i===1?v.option2??'':i===2?v.option3??'':'';
@@ -161,8 +162,24 @@ async function scrapeBSN(): Promise<SiteResult> {
     }
     try {
       const h = await getHtml('https://www.bsn.co.kr/pages/lets-bsn','https://www.bsn.co.kr/');
-      const disc=h.match(/(\d+)\s*%/)?.[1]; const end=h.match(/(\d{4})[.\-](\d{2})[.\-](\d{2})/);
-      events.push({ brand:'bsn',brand_label:'BSN',name:"BSN Let's BSN 이벤트",description:'BSN 공식 홈페이지 구매 시 할인.',discount_pct:disc?+disc:20,color:'#E53935',active:true,end_date:end?`${end[1]}-${end[2]}-${end[3]}`:undefined,link:'https://www.bsn.co.kr/pages/lets-bsn',conditions:['BSN 공식 홈페이지(bsn.co.kr)에서 구매 시 적용'] });
+      // 최대 할인율 추출
+      const allDiscs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>=5&&n<=80);
+      const disc=allDiscs.length?Math.max(...allDiscs):20;
+      // 날짜 추출
+      const dates=[...h.matchAll(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/g)];
+      const startDate=dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
+      const endDate=dates[1]?`${dates[1][1]}-${dates[1][2].padStart(2,'0')}-${dates[1][3].padStart(2,'0')}`:dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
+      // 쿠폰코드 추출
+      const couponM=h.match(/(?:쿠폰\s*코드|할인\s*코드|coupon\s*code|코드)[^\w\n]*:?\s*([A-Z][A-Z0-9]{3,19})\b/i)
+        ||h.match(/\b([A-Z]{3,}[0-9]{2,})\b/);
+      const couponCode=couponM?.[1]?.toUpperCase();
+      // 조건 추출 (li 태그 등에서)
+      const conditions:string[]=['BSN 공식 홈페이지(bsn.co.kr)에서 구매 시 적용'];
+      for(const m of [...h.matchAll(/<li[^>]*>([\s\S]{10,200}?)<\/li>/gi)].slice(0,5)){
+        const txt=m[1].replace(/<[^>]+>/g,'').trim().replace(/\s+/g,' ');
+        if(txt.length>8&&/할인|구매|이벤트|조건|적용|이상|이하|한정|기간/.test(txt)) conditions.push(txt);
+      }
+      events.push({ brand:'bsn',brand_label:'BSN',name:"BSN Let's BSN 이벤트",description:`BSN 공식 홈페이지 구매 시 최대 ${disc}% 할인.`,discount_pct:disc,color:'#E53935',active:true,start_date:startDate,end_date:endDate,link:'https://www.bsn.co.kr/pages/lets-bsn',conditions,coupon_code:couponCode });
     } catch { /* 스킵 */ }
   } catch(e) { return {site:'BSN',products,events,error:(e as Error).message}; }
   return {site:'BSN',products,events};
@@ -196,8 +213,20 @@ async function scrapeON(): Promise<SiteResult> {
     }
     try {
       const h=await getHtml(`${BASE}/pages/promotions`,`${BASE}/`);
-      const disc=h.match(/(\d+)\s*%/)?.[1];
-      if(disc) events.push({brand:'on',brand_label:'Optimum Nutrition',name:'ON 공식몰 프로모션',description:`최대 ${disc}% 할인 진행 중.`,discount_pct:+disc,color:'#FFB300',active:true,link:`${BASE}/pages/promotions`});
+      const allDiscs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>=5&&n<=80);
+      const disc=allDiscs.length?Math.max(...allDiscs):undefined;
+      const dates=[...h.matchAll(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/g)];
+      const startDate=dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
+      const endDate=dates[1]?`${dates[1][1]}-${dates[1][2].padStart(2,'0')}-${dates[1][3].padStart(2,'0')}`:undefined;
+      const couponM=h.match(/(?:쿠폰\s*코드|할인\s*코드|coupon\s*code|코드)[^\w\n]*:?\s*([A-Z][A-Z0-9]{3,19})\b/i)
+        ||h.match(/\b([A-Z]{3,}[0-9]{2,})\b/);
+      const couponCode=couponM?.[1]?.toUpperCase();
+      const conditions:string[]=['ON 공식몰(optimumnutrition.com/ko-kr)에서 구매 시 적용'];
+      for(const m of [...h.matchAll(/<li[^>]*>([\s\S]{10,200}?)<\/li>/gi)].slice(0,5)){
+        const txt=m[1].replace(/<[^>]+>/g,'').trim().replace(/\s+/g,' ');
+        if(txt.length>8&&/할인|구매|이벤트|조건|적용|이상|이하|한정|기간/.test(txt)) conditions.push(txt);
+      }
+      if(disc||couponCode) events.push({brand:'on',brand_label:'Optimum Nutrition',name:'ON 공식몰 프로모션',description:disc?`최대 ${disc}% 할인 진행 중.`:'ON 공식몰 프로모션 진행 중.',discount_pct:disc,color:'#FFB300',active:true,start_date:startDate,end_date:endDate,link:`${BASE}/pages/promotions`,conditions,coupon_code:couponCode});
     } catch { /* 스킵 */ }
   } catch(e) { return {site:'ON',products,events,error:(e as Error).message}; }
   return {site:'ON',products,events};
@@ -287,7 +316,26 @@ async function scrapeMyProtein(): Promise<SiteResult> {
     const h=await getHtml(`${BASE}/c/voucher-codes/`,`${BASE}/`);
     const discs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>0&&n<=80);
     const max=discs.length?Math.max(...discs):35;
-    events.push({ brand:'myprotein',brand_label:'마이프로틴',name:'마이프로틴 할인코드 모음',description:`할인 코드 적용 시 최대 ${max}% 추가 할인.`,discount_pct:max,color:'#0077CC',active:true,end_date:'2026-12-31',link:`${BASE}/c/voucher-codes/`,conditions:['마이프로틴 공식 홈페이지(myprotein.co.kr)에서 구매 시 적용'] });
+    // 쿠폰코드 추출: <strong>/<code>/<b> 태그 또는 키워드 근처 대문자 코드
+    const voucherMap=new Map<string,number>();
+    for(const m of h.matchAll(/(?:코드|code|쿠폰)[^\w\n]{0,20}([A-Z][A-Z0-9]{3,19})\b/gi)) voucherMap.set(m[1].toUpperCase(),(voucherMap.get(m[1].toUpperCase())??0)+1);
+    for(const m of h.matchAll(/<(?:strong|code|b)[^>]*>\s*([A-Z][A-Z0-9\-]{3,19})\s*<\/(?:strong|code|b)>/g)){
+      const c=m[1].toUpperCase();
+      if(/[0-9]/.test(c)||c.length<=12) voucherMap.set(c,(voucherMap.get(c)??0)+2);
+    }
+    // 각 코드와 인접한 % 매칭
+    const codeList:[string,number][]=[];
+    for(const code of voucherMap.keys()){
+      const idx=h.toUpperCase().indexOf(code);
+      const nearby=idx>=0?h.slice(Math.max(0,idx-200),idx+200):'';
+      const pcts=[...nearby.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>0&&n<=80);
+      const pct=pcts.length?Math.max(...pcts):0;
+      codeList.push([code,pct]);
+    }
+    codeList.sort((a,b)=>b[1]-a[1]);
+    const topCode=codeList[0]?.[0];
+    const couponNote=codeList.slice(0,6).map(([c,p])=>`${c}${p?` (${p}%)`:''}`).join(', ')||undefined;
+    events.push({ brand:'myprotein',brand_label:'마이프로틴',name:'마이프로틴 할인코드 모음',description:`할인 코드 적용 시 최대 ${max}% 추가 할인.`,discount_pct:max,color:'#0077CC',active:true,end_date:'2026-12-31',link:`${BASE}/c/voucher-codes/`,conditions:['마이프로틴 공식 홈페이지(myprotein.co.kr)에서 구매 시 적용'],coupon_code:topCode,coupon_note:couponNote });
   } catch { /* 스킵 */ }
   return {site:'MyProtein',products,events,debug:dbg.join(' || ')};
 }
@@ -329,15 +377,45 @@ async function scrapeNSStore(): Promise<SiteResult> {
 
 /* ── DB 업서트 ──────────────────────────────────────────── */
 async function upsertProducts(prods: ScrapedProduct[]) {
-  let ins=0,upd=0;
-  for(const p of prods) {
-    if(!p.name?.trim()) continue;
-    const {data:ex} = p.group_id
-      ? await supabase.from('products').select('id').eq('group_id',p.group_id).maybeSingle()
-      : await supabase.from('products').select('id').eq('name',p.name).eq('store',p.store).maybeSingle();
-    const payload: Record<string,unknown> = {
-      sale_price:p.sale_price, original_price:p.original_price, link:p.link,
-      updated_at:new Date().toISOString(),
+  const valid=prods.filter(p=>p.name?.trim());
+  if(!valid.length) return {inserted:0,updated:0};
+
+  // 1. 기존 레코드 일괄 조회 (group_id 기준)
+  const existMap=new Map<string,number>(); // key → db id
+  const withGid=valid.filter(p=>p.group_id);
+  if(withGid.length) {
+    const gids=[...new Set(withGid.map(p=>p.group_id!))];
+    for(let i=0;i<gids.length;i+=200) {
+      const {data}=await supabase.from('products').select('id,group_id,name,store').in('group_id',gids.slice(i,i+200));
+      data?.forEach(r=>{ if(r.group_id) existMap.set(r.group_id,r.id); });
+    }
+    // group_id가 DB에 없는 경우 → name+store로 fallback 조회
+    const notFound=withGid.filter(p=>!existMap.has(p.group_id!));
+    if(notFound.length) {
+      await Promise.all(notFound.map(async p=>{
+        const {data}=await supabase.from('products').select('id').eq('name',p.name).eq('store',p.store).maybeSingle();
+        if(data) existMap.set(p.group_id!,data.id);
+      }));
+    }
+  }
+  // group_id 없는 상품은 name+store로 병렬 조회
+  const noGid=valid.filter(p=>!p.group_id);
+  if(noGid.length) {
+    await Promise.all(noGid.map(async p=>{
+      const {data}=await supabase.from('products').select('id').eq('name',p.name).eq('store',p.store).maybeSingle();
+      if(data) existMap.set(`${p.name}::${p.store}`,data.id);
+    }));
+  }
+
+  // 2. 업데이트/인서트 분류
+  const now=new Date().toISOString();
+  const toUpdate:{id:number;row:Record<string,unknown>}[]=[];
+  const toInsert:Record<string,unknown>[]=[];
+  for(const p of valid) {
+    const key=p.group_id??`${p.name}::${p.store}`;
+    const existId=existMap.get(key);
+    const payload:Record<string,unknown>={
+      sale_price:p.sale_price,original_price:p.original_price,link:p.link,updated_at:now,
       ...(p.thumbnail?{thumbnail:p.thumbnail}:{}),
       ...(p.flavor!==undefined?{flavor:p.flavor}:{}),
       ...(p.weight!==undefined?{weight:p.weight}:{}),
@@ -346,10 +424,27 @@ async function upsertProducts(prods: ScrapedProduct[]) {
       ...(p.group_id?{group_id:p.group_id}:{}),
       ...(p.is_drink!==undefined?{is_drink:p.is_drink}:{}),
     };
-    if(ex) { await supabase.from('products').update(payload).eq('id',ex.id); upd++; }
-    else {
-      const {error}=await supabase.from('products').insert({ name:p.name,brand:p.brand,store:p.store,category:p.category??classifyByName(p.name),emoji:p.emoji??'💊',scrape_url:p.link,...payload });
-      if(!error) ins++; else console.error('insert err:',error.message,p.name);
+    if(existId) toUpdate.push({id:existId,row:payload});
+    else toInsert.push({name:p.name,brand:p.brand,store:p.store,category:p.category??classifyByName(p.name),emoji:p.emoji??'💊',scrape_url:p.link,...payload});
+  }
+
+  // 3. 병렬 업데이트 (id 기준 upsert 배치)
+  let upd=0;
+  if(toUpdate.length) {
+    const rows=toUpdate.map(({id,row})=>({id,...row}));
+    for(let i=0;i<rows.length;i+=100) {
+      const {error}=await supabase.from('products').upsert(rows.slice(i,i+100),{onConflict:'id'});
+      if(!error) upd+=Math.min(100,rows.length-i);
+    }
+  }
+
+  // 4. 배치 인서트
+  let ins=0;
+  if(toInsert.length) {
+    for(let i=0;i<toInsert.length;i+=100) {
+      const {error}=await supabase.from('products').insert(toInsert.slice(i,i+100));
+      if(!error) ins+=Math.min(100,toInsert.length-i);
+      else console.error('insert batch err:',error.message);
     }
   }
   return {inserted:ins,updated:upd};
@@ -357,7 +452,7 @@ async function upsertProducts(prods: ScrapedProduct[]) {
 async function upsertEvents(evts: ScrapedEvent[]) {
   for(const e of evts) {
     const {data:ex}=await supabase.from('events').select('id').eq('brand',e.brand).eq('name',e.name).maybeSingle();
-    if(ex) await supabase.from('events').update({active:e.active,end_date:e.end_date??null,discount_pct:e.discount_pct??null,description:e.description??null,coupon_code:e.coupon_code??null}).eq('id',ex.id);
+    if(ex) await supabase.from('events').update({active:e.active,start_date:e.start_date??null,end_date:e.end_date??null,discount_pct:e.discount_pct??null,description:e.description??null,coupon_code:e.coupon_code??null,conditions:e.conditions??null,coupon_note:e.coupon_note??null}).eq('id',ex.id);
     else await supabase.from('events').insert(e);
   }
 }

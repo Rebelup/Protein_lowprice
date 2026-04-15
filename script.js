@@ -261,7 +261,10 @@ function showDbError(msg) {
    SUPABASE 데이터 로드
    ============================================================ */
 async function loadProducts() {
-  const { data, error } = await db.from('products').select('*').order('id');
+  // variants는 용량이 크므로 제외하고 로드 (상품 상세 페이지에서 lazy load)
+  const { data, error } = await db.from('products')
+    .select('id, name, brand, store, category, flavor, available_flavors, weight, grams, emoji, thumbnail, original_price, sale_price, expiry_date, link, is_drink, group_id')
+    .order('id');
   if (error) throw new Error(error.message);
 
   PRODUCTS = data.map(p => ({
@@ -280,7 +283,7 @@ async function loadProducts() {
     salePrice:       p.sale_price,
     expiryDate:      p.expiry_date,
     link:            p.link || '#',
-    variants:        p.variants || [],
+    variants:        [],   // 상품 상세 페이지 열 때 lazy load
     isDrink:         p.is_drink || false,
   }));
 }
@@ -575,16 +578,28 @@ function render() {
    ============================================================ */
 function openProductDetail(productId) { openProductPage(productId); } // 하위 호환
 
-function openProductPage(productId) {
+async function openProductPage(productId) {
   const p = PRODUCTS.find(x => x.id === productId);
   if (!p) return;
-  renderProductPageContent(p);
+
   const page = el('productPage');
   page.classList.remove('hidden');
   page.getBoundingClientRect();
   page.classList.add('page-open');
   document.body.style.overflow = 'hidden';
   history.pushState({ productId }, '', `?product=${productId}`);
+
+  // variants lazy load (아직 안 불렀으면)
+  if (!p._variantsLoaded) {
+    const { data } = await db.from('products').select('variants, available_flavors').eq('id', productId).single();
+    if (data) {
+      p.variants        = data.variants || [];
+      p.availableFlavors = data.available_flavors || p.availableFlavors;
+      p._variantsLoaded = true;
+    }
+  }
+
+  renderProductPageContent(p);
 }
 
 function closeProductPage() {
@@ -742,7 +757,12 @@ function renderPpNutritionPanel(p, nut) {
 function renderProductPageContent(p) {
   // variant 선택 상태 초기화
   _ppProd   = p;
-  _ppFlavor = p.variants?.length ? (p.flavor || p.variants[0]?.flavor || null) : null;
+  const _flavors0 = p.variants?.length
+    ? [...new Set(p.variants.map(v => v.flavor).filter(Boolean))]
+    : (p.availableFlavors?.length ? p.availableFlavors : (p.flavor ? [p.flavor] : []));
+  _ppFlavor = p.variants?.length
+    ? (p.variants.find(v => v.flavor === p.flavor)?.flavor || p.variants[0]?.flavor || null)
+    : (_flavors0[0] || null);
   _ppWeight = p.variants?.length ? (p.weight || p.variants[0]?.weight || null) : null;
 
   const selV    = _ppGetSelectedVariant();
@@ -755,9 +775,7 @@ function renderProductPageContent(p) {
   const evts     = getProductEvents(p);
   const nut      = getNutrition(p);
 
-  const flavors          = p.variants?.length
-    ? [...new Set(p.variants.map(v => v.flavor).filter(Boolean))]
-    : getAvailableFlavors(p);
+  const flavors          = _flavors0.length ? _flavors0 : getAvailableFlavors(p);
   const weightsForFlavor = _ppGetWeightsForFlavor(_ppFlavor);
 
   el('productPageBody').innerHTML = `
@@ -783,7 +801,6 @@ function renderProductPageContent(p) {
 
       ${flavors.length > 0 ? `
       <div class="pp-flavor-row">
-        <span class="pp-flavor-label">맛</span>
         <div class="pp-flavor-chips" id="ppFlavorChips">
           ${flavors.map(f =>
             `<span class="pp-flavor-chip${f === _ppFlavor ? ' active' : ''}" data-flavor="${escHtml(f)}">${escHtml(f)}</span>`
