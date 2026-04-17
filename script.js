@@ -47,9 +47,16 @@ async function loadEvents() {
 
 async function loadFilterOptions() {
   const { data } = await db.from('filter_options').select('*').order('sort_order');
-  if (!data) return;
+  if (!data || !data.length) return;
   ALL_BRANDS        = data.filter(r => r.type === 'brand')   .map(r => ({ value: r.value, label: r.label }));
   ALL_PRODUCT_TYPES = data.filter(r => r.type === 'category').map(r => ({ value: r.value, label: r.label }));
+}
+
+function deriveBrandsFromEvents() {
+  if (ALL_BRANDS.length) return;
+  const seen = new Map();
+  EVENTS.forEach(e => { if (!seen.has(e.brand)) seen.set(e.brand, e.brandLabel || e.brand); });
+  ALL_BRANDS = [...seen.entries()].map(([value, label]) => ({ value, label }));
 }
 
 /* ============================================================
@@ -724,12 +731,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   try {
-    await Promise.all([loadEvents(), loadFilterOptions()]);
+    // 이벤트 로드 (필수)
+    await loadEvents();
+
+    // filter_options 로드 (선택, 5초 타임아웃)
+    await Promise.race([
+      loadFilterOptions(),
+      new Promise(resolve => setTimeout(resolve, 5000)),
+    ]).catch(() => {});
+
+    // filter_options에 브랜드 데이터가 없으면 이벤트 데이터에서 자동 파생
+    deriveBrandsFromEvents();
+
     buildDynamicFilters();
     initListeners();
     render();
-    showLoading(false);
   } catch (err) {
-    showDbError(err.message);
+    try { showDbError(err.message); } catch {}
+  } finally {
+    showLoading(false);
   }
 });
