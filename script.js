@@ -80,6 +80,7 @@ let ALL_PRODUCT_TYPES  = [];   // loadFilterOptions() 이후 채워짐 [{value, 
 
 const BOOSTER_SUB       = ['단백질 파우더', 'BCAA', '크레아틴', '영양제'];
 const THUMB_CACHE_KEY   = 'protein_thumb_v1';
+let _thumbCache         = null; // lazy-loaded from localStorage
 
 /* ============================================================
    HELPERS
@@ -118,10 +119,6 @@ function deliveryInfo(store) {
   if (store === 'NS스토어')  return { label: 'NS스토어',           cls: 'normal' };
   return { label: store,                                            cls: 'normal' };
 }
-function viewerCount(id) {
-  return ((id * 7 + 3) % 19) + 3;
-}
-
 /** 보충제 세부 분류 */
 function getSubCat(p) {
   const n = p.name.toLowerCase();
@@ -234,10 +231,14 @@ async function loadProducts() {
    - localStorage 캐시로 반복 요청 방지
    ============================================================ */
 function getThumbCache() {
-  try { return JSON.parse(localStorage.getItem(THUMB_CACHE_KEY) || '{}'); }
-  catch { return {}; }
+  if (!_thumbCache) {
+    try { _thumbCache = JSON.parse(localStorage.getItem(THUMB_CACHE_KEY) || '{}'); }
+    catch { _thumbCache = {}; }
+  }
+  return _thumbCache;
 }
 function setThumbCache(cache) {
+  _thumbCache = cache;
   try { localStorage.setItem(THUMB_CACHE_KEY, JSON.stringify(cache)); }
   catch {}
 }
@@ -373,7 +374,7 @@ function renderTop10() {
     const thumb    = getThumbUrl(p);
 
     return `
-      <div class="top10-card" data-pid="${p.id}" onclick="openProductDetail(${p.id})">
+      <div class="top10-card" data-pid="${p.id}" onclick="openProductPage(${p.id})">
         <div class="top10-img-wrap ${!thumb ? 'thumb-loading' : ''}">
           ${pct >= 25 ? '<span class="badge-yeokdaegup">역대급</span>' : ''}
           ${thumb
@@ -405,17 +406,14 @@ function renderCard(p) {
   const thumb     = getThumbUrl(p);
   const ep        = getEventBestPrice(p);   // 이벤트 적용 시 최저가 (없으면 null)
 
-  // 이벤트 적용 중이면 이벤트가 기준, 아니면 판매가 기준
   const displayPrice = ep ?? p.salePrice;
-  const displayPct   = Math.round(((p.originalPrice - displayPrice) / p.originalPrice) * 100);
+  const displayPct   = discountPct(p.originalPrice, displayPrice);
 
-  const today = new Date().toISOString().slice(0, 10);
-  // 현재 활성화된 이벤트 중 이 상품에 적용되는 것
   const activeEvt = getProductEvents(p).filter(e => state.activeEventIds.has(e.id) && e.active)[0] ?? null;
   const endLabel  = activeEvt?.endDate ? '~' + activeEvt.endDate.slice(5).replace('-', '.') : null;
 
   return `
-    <article class="product-card" data-pid="${p.id}" onclick="openProductDetail(${p.id})">
+    <article class="product-card" data-pid="${p.id}" onclick="openProductPage(${p.id})">
       <div class="card-img-wrap ${!thumb ? 'thumb-loading' : ''}">
         ${ep ? '<div class="badge-event-img">🎁 이벤트가</div>' : ''}
         ${endLabel ? `<div class="card-end-date">${endLabel}</div>` : ''}
@@ -451,9 +449,6 @@ function render() {
 
   el('resultCount').textContent = items.length;
 
-  // 핫딜 배너 토글
-  el('top10Section').classList.remove('hidden');
-
   if (items.length === 0) {
     grid.innerHTML     = '';
     grid.style.display = 'none';
@@ -466,13 +461,8 @@ function render() {
 }
 
 /* ============================================================
-   상품 상세 페이지 (바텀시트)
-   ============================================================ */
-/* ============================================================
    상품 페이지 (풀스크린, 오른쪽에서 슬라이드)
    ============================================================ */
-function openProductDetail(productId) { openProductPage(productId); } // 하위 호환
-
 function openProductPage(productId) {
   const p = PRODUCTS.find(x => x.id === productId);
   if (!p) return;
@@ -644,8 +634,6 @@ function renderProductPageContent(p) {
   const safeLink = escHtml(safeUrl(p.link));
   const evts     = getProductEvents(p);
   const nut      = getNutrition(p);
-  const bestPct  = evts.length ? Math.max(...evts.map(e => e.discountPct)) : 0;
-  const bestPrice= bestPct ? Math.round(p.salePrice * (1 - bestPct / 100)) : null;
 
   el('productPageBody').innerHTML = `
     <div class="pp-img-wrap">
@@ -831,8 +819,6 @@ function renderEventCards(events, container) {
     const isActive = state.activeEventIds.has(e.id);
     const [y, m, d] = e.endDate.split('-');
     const endLabel = `~${y}.${m}.${d}`;
-    const condPreview = (e.conditions || []).slice(0, 2).map(c => `• ${c}`).join('\n');
-
     const card = document.createElement('div');
     card.className = 'es-card' + (isActive ? ' applied' : '');
     card.dataset.eventId = e.id;
@@ -846,7 +832,7 @@ function renderEventCards(events, container) {
         </div>
         <div class="es-card-name">${escHtml(e.name)}</div>
         <div class="es-card-desc">${escHtml(e.desc)}</div>
-        ${condPreview ? `<ul class="es-card-conds">${(e.conditions || []).slice(0, 2).map(c => `<li>${escHtml(c)}</li>`).join('')}</ul>` : ''}
+        ${(e.conditions||[]).length ? `<ul class="es-card-conds">${e.conditions.slice(0, 2).map(c => `<li>${escHtml(c)}</li>`).join('')}</ul>` : ''}
       </div>
       <button class="es-toggle${isActive ? ' active' : ''}" data-event-id="${e.id}" type="button">${isActive ? '적용중' : '적용'}</button>`;
     container.appendChild(card);
@@ -1198,7 +1184,7 @@ function initListeners() {
   /* 검색 (debounce 250ms) */
   const debouncedRender = debounce(() => { state.search = searchInput.value.trim(); render(); }, 250);
   searchInput.addEventListener('input', debouncedRender);
-  searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(); state.search = searchInput.value.trim(); render(); } });
+  searchInput.addEventListener('keydown', e => { if (e.key === 'Enter') { state.search = searchInput.value.trim(); render(); } });
   el('searchBtn').addEventListener('click', () => { state.search = searchInput.value.trim(); render(); });
 
   /* 이벤트 버튼 (필터 행) */
