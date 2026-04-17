@@ -8,8 +8,8 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
-const REQ_TIMEOUT = 8_000;
-const SITE_TIMEOUT = 40_000;
+const REQ_TIMEOUT = 6_000;
+const SITE_TIMEOUT = 18_000;
 
 /* ── 번역 맵 ─────────────────────────────────────────────── */
 const KO_MAP: Record<string, string> = {
@@ -166,33 +166,22 @@ async function scrapeBSN(): Promise<SiteResult> {
       if(d.products.length<250) break;
     }
     try {
-      const bsnBase='https://www.bsn.co.kr';
-      // 이벤트 페이지 자동 탐색
-      const evtPages=await discoverEventPages(`${bsnBase}/`,bsnBase);
-      const evtUrls=[...new Set([`${bsnBase}/pages/lets-bsn`,...evtPages])].slice(0,3);
-      const seenEvt=new Set<string>();
-      for(const evtUrl of evtUrls) {
-        try {
-          const h=await getHtml(evtUrl,`${bsnBase}/`);
-          const allDiscs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>=5&&n<=80);
-          if(!allDiscs.length) continue;
-          const disc=Math.max(...allDiscs);
-          const dates=[...h.matchAll(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/g)];
-          const startDate=dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
-          const endDate=dates[1]?`${dates[1][1]}-${dates[1][2].padStart(2,'0')}-${dates[1][3].padStart(2,'0')}`:dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
-          const couponM=h.match(/(?:쿠폰\s*코드|할인\s*코드|coupon\s*code|코드)[^\w\n]*:?\s*([A-Z][A-Z0-9]{3,19})\b/i)||h.match(/\b([A-Z]{3,}[0-9]{2,})\b/);
-          const couponCode=couponM?.[1]?.toUpperCase();
-          const conditions:string[]=['BSN 공식 홈페이지(bsn.co.kr)에서 구매 시 적용'];
-          for(const m of [...h.matchAll(/<li[^>]*>([\s\S]{10,200}?)<\/li>/gi)].slice(0,5)){
-            const txt=m[1].replace(/<[^>]+>/g,'').trim().replace(/\s+/g,' ');
-            if(txt.length>8&&/할인|구매|이벤트|조건|적용|이상|이하|한정|기간/.test(txt)) conditions.push(txt);
-          }
-          const titleM=h.match(/<(?:h1|h2)[^>]*>([\s\S]{4,60}?)<\/(?:h1|h2)>/i);
-          const evtName=titleM?titleM[1].replace(/<[^>]+>/g,'').trim():"BSN Let's BSN 이벤트";
-          const evtKey=`${disc}_${evtUrl}`;
-          if(!seenEvt.has(evtKey)){ seenEvt.add(evtKey); events.push({brand:'bsn',brand_label:'BSN',name:evtName,description:`BSN 공식 홈페이지 구매 시 최대 ${disc}% 할인.`,discount_pct:disc,color:'#E53935',active:true,start_date:startDate,end_date:endDate,link:evtUrl,conditions,coupon_code:couponCode}); }
-        } catch { /* 스킵 */ }
+      const h=await getHtml('https://www.bsn.co.kr/pages/lets-bsn','https://www.bsn.co.kr/');
+      const allDiscs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>=5&&n<=80);
+      const disc=allDiscs.length?Math.max(...allDiscs):20;
+      const dates=[...h.matchAll(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/g)];
+      const startDate=dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
+      const endDate=dates[1]?`${dates[1][1]}-${dates[1][2].padStart(2,'0')}-${dates[1][3].padStart(2,'0')}`:dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
+      const couponM=h.match(/(?:쿠폰\s*코드|할인\s*코드|coupon\s*code|코드)[^\w\n]*:?\s*([A-Z][A-Z0-9]{3,19})\b/i)||h.match(/\b([A-Z]{3,}[0-9]{2,})\b/);
+      const couponCode=couponM?.[1]?.toUpperCase();
+      const conditions:string[]=['BSN 공식 홈페이지(bsn.co.kr)에서 구매 시 적용'];
+      for(const m of [...h.matchAll(/<li[^>]*>([\s\S]{10,200}?)<\/li>/gi)].slice(0,5)){
+        const txt=m[1].replace(/<[^>]+>/g,'').trim().replace(/\s+/g,' ');
+        if(txt.length>8&&/할인|구매|이벤트|조건|적용|이상|이하|한정|기간/.test(txt)) conditions.push(txt);
       }
+      const titleM=h.match(/<(?:h1|h2)[^>]*>([\s\S]{4,60}?)<\/(?:h1|h2)>/i);
+      const evtName=titleM?titleM[1].replace(/<[^>]+>/g,'').trim():"BSN Let's BSN 이벤트";
+      events.push({brand:'bsn',brand_label:'BSN',name:evtName,description:`BSN 공식 홈페이지 구매 시 최대 ${disc}% 할인.`,discount_pct:disc,color:'#E53935',active:true,start_date:startDate,end_date:endDate,link:'https://www.bsn.co.kr/pages/lets-bsn',conditions,coupon_code:couponCode});
     } catch { /* 스킵 */ }
   } catch(e) { return {site:'BSN',products,events,error:(e as Error).message}; }
   return {site:'BSN',products,events};
@@ -225,29 +214,22 @@ async function scrapeON(): Promise<SiteResult> {
       if(d.products.length<250) break;
     }
     try {
-      const onOrigin='https://www.optimumnutrition.com';
-      const evtPages=await discoverEventPages(`${BASE}/`,onOrigin);
-      const evtUrls=[...new Set([`${BASE}/pages/promotions`,...evtPages.filter(u=>u.startsWith(BASE))])].slice(0,3);
-      for(const evtUrl of evtUrls) {
-        try {
-          const h=await getHtml(evtUrl,`${BASE}/`);
-          const allDiscs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>=5&&n<=80);
-          const disc=allDiscs.length?Math.max(...allDiscs):undefined;
-          const dates=[...h.matchAll(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/g)];
-          const startDate=dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
-          const endDate=dates[1]?`${dates[1][1]}-${dates[1][2].padStart(2,'0')}-${dates[1][3].padStart(2,'0')}`:undefined;
-          const couponM=h.match(/(?:쿠폰\s*코드|할인\s*코드|coupon\s*code|코드)[^\w\n]*:?\s*([A-Z][A-Z0-9]{3,19})\b/i)||h.match(/\b([A-Z]{3,}[0-9]{2,})\b/);
-          const couponCode=couponM?.[1]?.toUpperCase();
-          const conditions:string[]=['ON 공식몰(optimumnutrition.com/ko-kr)에서 구매 시 적용'];
-          for(const m of [...h.matchAll(/<li[^>]*>([\s\S]{10,200}?)<\/li>/gi)].slice(0,5)){
-            const txt=m[1].replace(/<[^>]+>/g,'').trim().replace(/\s+/g,' ');
-            if(txt.length>8&&/할인|구매|이벤트|조건|적용|이상|이하|한정|기간/.test(txt)) conditions.push(txt);
-          }
-          const titleM=h.match(/<(?:h1|h2)[^>]*>([\s\S]{4,60}?)<\/(?:h1|h2)>/i);
-          const evtName=titleM?titleM[1].replace(/<[^>]+>/g,'').trim():'ON 공식몰 프로모션';
-          if(disc||couponCode) events.push({brand:'on',brand_label:'Optimum Nutrition',name:evtName,description:disc?`최대 ${disc}% 할인 진행 중.`:'ON 공식몰 프로모션 진행 중.',discount_pct:disc,color:'#FFB300',active:true,start_date:startDate,end_date:endDate,link:evtUrl,conditions,coupon_code:couponCode});
-        } catch { /* 스킵 */ }
+      const h=await getHtml(`${BASE}/pages/promotions`,`${BASE}/`);
+      const allDiscs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>=5&&n<=80);
+      const disc=allDiscs.length?Math.max(...allDiscs):undefined;
+      const dates=[...h.matchAll(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/g)];
+      const startDate=dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
+      const endDate=dates[1]?`${dates[1][1]}-${dates[1][2].padStart(2,'0')}-${dates[1][3].padStart(2,'0')}`:undefined;
+      const couponM=h.match(/(?:쿠폰\s*코드|할인\s*코드|coupon\s*code|코드)[^\w\n]*:?\s*([A-Z][A-Z0-9]{3,19})\b/i)||h.match(/\b([A-Z]{3,}[0-9]{2,})\b/);
+      const couponCode=couponM?.[1]?.toUpperCase();
+      const conditions:string[]=['ON 공식몰(optimumnutrition.com/ko-kr)에서 구매 시 적용'];
+      for(const m of [...h.matchAll(/<li[^>]*>([\s\S]{10,200}?)<\/li>/gi)].slice(0,5)){
+        const txt=m[1].replace(/<[^>]+>/g,'').trim().replace(/\s+/g,' ');
+        if(txt.length>8&&/할인|구매|이벤트|조건|적용|이상|이하|한정|기간/.test(txt)) conditions.push(txt);
       }
+      const titleM=h.match(/<(?:h1|h2)[^>]*>([\s\S]{4,60}?)<\/(?:h1|h2)>/i);
+      const evtName=titleM?titleM[1].replace(/<[^>]+>/g,'').trim():'ON 공식몰 프로모션';
+      if(disc||couponCode) events.push({brand:'on',brand_label:'Optimum Nutrition',name:evtName,description:disc?`최대 ${disc}% 할인 진행 중.`:'ON 공식몰 프로모션 진행 중.',discount_pct:disc,color:'#FFB300',active:true,start_date:startDate,end_date:endDate,link:`${BASE}/pages/promotions`,conditions,coupon_code:couponCode});
     } catch { /* 스킵 */ }
   } catch(e) { return {site:'ON',products,events,error:(e as Error).message}; }
   return {site:'ON',products,events};
