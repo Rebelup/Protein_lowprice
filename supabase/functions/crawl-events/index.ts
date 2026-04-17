@@ -424,10 +424,14 @@ Deno.serve(async (req) => {
       }
     }
 
-    await supabase.from('crawl_logs').insert({
-      ran_at: new Date().toISOString(),
-      summary: { type: 'events', ...summary },
-    }).catch((e) => console.error('[crawl-events] crawl_logs 저장 실패:', e));
+    try {
+      await supabase.from('crawl_logs').insert({
+        ran_at: new Date().toISOString(),
+        summary: { type: 'events', ...summary },
+      });
+    } catch (e) {
+      console.error('[crawl-events] crawl_logs 저장 실패:', e);
+    }
 
     console.log('[crawl-events] 완료');
     return new Response(
