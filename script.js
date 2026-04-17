@@ -829,8 +829,8 @@ function renderProductPageContent(p) {
     </div>
 
     <div class="pp-panel" id="ppPanelEvents">${renderPpEventsPanel(p, evts)}</div>
-    <div class="pp-panel pp-panel--hidden" id="ppPanelInfo">${renderPpInfoPanel(p)}</div>
-    <div class="pp-panel pp-panel--hidden" id="ppPanelNutrition">${renderPpNutritionPanel(p, nut)}</div>
+    <div class="pp-panel" id="ppPanelInfo">${renderPpInfoPanel(p)}</div>
+    <div class="pp-panel" id="ppPanelNutrition">${renderPpNutritionPanel(p, nut)}</div>
 
     <div class="pp-cta">
       <button class="pp-cart-cta" data-pid="${p.id}" id="ppCartBtn">🛒 담기</button>
@@ -839,14 +839,25 @@ function renderProductPageContent(p) {
 
   updatePpCalc(p.id);
 
+  // Ensure tab-bar sticks below the header (both are sticky top:0)
+  const _ppHeader = el('productPage').querySelector('.pp-header');
+  const _ppTabBar = el('productPageBody').querySelector('.pp-tab-bar');
+  if (_ppHeader && _ppTabBar) _ppTabBar.style.top = _ppHeader.offsetHeight + 'px';
+
   el('productPageBody').querySelectorAll('.pp-tab').forEach(tab => {
     tab.addEventListener('click', () => {
       el('productPageBody').querySelectorAll('.pp-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
-      ['events','info','nutrition'].forEach(name => {
-        const panel = document.getElementById(`ppPanel${name[0].toUpperCase()+name.slice(1)}`);
-        if (panel) panel.classList.toggle('pp-panel--hidden', name !== tab.dataset.tab);
-      });
+      const name = tab.dataset.tab;
+      const panel = document.getElementById(`ppPanel${name[0].toUpperCase()+name.slice(1)}`);
+      if (panel) {
+        const page = el('productPage');
+        const header = page.querySelector('.pp-header');
+        const tabBar = el('productPageBody').querySelector('.pp-tab-bar');
+        const stickyH = (header ? header.offsetHeight : 0) + (tabBar ? tabBar.offsetHeight : 0);
+        const scrollTarget = page.scrollTop + panel.getBoundingClientRect().top - stickyH;
+        page.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+      }
     });
   });
 

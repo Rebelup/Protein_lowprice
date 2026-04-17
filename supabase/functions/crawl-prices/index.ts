@@ -166,25 +166,33 @@ async function scrapeBSN(): Promise<SiteResult> {
       if(d.products.length<250) break;
     }
     try {
-      const h = await getHtml('https://www.bsn.co.kr/pages/lets-bsn','https://www.bsn.co.kr/');
-      // 최대 할인율 추출
-      const allDiscs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>=5&&n<=80);
-      const disc=allDiscs.length?Math.max(...allDiscs):20;
-      // 날짜 추출
-      const dates=[...h.matchAll(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/g)];
-      const startDate=dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
-      const endDate=dates[1]?`${dates[1][1]}-${dates[1][2].padStart(2,'0')}-${dates[1][3].padStart(2,'0')}`:dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
-      // 쿠폰코드 추출
-      const couponM=h.match(/(?:쿠폰\s*코드|할인\s*코드|coupon\s*code|코드)[^\w\n]*:?\s*([A-Z][A-Z0-9]{3,19})\b/i)
-        ||h.match(/\b([A-Z]{3,}[0-9]{2,})\b/);
-      const couponCode=couponM?.[1]?.toUpperCase();
-      // 조건 추출 (li 태그 등에서)
-      const conditions:string[]=['BSN 공식 홈페이지(bsn.co.kr)에서 구매 시 적용'];
-      for(const m of [...h.matchAll(/<li[^>]*>([\s\S]{10,200}?)<\/li>/gi)].slice(0,5)){
-        const txt=m[1].replace(/<[^>]+>/g,'').trim().replace(/\s+/g,' ');
-        if(txt.length>8&&/할인|구매|이벤트|조건|적용|이상|이하|한정|기간/.test(txt)) conditions.push(txt);
+      const bsnBase='https://www.bsn.co.kr';
+      // 이벤트 페이지 자동 탐색
+      const evtPages=await discoverEventPages(`${bsnBase}/`,bsnBase);
+      const evtUrls=[...new Set([`${bsnBase}/pages/lets-bsn`,...evtPages])].slice(0,4);
+      const seenEvt=new Set<string>();
+      for(const evtUrl of evtUrls) {
+        try {
+          const h=await getHtml(evtUrl,`${bsnBase}/`);
+          const allDiscs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>=5&&n<=80);
+          if(!allDiscs.length) continue;
+          const disc=Math.max(...allDiscs);
+          const dates=[...h.matchAll(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/g)];
+          const startDate=dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
+          const endDate=dates[1]?`${dates[1][1]}-${dates[1][2].padStart(2,'0')}-${dates[1][3].padStart(2,'0')}`:dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
+          const couponM=h.match(/(?:쿠폰\s*코드|할인\s*코드|coupon\s*code|코드)[^\w\n]*:?\s*([A-Z][A-Z0-9]{3,19})\b/i)||h.match(/\b([A-Z]{3,}[0-9]{2,})\b/);
+          const couponCode=couponM?.[1]?.toUpperCase();
+          const conditions:string[]=['BSN 공식 홈페이지(bsn.co.kr)에서 구매 시 적용'];
+          for(const m of [...h.matchAll(/<li[^>]*>([\s\S]{10,200}?)<\/li>/gi)].slice(0,5)){
+            const txt=m[1].replace(/<[^>]+>/g,'').trim().replace(/\s+/g,' ');
+            if(txt.length>8&&/할인|구매|이벤트|조건|적용|이상|이하|한정|기간/.test(txt)) conditions.push(txt);
+          }
+          const titleM=h.match(/<(?:h1|h2)[^>]*>([\s\S]{4,60}?)<\/(?:h1|h2)>/i);
+          const evtName=titleM?titleM[1].replace(/<[^>]+>/g,'').trim():"BSN Let's BSN 이벤트";
+          const evtKey=`${disc}_${evtUrl}`;
+          if(!seenEvt.has(evtKey)){ seenEvt.add(evtKey); events.push({brand:'bsn',brand_label:'BSN',name:evtName,description:`BSN 공식 홈페이지 구매 시 최대 ${disc}% 할인.`,discount_pct:disc,color:'#E53935',active:true,start_date:startDate,end_date:endDate,link:evtUrl,conditions,coupon_code:couponCode}); }
+        } catch { /* 스킵 */ }
       }
-      events.push({ brand:'bsn',brand_label:'BSN',name:"BSN Let's BSN 이벤트",description:`BSN 공식 홈페이지 구매 시 최대 ${disc}% 할인.`,discount_pct:disc,color:'#E53935',active:true,start_date:startDate,end_date:endDate,link:'https://www.bsn.co.kr/pages/lets-bsn',conditions,coupon_code:couponCode });
     } catch { /* 스킵 */ }
   } catch(e) { return {site:'BSN',products,events,error:(e as Error).message}; }
   return {site:'BSN',products,events};
@@ -217,21 +225,29 @@ async function scrapeON(): Promise<SiteResult> {
       if(d.products.length<250) break;
     }
     try {
-      const h=await getHtml(`${BASE}/pages/promotions`,`${BASE}/`);
-      const allDiscs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>=5&&n<=80);
-      const disc=allDiscs.length?Math.max(...allDiscs):undefined;
-      const dates=[...h.matchAll(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/g)];
-      const startDate=dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
-      const endDate=dates[1]?`${dates[1][1]}-${dates[1][2].padStart(2,'0')}-${dates[1][3].padStart(2,'0')}`:undefined;
-      const couponM=h.match(/(?:쿠폰\s*코드|할인\s*코드|coupon\s*code|코드)[^\w\n]*:?\s*([A-Z][A-Z0-9]{3,19})\b/i)
-        ||h.match(/\b([A-Z]{3,}[0-9]{2,})\b/);
-      const couponCode=couponM?.[1]?.toUpperCase();
-      const conditions:string[]=['ON 공식몰(optimumnutrition.com/ko-kr)에서 구매 시 적용'];
-      for(const m of [...h.matchAll(/<li[^>]*>([\s\S]{10,200}?)<\/li>/gi)].slice(0,5)){
-        const txt=m[1].replace(/<[^>]+>/g,'').trim().replace(/\s+/g,' ');
-        if(txt.length>8&&/할인|구매|이벤트|조건|적용|이상|이하|한정|기간/.test(txt)) conditions.push(txt);
+      const onOrigin='https://www.optimumnutrition.com';
+      const evtPages=await discoverEventPages(`${BASE}/`,onOrigin);
+      const evtUrls=[...new Set([`${BASE}/pages/promotions`,...evtPages.filter(u=>u.startsWith(BASE))])].slice(0,4);
+      for(const evtUrl of evtUrls) {
+        try {
+          const h=await getHtml(evtUrl,`${BASE}/`);
+          const allDiscs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>=5&&n<=80);
+          const disc=allDiscs.length?Math.max(...allDiscs):undefined;
+          const dates=[...h.matchAll(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/g)];
+          const startDate=dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:undefined;
+          const endDate=dates[1]?`${dates[1][1]}-${dates[1][2].padStart(2,'0')}-${dates[1][3].padStart(2,'0')}`:undefined;
+          const couponM=h.match(/(?:쿠폰\s*코드|할인\s*코드|coupon\s*code|코드)[^\w\n]*:?\s*([A-Z][A-Z0-9]{3,19})\b/i)||h.match(/\b([A-Z]{3,}[0-9]{2,})\b/);
+          const couponCode=couponM?.[1]?.toUpperCase();
+          const conditions:string[]=['ON 공식몰(optimumnutrition.com/ko-kr)에서 구매 시 적용'];
+          for(const m of [...h.matchAll(/<li[^>]*>([\s\S]{10,200}?)<\/li>/gi)].slice(0,5)){
+            const txt=m[1].replace(/<[^>]+>/g,'').trim().replace(/\s+/g,' ');
+            if(txt.length>8&&/할인|구매|이벤트|조건|적용|이상|이하|한정|기간/.test(txt)) conditions.push(txt);
+          }
+          const titleM=h.match(/<(?:h1|h2)[^>]*>([\s\S]{4,60}?)<\/(?:h1|h2)>/i);
+          const evtName=titleM?titleM[1].replace(/<[^>]+>/g,'').trim():'ON 공식몰 프로모션';
+          if(disc||couponCode) events.push({brand:'on',brand_label:'Optimum Nutrition',name:evtName,description:disc?`최대 ${disc}% 할인 진행 중.`:'ON 공식몰 프로모션 진행 중.',discount_pct:disc,color:'#FFB300',active:true,start_date:startDate,end_date:endDate,link:evtUrl,conditions,coupon_code:couponCode});
+        } catch { /* 스킵 */ }
       }
-      if(disc||couponCode) events.push({brand:'on',brand_label:'Optimum Nutrition',name:'ON 공식몰 프로모션',description:disc?`최대 ${disc}% 할인 진행 중.`:'ON 공식몰 프로모션 진행 중.',discount_pct:disc,color:'#FFB300',active:true,start_date:startDate,end_date:endDate,link:`${BASE}/pages/promotions`,conditions,coupon_code:couponCode});
     } catch { /* 스킵 */ }
   } catch(e) { return {site:'ON',products,events,error:(e as Error).message}; }
   return {site:'ON',products,events};
@@ -253,6 +269,43 @@ function parseNextData(html: string): {products:Record<string,unknown>[];debug:s
     return prods.length>0?{products:prods,debug:`OK:${prods.length}`}:{products:[],debug:`keys=[${Object.keys(pp).slice(0,6).join(',')}]`};
   } catch(e) { return {products:[],debug:`JSON err:${(e as Error).message}`}; }
 }
+// 메인 페이지에서 이벤트/프로모션 페이지 URL 자동 탐색
+async function discoverEventPages(mainUrl: string, baseOrigin: string): Promise<string[]> {
+  try {
+    const html = await getHtml(mainUrl, mainUrl);
+    const evtKw = /event|promo|sale|offer|discount|coupon|voucher|deal|이벤트|프로모션|할인|쿠폰|특가|혜택/i;
+    const seen = new Set<string>();
+    const results: string[] = [];
+    for (const m of html.matchAll(/href=["']([^"'#?][^"']*?)["']/gi)) {
+      const href = m[1];
+      const abs = href.startsWith('http') ? href : href.startsWith('/') ? baseOrigin + href : null;
+      if (!abs || seen.has(abs)) continue;
+      seen.add(abs);
+      if (abs.startsWith(baseOrigin) && evtKw.test(abs)) results.push(abs);
+    }
+    // <a> 태그 텍스트에서도 검색
+    for (const m of html.matchAll(/<a[^>]+href=["']([^"'#?][^"']*?)["'][^>]*>([\s\S]{0,80}?)<\/a>/gi)) {
+      const href = m[1]; const text = m[2].replace(/<[^>]+>/g,'').trim();
+      if (!evtKw.test(text)) continue;
+      const abs = href.startsWith('http') ? href : href.startsWith('/') ? baseOrigin + href : null;
+      if (!abs || seen.has(abs)) continue;
+      seen.add(abs);
+      if (abs.startsWith(baseOrigin)) results.push(abs);
+    }
+    return results.slice(0, 5);
+  } catch { return []; }
+}
+
+// 이벤트 페이지 HTML에서 이벤트 정보 추출
+
+function resolveUrl(url: string|undefined, base: string): string|undefined {
+  if (!url) return undefined;
+  if (url.startsWith('http')) return url;
+  if (url.startsWith('//')) return 'https:' + url;
+  if (url.startsWith('/')) return base.replace(/\/$/, '') + url;
+  return undefined;
+}
+
 function mapThgProduct(p: Record<string,unknown>, cat: string, base: string): ScrapedProduct|null {
   const priceObj=(p?.price??{}) as Record<string,unknown>;
   const sale=krw(priceObj?.value??(p?.specialOffer as Record<string,unknown>)?.price??0);
@@ -260,7 +313,8 @@ function mapThgProduct(p: Record<string,unknown>, cat: string, base: string): Sc
   const orig=krw(priceObj?.rrp??sale);
   const imgList=((p?.images as Record<string,unknown>)?.list as {url:string}[])??[];
   const defImg=(p?.images as Record<string,unknown>)?.defaultImage as {url:string}|undefined;
-  const thumb=imgList[0]?.url??defImg?.url??undefined;
+  const rawThumb=imgList[0]?.url??defImg?.url;
+  const thumb=resolveUrl(rawThumb, base);
   const url=String(p?.url??p?.canonicalUrl??'');
   const name=translateKo(String(p.title??p.name??'').trim());
   if(!name) return null;
@@ -273,14 +327,19 @@ function mapThgProduct(p: Record<string,unknown>, cat: string, base: string): Sc
     const ch=(v?.choices as {key:string;value:string}[])??[];
     const fc=ch.find(c=>/flav|taste|맛/i.test(c.key));
     const sc=ch.find(c=>/size|weight|용량/i.test(c.key));
-    parsedV.push({ flavor:translateKo(fc?.value??String(v?.title??'').split('/')[0]?.trim()??''), weight:sc?.value??String(v?.title??'').split('/')[1]?.trim()??'', original_price:vo, sale_price:vs });
+    const titleParts=String(v?.title??'').split('/');
+    parsedV.push({
+      flavor: translateKo(fc?.value ?? titleParts[0]?.trim() ?? ''),
+      weight: sc?.value ?? titleParts[1]?.trim() ?? '',
+      original_price: vo, sale_price: vs,
+    });
   }
   const first=parsedV[0];
   const slug=url.split('/').filter(Boolean).pop()?.split('?')[0]??'';
   return {
     name, brand:'마이프로틴', store:'마이프로틴', category:cat,
     original_price:first?.original_price??orig, sale_price:first?.sale_price??sale,
-    link:url.startsWith('http')?url:`${base}${url}`,
+    link:url.startsWith('http')?url:url.startsWith('/')?`${base}${url}`:base,
     thumbnail:thumb, emoji:'🔵',
     flavor:first?.flavor, weight:first?.weight,
     available_flavors:parsedV.length?[...new Set(parsedV.map(v=>v.flavor).filter(Boolean))]:undefined,
@@ -296,7 +355,8 @@ async function scrapeMyProtein(): Promise<SiteResult> {
     ['/c/amino-acids/','BCAA'],['/c/vitamins-and-supplements/','영양제'],
   ];
   let buildId='';
-  try { const mh=await getHtml(`${BASE}/`,`${BASE}/`); const bm=mh.match(/buildId[^:]*:[^"]*"([A-Za-z0-9_\-]{8,})"/); buildId=bm?.[1]??''; dbg.push(`buildId=${buildId||'x'}`); }
+  let mainHtml='';
+  try { mainHtml=await getHtml(`${BASE}/`,`${BASE}/`); const bm=mainHtml.match(/buildId[^:]*:[^"]*"([A-Za-z0-9_\-]{8,})"/); buildId=bm?.[1]??''; dbg.push(`buildId=${buildId||'x'}`); }
   catch(e){ dbg.push(`main err:${(e as Error).message}`); }
   for (const [path,cat] of CATS) {
     let got=false;
@@ -318,29 +378,38 @@ async function scrapeMyProtein(): Promise<SiteResult> {
     }
   }
   try {
-    const h=await getHtml(`${BASE}/c/voucher-codes/`,`${BASE}/`);
-    const discs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>0&&n<=80);
-    const max=discs.length?Math.max(...discs):35;
-    // 쿠폰코드 추출: <strong>/<code>/<b> 태그 또는 키워드 근처 대문자 코드
-    const voucherMap=new Map<string,number>();
-    for(const m of h.matchAll(/(?:코드|code|쿠폰)[^\w\n]{0,20}([A-Z][A-Z0-9]{3,19})\b/gi)) voucherMap.set(m[1].toUpperCase(),(voucherMap.get(m[1].toUpperCase())??0)+1);
-    for(const m of h.matchAll(/<(?:strong|code|b)[^>]*>\s*([A-Z][A-Z0-9\-]{3,19})\s*<\/(?:strong|code|b)>/g)){
-      const c=m[1].toUpperCase();
-      if(/[0-9]/.test(c)||c.length<=12) voucherMap.set(c,(voucherMap.get(c)??0)+2);
+    // 이벤트/프로모션 페이지 자동 탐색 (메인 HTML 재사용)
+    const mpEvtPages=await discoverEventPages(`${BASE}/`,BASE);
+    const mpEvtUrls=[...new Set([`${BASE}/c/voucher-codes/`,...mpEvtPages])].slice(0,5);
+    for(const evtUrl of mpEvtUrls) {
+      try {
+        const h=await getHtml(evtUrl,`${BASE}/`);
+        const discs=[...h.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>0&&n<=80);
+        if(!discs.length) continue;
+        const max=Math.max(...discs);
+        const voucherMap=new Map<string,number>();
+        for(const m of h.matchAll(/(?:코드|code|쿠폰)[^\w\n]{0,20}([A-Z][A-Z0-9]{3,19})\b/gi)) voucherMap.set(m[1].toUpperCase(),(voucherMap.get(m[1].toUpperCase())??0)+1);
+        for(const m of h.matchAll(/<(?:strong|code|b)[^>]*>\s*([A-Z][A-Z0-9\-]{3,19})\s*<\/(?:strong|code|b)>/g)){
+          const c=m[1].toUpperCase();
+          if(/[0-9]/.test(c)||c.length<=12) voucherMap.set(c,(voucherMap.get(c)??0)+2);
+        }
+        const codeList:[string,number][]=[];
+        for(const code of voucherMap.keys()){
+          const idx=h.toUpperCase().indexOf(code);
+          const nearby=idx>=0?h.slice(Math.max(0,idx-200),idx+200):'';
+          const pcts=[...nearby.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>0&&n<=80);
+          codeList.push([code,pcts.length?Math.max(...pcts):0]);
+        }
+        codeList.sort((a,b)=>b[1]-a[1]);
+        const topCode=codeList[0]?.[0];
+        const couponNote=codeList.slice(0,6).map(([c,p])=>`${c}${p?` (${p}%)`:''}`).join(', ')||undefined;
+        const titleM=h.match(/<(?:h1|h2)[^>]*>([\s\S]{4,60}?)<\/(?:h1|h2)>/i);
+        const evtName=titleM?titleM[1].replace(/<[^>]+>/g,'').trim():'마이프로틴 할인코드 모음';
+        const dates=[...h.matchAll(/(\d{4})[.\-\/](\d{1,2})[.\-\/](\d{1,2})/g)];
+        const endDate=dates[1]?`${dates[1][1]}-${dates[1][2].padStart(2,'0')}-${dates[1][3].padStart(2,'0')}`:dates[0]?`${dates[0][1]}-${dates[0][2].padStart(2,'0')}-${dates[0][3].padStart(2,'0')}`:'2026-12-31';
+        events.push({brand:'myprotein',brand_label:'마이프로틴',name:evtName,description:`할인 코드 적용 시 최대 ${max}% 추가 할인.`,discount_pct:max,color:'#0077CC',active:true,end_date:endDate,link:evtUrl,conditions:['마이프로틴 공식 홈페이지(myprotein.co.kr)에서 구매 시 적용'],coupon_code:topCode,coupon_note:couponNote});
+      } catch { /* 스킵 */ }
     }
-    // 각 코드와 인접한 % 매칭
-    const codeList:[string,number][]=[];
-    for(const code of voucherMap.keys()){
-      const idx=h.toUpperCase().indexOf(code);
-      const nearby=idx>=0?h.slice(Math.max(0,idx-200),idx+200):'';
-      const pcts=[...nearby.matchAll(/(\d+)\s*%/g)].map(m=>+m[1]).filter(n=>n>0&&n<=80);
-      const pct=pcts.length?Math.max(...pcts):0;
-      codeList.push([code,pct]);
-    }
-    codeList.sort((a,b)=>b[1]-a[1]);
-    const topCode=codeList[0]?.[0];
-    const couponNote=codeList.slice(0,6).map(([c,p])=>`${c}${p?` (${p}%)`:''}`).join(', ')||undefined;
-    events.push({ brand:'myprotein',brand_label:'마이프로틴',name:'마이프로틴 할인코드 모음',description:`할인 코드 적용 시 최대 ${max}% 추가 할인.`,discount_pct:max,color:'#0077CC',active:true,end_date:'2026-12-31',link:`${BASE}/c/voucher-codes/`,conditions:['마이프로틴 공식 홈페이지(myprotein.co.kr)에서 구매 시 적용'],coupon_code:topCode,coupon_note:couponNote });
   } catch { /* 스킵 */ }
   return {site:'MyProtein',products,events,debug:dbg.join(' || ')};
 }
