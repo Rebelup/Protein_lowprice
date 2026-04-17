@@ -169,7 +169,7 @@ async function scrapeBSN(): Promise<SiteResult> {
       const bsnBase='https://www.bsn.co.kr';
       // 이벤트 페이지 자동 탐색
       const evtPages=await discoverEventPages(`${bsnBase}/`,bsnBase);
-      const evtUrls=[...new Set([`${bsnBase}/pages/lets-bsn`,...evtPages])].slice(0,4);
+      const evtUrls=[...new Set([`${bsnBase}/pages/lets-bsn`,...evtPages])].slice(0,3);
       const seenEvt=new Set<string>();
       for(const evtUrl of evtUrls) {
         try {
@@ -227,7 +227,7 @@ async function scrapeON(): Promise<SiteResult> {
     try {
       const onOrigin='https://www.optimumnutrition.com';
       const evtPages=await discoverEventPages(`${BASE}/`,onOrigin);
-      const evtUrls=[...new Set([`${BASE}/pages/promotions`,...evtPages.filter(u=>u.startsWith(BASE))])].slice(0,4);
+      const evtUrls=[...new Set([`${BASE}/pages/promotions`,...evtPages.filter(u=>u.startsWith(BASE))])].slice(0,3);
       for(const evtUrl of evtUrls) {
         try {
           const h=await getHtml(evtUrl,`${BASE}/`);
@@ -269,10 +269,10 @@ function parseNextData(html: string): {products:Record<string,unknown>[];debug:s
     return prods.length>0?{products:prods,debug:`OK:${prods.length}`}:{products:[],debug:`keys=[${Object.keys(pp).slice(0,6).join(',')}]`};
   } catch(e) { return {products:[],debug:`JSON err:${(e as Error).message}`}; }
 }
-// 메인 페이지에서 이벤트/프로모션 페이지 URL 자동 탐색
-async function discoverEventPages(mainUrl: string, baseOrigin: string): Promise<string[]> {
+// 메인 페이지에서 이벤트/프로모션 페이지 URL 자동 탐색 (html 직접 전달 가능)
+async function discoverEventPages(mainUrl: string, baseOrigin: string, preloadedHtml?: string): Promise<string[]> {
   try {
-    const html = await getHtml(mainUrl, mainUrl);
+    const html = preloadedHtml ?? await getHtml(mainUrl, mainUrl);
     const evtKw = /event|promo|sale|offer|discount|coupon|voucher|deal|이벤트|프로모션|할인|쿠폰|특가|혜택/i;
     const seen = new Set<string>();
     const results: string[] = [];
@@ -354,8 +354,7 @@ async function scrapeMyProtein(): Promise<SiteResult> {
     ['/c/protein/','단백질 파우더'],['/c/creatine/','크레아틴'],
     ['/c/amino-acids/','BCAA'],['/c/vitamins-and-supplements/','영양제'],
   ];
-  let buildId='';
-  let mainHtml='';
+  let buildId=''; let mainHtml='';
   try { mainHtml=await getHtml(`${BASE}/`,`${BASE}/`); const bm=mainHtml.match(/buildId[^:]*:[^"]*"([A-Za-z0-9_\-]{8,})"/); buildId=bm?.[1]??''; dbg.push(`buildId=${buildId||'x'}`); }
   catch(e){ dbg.push(`main err:${(e as Error).message}`); }
   for (const [path,cat] of CATS) {
@@ -379,8 +378,8 @@ async function scrapeMyProtein(): Promise<SiteResult> {
   }
   try {
     // 이벤트/프로모션 페이지 자동 탐색 (메인 HTML 재사용)
-    const mpEvtPages=await discoverEventPages(`${BASE}/`,BASE);
-    const mpEvtUrls=[...new Set([`${BASE}/c/voucher-codes/`,...mpEvtPages])].slice(0,5);
+    const mpEvtPages=await discoverEventPages(`${BASE}/`,BASE,mainHtml||undefined);
+    const mpEvtUrls=[...new Set([`${BASE}/c/voucher-codes/`,...mpEvtPages])].slice(0,3);
     for(const evtUrl of mpEvtUrls) {
       try {
         const h=await getHtml(evtUrl,`${BASE}/`);
@@ -537,14 +536,19 @@ Deno.serve(async (req) => {
   const targets=body.sites??['bsn','on','myprotein','nsstore'];
   const scrapers: Record<string,()=>Promise<SiteResult>>={bsn:scrapeBSN,on:scrapeON,myprotein:scrapeMyProtein,nsstore:scrapeNSStore};
   const summary: Record<string,unknown>={};
-  for(const site of targets) {
-    if(!scrapers[site]) continue;
-    try {
-      const r=await withSiteTimeout(scrapers[site],site);
-      const [{inserted,updated}]=await Promise.all([upsertProducts(r.products),upsertEvents(r.events)]);
-      summary[site]={products_found:r.products.length,inserted,updated,events_found:r.events.length,error:r.error??null,debug:r.debug??null};
-    } catch(e){ summary[site]={error:(e as Error).message}; }
-  }
+
+  // 모든 사이트 병렬 스크래핑 (순차 처리 시 타임아웃 위험)
+  const results = await Promise.all(
+    targets.filter(s=>scrapers[s]).map(async site => {
+      try {
+        const r=await withSiteTimeout(scrapers[site],site);
+        const [{inserted,updated}]=await Promise.all([upsertProducts(r.products),upsertEvents(r.events)]);
+        return [site,{products_found:r.products.length,inserted,updated,events_found:r.events.length,error:r.error??null,debug:r.debug??null}] as const;
+      } catch(e){ return [site,{error:(e as Error).message}] as const; }
+    })
+  );
+  results.forEach(([site,val])=>{ summary[site]=val; });
+
   await supabase.from('crawl_logs').insert({ran_at:new Date().toISOString(),summary});
   return new Response(JSON.stringify({ok:true,ran_at:new Date().toISOString(),summary}),{headers:{'Content-Type':'application/json'}});
 });
