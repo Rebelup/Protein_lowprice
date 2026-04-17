@@ -332,49 +332,69 @@ async function scrapeNSStore(): Promise<SiteResult> {
 
 /* ── DB 업서트 ─────────────────────────────────────────── */
 async function upsertProducts(prods: ScrapedProduct[]) {
-  let ins = 0, upd = 0;
-  for (const p of prods) {
-    const { data: ex } = await supabase
-      .from('products')
-      .select('id, sale_price, thumbnail')
-      .eq('link', p.link)
-      .maybeSingle();
+  if (!prods.length) return { inserted: 0, updated: 0 };
 
+  const { data: existing } = await supabase
+    .from('products')
+    .select('id, sale_price, thumbnail, link')
+    .in('link', prods.map(p => p.link));
+
+  const existingMap = new Map((existing ?? []).map(e => [e.link, e]));
+  const now = new Date().toISOString();
+  const toInsert: Record<string, unknown>[] = [];
+  let upd = 0;
+
+  for (const p of prods) {
+    const ex = existingMap.get(p.link);
     if (ex) {
-      // 가격 변경 또는 썸네일 없을 때 업데이트
-      const needsUpdate = ex.sale_price !== p.sale_price || (!ex.thumbnail && p.thumbnail);
-      if (needsUpdate) {
+      if (ex.sale_price !== p.sale_price || (!ex.thumbnail && p.thumbnail)) {
         await supabase.from('products').update({
           sale_price: p.sale_price,
           original_price: p.original_price,
-          updated_at: new Date().toISOString(),
+          updated_at: now,
           ...(p.thumbnail ? { thumbnail: p.thumbnail } : {}),
         }).eq('id', ex.id);
         upd++;
       }
     } else {
-      const { error } = await supabase.from('products').insert({
+      toInsert.push({
         name: p.name, brand: p.brand, store: p.store,
         category: classifyByName(p.name),
         emoji: p.emoji ?? '💊', thumbnail: p.thumbnail ?? null,
         original_price: p.original_price, sale_price: p.sale_price,
-        link: p.link, scrape_url: p.link, updated_at: new Date().toISOString(),
+        link: p.link, scrape_url: p.link, updated_at: now,
       });
-      if (!error) ins++;
     }
   }
+
+  let ins = 0;
+  if (toInsert.length) {
+    const { error } = await supabase.from('products').insert(toInsert);
+    if (!error) ins = toInsert.length;
+  }
+
   return { inserted: ins, updated: upd };
 }
 
 async function upsertEvents(evts: ScrapedEvent[]) {
+  if (!evts.length) return;
+
+  const brands = [...new Set(evts.map(e => e.brand))];
+  const { data: existing } = await supabase
+    .from('events')
+    .select('id, brand, name')
+    .in('brand', brands);
+
+  const existingMap = new Map((existing ?? []).map(e => [`${e.brand}::${e.name}`, e.id]));
+
   for (const e of evts) {
-    const { data: ex } = await supabase.from('events').select('id').eq('brand', e.brand).eq('name', e.name).maybeSingle();
-    if (ex) {
+    const existingId = existingMap.get(`${e.brand}::${e.name}`);
+    if (existingId) {
       await supabase.from('events').update({
         active: e.active, end_date: e.end_date ?? null,
         discount_pct: e.discount_pct ?? null, description: e.description ?? null,
         coupon_code: e.coupon_code ?? null,
-      }).eq('id', ex.id);
+      }).eq('id', existingId);
     } else {
       await supabase.from('events').insert(e);
     }
@@ -391,22 +411,23 @@ Deno.serve(async (req) => {
   };
 
   const summary: Record<string, unknown> = {};
-  for (const site of targets) {
-    if (!scrapers[site]) continue;
-    try {
-      const r = await scrapers[site]();
-      const [{ inserted, updated }] = await Promise.all([
-        upsertProducts(r.products),
-        upsertEvents(r.events),
-      ]);
-      summary[site] = {
-        products_found: r.products.length, inserted, updated,
-        events_found: r.events.length, error: r.error ?? null,
-      };
-    } catch (e) {
-      summary[site] = { error: (e as Error).message };
-    }
-  }
+  await Promise.allSettled(
+    targets.filter(site => scrapers[site]).map(async site => {
+      try {
+        const r = await scrapers[site]();
+        const [{ inserted, updated }] = await Promise.all([
+          upsertProducts(r.products),
+          upsertEvents(r.events),
+        ]);
+        summary[site] = {
+          products_found: r.products.length, inserted, updated,
+          events_found: r.events.length, error: r.error ?? null,
+        };
+      } catch (e) {
+        summary[site] = { error: (e as Error).message };
+      }
+    })
+  );
 
   await supabase.from('crawl_logs').insert({ ran_at: new Date().toISOString(), summary });
 
