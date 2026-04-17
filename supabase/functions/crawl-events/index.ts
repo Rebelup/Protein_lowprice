@@ -386,44 +386,59 @@ async function upsertEvents(events: EventRow[]) {
   return upserted;
 }
 
+const CORS = { 'Access-Control-Allow-Origin': '*', 'Content-Type': 'application/json' };
+
 /* ─── 메인 핸들러 ─────────────────────────────────────────── */
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: { 'Access-Control-Allow-Origin': '*' } });
   }
 
-  const body = await req.json().catch(() => ({})) as { brands?: string[] };
-  const targets = body.brands
-    ? BRANDS.filter(b => (body.brands as string[]).includes(b.id))
-    : BRANDS;
+  try {
+    const body = await req.json().catch(() => ({})) as { brands?: string[] };
+    const targets = body.brands
+      ? BRANDS.filter(b => (body.brands as string[]).includes(b.id))
+      : BRANDS;
 
-  const summary: Record<string, unknown> = {};
+    console.log(`[crawl-events] 시작: ${targets.map(b => b.id).join(', ')}`);
+    console.log(`[crawl-events] ANTHROPIC_KEY 설정 여부: ${!!ANTHROPIC_KEY}`);
 
-  // 브랜드별 순차 처리 (Claude API 레이트 리밋 방지)
-  for (const brand of targets) {
-    try {
-      const { events, method, error } = await scrapeBrand(brand);
-      const upserted = await upsertEvents(events);
-      summary[brand.id] = {
-        events_found: events.length,
-        upserted,
-        method,
-        error: error ?? null,
-        event_names: events.map(e => e.name),
-      };
-    } catch (e) {
-      summary[brand.id] = { error: (e as Error).message };
+    const summary: Record<string, unknown> = {};
+
+    for (const brand of targets) {
+      console.log(`[crawl-events] 처리 중: ${brand.id}`);
+      try {
+        const { events, method, error } = await scrapeBrand(brand);
+        console.log(`[crawl-events] ${brand.id}: ${events.length}개 이벤트, method=${method}, error=${error}`);
+        const upserted = await upsertEvents(events);
+        summary[brand.id] = {
+          events_found: events.length,
+          upserted,
+          method,
+          error: error ?? null,
+          event_names: events.map(e => e.name),
+        };
+      } catch (e) {
+        console.error(`[crawl-events] ${brand.id} 오류:`, e);
+        summary[brand.id] = { error: (e as Error).message };
+      }
     }
+
+    await supabase.from('crawl_logs').insert({
+      ran_at: new Date().toISOString(),
+      summary: { type: 'events', ...summary },
+    }).catch((e) => console.error('[crawl-events] crawl_logs 저장 실패:', e));
+
+    console.log('[crawl-events] 완료');
+    return new Response(
+      JSON.stringify({ ok: true, ran_at: new Date().toISOString(), summary }, null, 2),
+      { headers: CORS },
+    );
+  } catch (fatal) {
+    console.error('[crawl-events] FATAL:', fatal);
+    return new Response(
+      JSON.stringify({ ok: false, error: String(fatal) }),
+      { status: 500, headers: CORS },
+    );
   }
-
-  // 실행 로그 저장
-  await supabase.from('crawl_logs').insert({
-    ran_at: new Date().toISOString(),
-    summary: { type: 'events', ...summary },
-  }).catch(() => {});
-
-  return new Response(
-    JSON.stringify({ ok: true, ran_at: new Date().toISOString(), summary }, null, 2),
-    { headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' } },
-  );
 });
