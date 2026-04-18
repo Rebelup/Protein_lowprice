@@ -16,12 +16,12 @@ const thumbHtml = (src, fallback) => src
   : fallback;
 
 let EVENTS = [], PRODUCTS = [], BRANDS = [], TYPES = [];
+let CATS = [[], [], [], []]; // cat1..cat4
 let editingId = null, prodEditingId = null, optionModalKind = null;
 const selected = new Set();
 const selectedTypes = new Set();
 const linkedProducts = new Set();
 const prodSelected = new Set();
-const selectedPCategory = new Set();
 
 // ─── filter_options ──────────────────────────────────────
 async function loadOptions() {
@@ -29,9 +29,19 @@ async function loadOptions() {
   const rows = data || [];
   BRANDS = rows.filter((r) => r.type === 'brand');
   TYPES = rows.filter((r) => r.type === 'category');
+  CATS = [1, 2, 3, 4].map((n) => rows.filter((r) => r.type === `cat${n}`));
   renderBrandSelect('fBrand'); renderBrandSelect('pBrand');
   renderTypeChips('fProductTypes', selectedTypes);
-  renderTypeChips('pCategory', selectedPCategory);
+  [1, 2, 3, 4].forEach(renderCatSelect);
+}
+
+function renderCatSelect(n) {
+  const sel = $(`pCat${n}`);
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">선택 안함</option>'
+    + CATS[n - 1].map((c) => `<option value="${esc(c.value)}">${esc(c.label)}</option>`).join('');
+  if (cur && CATS[n - 1].find((c) => c.value === cur)) sel.value = cur;
 }
 
 function renderBrandSelect(id) {
@@ -234,9 +244,7 @@ function fillProdForm(p) {
   $('pOrigPrice').value = p?.original_price ?? '';
   $('pSalePrice').value = p?.sale_price ?? '';
   $('pLink').value = p?.link ?? '';
-  selectedPCategory.clear();
-  if (p?.category) selectedPCategory.add(p.category);
-  renderTypeChips('pCategory', selectedPCategory);
+  [1, 2, 3, 4].forEach((n) => { $(`pCat${n}`).value = p?.[`category${n}`] ?? ''; });
   $('prodFormTitle').textContent = p ? `상품 #${p.id} 수정` : '새 상품 등록';
   $('prodDelete').classList.toggle('hidden', !p);
   renderProdList($('prodListSearch').value);
@@ -251,7 +259,10 @@ async function saveProd(ev) {
     name, brand,
     store: $('pStore').value.trim() || brand,
     emoji: $('pEmoji').value.trim() || '💊',
-    category: [...selectedPCategory][0] || '보충제',
+    category1: $('pCat1').value || null,
+    category2: $('pCat2').value || null,
+    category3: $('pCat3').value || null,
+    category4: $('pCat4').value || null,
     thumbnail: $('pThumbnail').value.trim() || null,
     original_price: +$('pOrigPrice').value || 0,
     sale_price: +$('pSalePrice').value || 0,
@@ -280,9 +291,11 @@ async function deleteProd() {
 }
 
 // ─── OPTION MODAL ─────────────────────────────────────────
+const MODAL_TITLES = { brand: '새 브랜드 추가', type: '새 이벤트 상품유형 추가', cat1: '카테고리 1 추가', cat2: '카테고리 2 추가', cat3: '카테고리 3 추가', cat4: '카테고리 4 추가' };
+
 function openOptionModal(kind) {
   optionModalKind = kind;
-  $('optionModalTitle').textContent = kind === 'brand' ? '새 브랜드 추가' : '새 상품유형 추가';
+  $('optionModalTitle').textContent = MODAL_TITLES[kind] || '새 항목 추가';
   $('optKey').value = ''; $('optLabel').value = '';
   $('optionMsg').classList.add('hidden');
   $('optionModal').classList.remove('hidden');
@@ -295,18 +308,20 @@ async function saveOption() {
   const setErr = (t) => { const m = $('optionMsg'); m.textContent = t; m.classList.remove('hidden'); m.classList.add('error'); };
   if (!key || !label) return setErr('키와 표시명을 모두 입력해 주세요.');
   if (!/^[a-z0-9_-]+$/i.test(key)) return setErr('키는 영문/숫자/-/_ 만 가능합니다.');
-  if ((optionModalKind === 'brand' ? BRANDS : TYPES).find((r) => r.value === key)) return setErr('이미 존재하는 키입니다.');
+  const checkList = optionModalKind === 'brand' ? BRANDS : optionModalKind === 'type' ? TYPES : (CATS[+optionModalKind.slice(3) - 1] || []);
+  if (checkList.find((r) => r.value === key)) return setErr('이미 존재하는 키입니다.');
   const btn = $('optionSave');
   btn.disabled = true; btn.textContent = '추가 중...';
   const { error } = await db.from('filter_options').insert({
-    type: optionModalKind === 'brand' ? 'brand' : 'category',
+    type: optionModalKind === 'brand' ? 'brand' : optionModalKind === 'type' ? 'category' : optionModalKind,
     value: key, label, sort_order: 999,
   });
   btn.disabled = false; btn.textContent = '추가';
   if (error) return setErr(error.message);
   await loadOptions();
   if (optionModalKind === 'brand') { $('fBrand').value = key; syncBrandLabel(); }
-  else { selectedTypes.add(key); renderTypeChips('fProductTypes', selectedTypes); }
+  else if (optionModalKind === 'type') { selectedTypes.add(key); renderTypeChips('fProductTypes', selectedTypes); }
+  else if (/^cat[1-4]$/.test(optionModalKind)) { const n = +optionModalKind[3]; renderCatSelect(n); $(`pCat${n}`).value = key; }
   closeOptionModal();
   showMsg('adminMsg', '추가되었습니다.');
 }
@@ -426,7 +441,7 @@ async function init() {
   $('prodForm').addEventListener('submit', saveProd);
   $('prodReset').addEventListener('click', () => fillProdForm(null));
   $('prodDelete').addEventListener('click', deleteProd);
-  attachChipHandler('pCategory', selectedPCategory, false);
+  [1, 2, 3, 4].forEach((n) => $(`addCat${n}Btn`).addEventListener('click', () => openOptionModal(`cat${n}`)));
 
   // Product list
   $('prodListSearch').addEventListener('input', (e) => renderProdList(e.target.value));

@@ -4,12 +4,12 @@ const SUPABASE_URL      = 'https://myficrjdmqbtsgmdxtiu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15ZmljcmpkbXFidHNnbWR4dGl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODY4OTEsImV4cCI6MjA5MTU2Mjg5MX0.G2-_UEqO12SqxELdkZScvrdcYBNPW1gusEBA0ZW6smc';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let EVENTS = [], PRODUCTS = [], ALL_BRANDS = [], ALL_TYPES = [];
+let EVENTS = [], PRODUCTS = [], ALL_BRANDS = [], ALL_TYPES = [], ALL_CAT1 = [], ALL_CAT2 = [];
 let currentUser = null, pendingLink = null;
 let brandGroup = null, typeGroup = null, prodBrandGroup = null;
 
 const state = { search: '', sort: 'discount_desc', brands: new Set(), productTypes: new Set(), period: 'all' };
-const prodState = { sort: 'discount_desc', category: '', brands: new Set(), priceRange: 'all', discountMin: 0 };
+const prodState = { sort: 'discount_desc', cat1: '', cat2: '', brands: new Set(), priceRange: 'all', discountMin: 0 };
 
 const $ = (id) => document.getElementById(id);
 const $$ = (sel, root = document) => root.querySelectorAll(sel);
@@ -43,8 +43,8 @@ async function loadProducts() {
   const { data } = await db.from('products').select('*').order('id');
   PRODUCTS = (data || []).map((p) => ({
     id: p.id, name: p.name, brand: p.brand, store: p.store || p.brand,
-    category: p.category, emoji: p.emoji || '💊',
-    thumbnail: p.thumbnail || '',
+    category1: p.category1 || '', category2: p.category2 || '',
+    emoji: p.emoji || '💊', thumbnail: p.thumbnail || '',
     originalPrice: p.original_price || 0, salePrice: p.sale_price || 0,
     link: p.link || '#',
   }));
@@ -71,6 +71,8 @@ async function loadFilterOptions() {
   const map = (t) => data.filter((r) => r.type === t).map((r) => ({ value: r.value, label: r.label }));
   ALL_BRANDS = map('brand');
   ALL_TYPES = map('category');
+  ALL_CAT1 = map('cat1');
+  ALL_CAT2 = map('cat2');
 }
 
 /* ── FILTER + SORT ── */
@@ -112,16 +114,28 @@ function renderProductCard(p) {
   </a>`;
 }
 
-function renderProdCategoryChips() {
+function renderProdCat1Chips() {
   const row = $('prodCatRow');
   if (!row) return;
-  row.innerHTML = `<button class="prod-cat-chip ${!prodState.category ? 'active' : ''}" data-cat="">전체</button>`
-    + ALL_TYPES.map((t) => `<button class="prod-cat-chip ${prodState.category === t.value ? 'active' : ''}" data-cat="${esc(t.value)}">${esc(t.label)}</button>`).join('');
+  if (!ALL_CAT1.length) { row.classList.add('hidden'); return; }
+  row.classList.remove('hidden');
+  row.innerHTML = `<button class="prod-cat-chip ${!prodState.cat1 ? 'active' : ''}" data-cat="">전체</button>`
+    + ALL_CAT1.map((t) => `<button class="prod-cat-chip ${prodState.cat1 === t.value ? 'active' : ''}" data-cat="${esc(t.value)}">${esc(t.label)}</button>`).join('');
+}
+
+function renderProdCat2Chips() {
+  const row = $('prodCat2Row');
+  if (!row) return;
+  if (!prodState.cat1 || !ALL_CAT2.length) { row.classList.add('hidden'); return; }
+  row.classList.remove('hidden');
+  row.innerHTML = `<button class="prod-cat-chip ${!prodState.cat2 ? 'active' : ''}" data-cat="">전체</button>`
+    + ALL_CAT2.map((t) => `<button class="prod-cat-chip ${prodState.cat2 === t.value ? 'active' : ''}" data-cat="${esc(t.value)}">${esc(t.label)}</button>`).join('');
 }
 
 function renderProducts() {
   let items = PRODUCTS.filter((p) => {
-    if (prodState.category && p.category !== prodState.category) return false;
+    if (prodState.cat1 && p.category1 !== prodState.cat1) return false;
+    if (prodState.cat2 && p.category2 !== prodState.cat2) return false;
     if (prodState.brands.size > 0 && prodState.brands.size < ALL_BRANDS.length && !prodState.brands.has(p.brand)) return false;
     const price = p.salePrice;
     if (prodState.priceRange === 'u30000' && price > 30000) return false;
@@ -502,8 +516,17 @@ function initListeners() {
   $('prodCatRow').addEventListener('click', (e) => {
     const chip = e.target.closest('.prod-cat-chip');
     if (!chip) return;
-    prodState.category = chip.dataset.cat;
-    $$('.prod-cat-chip').forEach((c) => c.classList.toggle('active', c.dataset.cat === prodState.category));
+    prodState.cat1 = chip.dataset.cat;
+    prodState.cat2 = '';
+    $$('#prodCatRow .prod-cat-chip').forEach((c) => c.classList.toggle('active', c.dataset.cat === prodState.cat1));
+    renderProdCat2Chips();
+    renderProducts();
+  });
+  $('prodCat2Row').addEventListener('click', (e) => {
+    const chip = e.target.closest('.prod-cat-chip');
+    if (!chip) return;
+    prodState.cat2 = chip.dataset.cat;
+    $$('#prodCat2Row .prod-cat-chip').forEach((c) => c.classList.toggle('active', c.dataset.cat === prodState.cat2));
     renderProducts();
   });
 
@@ -652,7 +675,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     await Promise.all([loadEvents(), loadFilterOptions(), loadProducts()]);
     buildDynamicFilters();
     initListeners();
-    renderProdCategoryChips();
+    renderProdCat1Chips();
+    renderProdCat2Chips();
     render();
     renderProducts();
     showLoading(false);

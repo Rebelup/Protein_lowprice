@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260420" />
-  <link rel="stylesheet" href="admin.css?v=20260420" />
+  <link rel="stylesheet" href="style.css?v=20260423" />
+  <link rel="stylesheet" href="admin.css?v=20260423" />
 </head>
 <body>
   <header class="site-header">
@@ -186,8 +186,35 @@
           </div>
 
           <div class="admin-field">
-            <span>카테고리</span>
-            <div class="admin-chip-list" id="pCategory"></div>
+            <span>카테고리 1</span>
+            <div class="admin-field-inline">
+              <select id="pCat1"><option value="">선택 안함</option></select>
+              <button type="button" class="admin-ghost" id="addCat1Btn">+ 새 추가</button>
+            </div>
+          </div>
+
+          <div class="admin-field">
+            <span>카테고리 2</span>
+            <div class="admin-field-inline">
+              <select id="pCat2"><option value="">선택 안함</option></select>
+              <button type="button" class="admin-ghost" id="addCat2Btn">+ 새 추가</button>
+            </div>
+          </div>
+
+          <div class="admin-field">
+            <span>카테고리 3</span>
+            <div class="admin-field-inline">
+              <select id="pCat3"><option value="">선택 안함</option></select>
+              <button type="button" class="admin-ghost" id="addCat3Btn">+ 새 추가</button>
+            </div>
+          </div>
+
+          <div class="admin-field">
+            <span>카테고리 4</span>
+            <div class="admin-field-inline">
+              <select id="pCat4"><option value="">선택 안함</option></select>
+              <button type="button" class="admin-ghost" id="addCat4Btn">+ 새 추가</button>
+            </div>
           </div>
 
           <label class="admin-field">
@@ -266,6 +293,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260420"></script>
+  <script src="admin.js?v=20260423"></script>
 </body>
 </html>
