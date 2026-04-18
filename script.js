@@ -6,6 +6,8 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let EVENTS = [], PRODUCTS = [], ALL_BRANDS = [], ALL_TYPES = [], ALL_CAT1 = [], ALL_CAT2 = [];
 let currentUser = null, pendingLink = null;
+const ADMIN_EMAIL = 'fightingman012@gmail.com';
+const isAdmin = (u) => u?.email === ADMIN_EMAIL;
 let brandGroup = null, typeGroup = null, prodBrandGroup = null;
 
 const state = { search: '', sort: 'discount_desc', brands: new Set(), productTypes: new Set(), period: 'all' };
@@ -20,7 +22,13 @@ const safeUrl = (u) => { try { const p = new URL(u); return /^https?:$/.test(p.p
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
 const todayISO = () => new Date().toISOString().slice(0, 10);
 const daysUntil = (d) => { if (!d) return Infinity; const t = new Date(); t.setHours(0, 0, 0, 0); return Math.ceil((new Date(d) - t) / 86400000); };
-const fmtDate = (d) => d ? d.replaceAll('-', '.') : '';
+const fmtDate = (d) => {
+  if (!d) return '';
+  if (d.length === 10) return d.replaceAll('-', '.');
+  const date = d.slice(0, 10).replaceAll('-', '.');
+  const time = d.slice(11, 16);
+  return time && time !== '00:00' ? `${date} ${time}` : date;
+};
 
 const STATUS_LABEL = { ongoing: '진행중', ending: '종료임박', upcoming: '예정', ended: '종료' };
 function eventStatus(e) {
@@ -538,6 +546,7 @@ function openUserSheet() {
   const initial = name.charAt(0).toUpperCase();
   $('userSheetName').textContent = name;
   $('userSheetEmail').textContent = currentUser.email || '';
+  $('userAdminBtn').classList.toggle('hidden', !isAdmin(currentUser));
   const av = $('userAvatar');
   av.textContent = '';
   if (photo) {

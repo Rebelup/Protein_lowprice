@@ -3,6 +3,7 @@
 const SUPABASE_URL = 'https://myficrjdmqbtsgmdxtiu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15ZmljcmpkbXFidHNnbWR4dGl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODY4OTEsImV4cCI6MjA5MTU2Mjg5MX0.G2-_UEqO12SqxELdkZScvrdcYBNPW1gusEBA0ZW6smc';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const ADMIN_EMAIL = 'fightingman012@gmail.com';
 
 const $ = (id) => document.getElementById(id);
 const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -14,6 +15,10 @@ const discPct = (p) => p.original_price > p.sale_price ? Math.round((1 - p.sale_
 const thumbHtml = (src, fallback) => src
   ? `<img src="${esc(src)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${fallback}'}))">`
   : fallback;
+// datetime-local <-> DB 문자열 변환
+const dtToInput = (s) => !s ? '' : (s.length === 10 ? s + 'T00:00' : s.slice(0, 16));
+const dtToDb = (s) => !s ? null : (s.length === 16 ? s + ':00' : s);
+const dtFmt = (s) => !s ? '' : (s.length === 10 ? s : s.slice(0, 10) + ' ' + s.slice(11, 16));
 
 let EVENTS = [], PRODUCTS = [], BRANDS = [];
 let CATS = [[], [], [], []];
@@ -69,7 +74,7 @@ function renderEventList() {
   for (const id of [...selected]) if (!EVENTS.find((e) => e.id === id)) selected.delete(id);
   if (!EVENTS.length) { box.innerHTML = '<div class="admin-row-empty">등록된 이벤트가 없습니다.</div>'; updateBulk('bulk', selected, EVENTS.length); return; }
   box.innerHTML = EVENTS.map((e) => {
-    const period = [e.start_date, e.end_date].filter(Boolean).join(' ~ ') || '상시';
+    const period = [dtFmt(e.start_date), dtFmt(e.end_date)].filter(Boolean).join(' ~ ') || '상시';
     return `<div class="admin-row ${e.id === editingId ? 'active' : ''}" data-id="${e.id}">
       <input type="checkbox" class="admin-row-check" data-id="${e.id}" ${selected.has(e.id) ? 'checked' : ''} />
       <div class="admin-row-thumb">${thumbHtml(e.thumbnail, '🏷️')}</div>
@@ -114,6 +119,7 @@ function fillEventForm(e) {
   $('fId').value = e?.id ?? '';
   EVENT_FIELDS.forEach(([id, key]) => {
     if (id === 'fBrand' || id === 'fBrandLabel') return;
+    if (id === 'fStart' || id === 'fEnd') { $(id).value = dtToInput(e?.[key]); return; }
     $(id).value = e?.[key] ?? (id === 'fDiscount' ? 0 : '');
   });
   $('fBrand').value = e?.brand ?? '';
@@ -160,7 +166,7 @@ const renderEventPicker = (q) => renderPicker(q, {
   boxId: 'eventPicker', countId: 'linkedEventCount',
   items: EVENTS, linked: linkedEvents, attr: 'data-eid',
   searchText: (e) => e.name + ' ' + (e.brand_label || e.brand),
-  rowMeta: (e) => `${esc(e.brand_label || e.brand)} · ${esc([e.start_date, e.end_date].filter(Boolean).join(' ~ ') || '상시')}`,
+  rowMeta: (e) => `${esc(e.brand_label || e.brand)} · ${esc([dtFmt(e.start_date), dtFmt(e.end_date)].filter(Boolean).join(' ~ ') || '상시')}`,
   emptyMsg: '이벤트가 없습니다.', fallback: '🏷️',
 });
 
@@ -168,6 +174,7 @@ function collectEventForm() {
   const payload = {};
   EVENT_FIELDS.forEach(([id, key]) => {
     const v = $(id).value.trim();
+    if (id === 'fStart' || id === 'fEnd') { payload[key] = dtToDb(v); return; }
     payload[key] = v === '' ? null : (key === 'discount_pct' ? +v : v);
   });
   payload.active = $('fActive').value === 'true';
@@ -394,6 +401,16 @@ function renderGate() {
   $('gateLogin').addEventListener('click', () => (location.href = 'index.html'));
 }
 
+function renderForbidden() {
+  document.querySelector('main').innerHTML = `
+    <div class="admin-gate">
+      <h2>🚫 접근 권한이 없습니다</h2>
+      <p>이 페이지는 관리자만 접근할 수 있습니다.</p>
+      <button class="admin-primary" id="gateHome">홈으로</button>
+    </div>`;
+  $('gateHome').addEventListener('click', () => (location.href = 'index.html'));
+}
+
 function attachListHandler(listId, items, selSet, fill, updateFn) {
   $(listId).addEventListener('click', (e) => {
     const cb = e.target.closest('input[type="checkbox"][data-id]');
@@ -418,6 +435,7 @@ async function init() {
   const { data } = await db.auth.getSession();
   mainEl.style.visibility = '';
   if (!data.session) { renderGate(); return; }
+  if (data.session.user.email !== ADMIN_EMAIL) { renderForbidden(); return; }
 
   $('adminLogin').textContent = data.session.user.email || '로그인됨';
   $('adminLogin').addEventListener('click', async () => { await db.auth.signOut(); location.href = 'index.html'; });
