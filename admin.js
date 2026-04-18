@@ -10,19 +10,18 @@ const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ESC_MAP[c]);
 const linesToArr = (s) => String(s ?? '').split('\n').map((v) => v.trim()).filter(Boolean);
 const arrToLines = (a) => (a || []).join('\n');
 const fmtPrice = (n) => n ? '₩' + Number(n).toLocaleString('ko-KR') : '';
+const discPct = (p) => p.original_price > p.sale_price ? Math.round((1 - p.sale_price / p.original_price) * 100) : 0;
+const thumbHtml = (src, fallback) => src
+  ? `<img src="${esc(src)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${fallback}'}))">`
+  : fallback;
 
 let EVENTS = [], PRODUCTS = [], BRANDS = [], TYPES = [];
-let editingId = null;
+let editingId = null, prodEditingId = null, optionModalKind = null;
 const selected = new Set();
 const selectedTypes = new Set();
 const linkedProducts = new Set();
-
-let prodEditingId = null;
 const prodSelected = new Set();
 const selectedPCategory = new Set();
-
-let optionModalKind = null;
-let prodSearchQuery = '';
 
 // ─── filter_options ──────────────────────────────────────
 async function loadOptions() {
@@ -30,15 +29,13 @@ async function loadOptions() {
   const rows = data || [];
   BRANDS = rows.filter((r) => r.type === 'brand');
   TYPES = rows.filter((r) => r.type === 'category');
-  renderBrandSelect('fBrand');
-  renderBrandSelect('pBrand');
-  renderTypeChips();
-  renderPCategoryChips();
+  renderBrandSelect('fBrand'); renderBrandSelect('pBrand');
+  renderTypeChips('fProductTypes', selectedTypes);
+  renderTypeChips('pCategory', selectedPCategory);
 }
 
 function renderBrandSelect(id) {
-  const sel = $(id);
-  const cur = sel.value;
+  const sel = $(id), cur = sel.value;
   sel.innerHTML = '<option value="">브랜드 선택</option>'
     + BRANDS.map((b) => `<option value="${esc(b.value)}" data-label="${esc(b.label)}">${esc(b.label)}</option>`).join('');
   if (cur && BRANDS.find((b) => b.value === cur)) sel.value = cur;
@@ -50,24 +47,17 @@ function syncBrandLabel() {
   $('fBrandLabel').value = sel.options[sel.selectedIndex]?.dataset.label || '';
 }
 
-function renderTypeChips() {
-  $('fProductTypes').innerHTML = TYPES.map((t) => `
-    <label class="admin-chip-item ${selectedTypes.has(t.value) ? 'checked' : ''}" data-value="${esc(t.value)}">
-      <input type="checkbox" ${selectedTypes.has(t.value) ? 'checked' : ''} /><span>${esc(t.label)}</span>
-    </label>`).join('');
-}
-
-function renderPCategoryChips() {
-  $('pCategory').innerHTML = TYPES.map((t) => `
-    <label class="admin-chip-item ${selectedPCategory.has(t.value) ? 'checked' : ''}" data-value="${esc(t.value)}">
-      <input type="checkbox" ${selectedPCategory.has(t.value) ? 'checked' : ''} /><span>${esc(t.label)}</span>
+function renderTypeChips(targetId, set) {
+  $(targetId).innerHTML = TYPES.map((t) => `
+    <label class="admin-chip-item ${set.has(t.value) ? 'checked' : ''}" data-value="${esc(t.value)}">
+      <input type="checkbox" ${set.has(t.value) ? 'checked' : ''} /><span>${esc(t.label)}</span>
     </label>`).join('');
 }
 
 // ─── EVENTS ──────────────────────────────────────────────
 async function loadEvents() {
   const { data, error } = await db.from('events').select('*').order('id', { ascending: false });
-  if (error) return showMsg(error.message, true);
+  if (error) return showMsg('adminMsg', error.message, true);
   EVENTS = data || [];
   renderEventList();
 }
@@ -76,41 +66,39 @@ function renderEventList() {
   const box = $('adminList');
   $('adminCount').textContent = EVENTS.length;
   for (const id of [...selected]) if (!EVENTS.find((e) => e.id === id)) selected.delete(id);
-  if (!EVENTS.length) { box.innerHTML = '<div class="admin-row-empty">등록된 이벤트가 없습니다.</div>'; updateBulkUI(); return; }
+  if (!EVENTS.length) { box.innerHTML = '<div class="admin-row-empty">등록된 이벤트가 없습니다.</div>'; updateBulk('bulk', selected, EVENTS.length); return; }
   box.innerHTML = EVENTS.map((e) => {
-    const thumb = e.thumbnail ? `<img src="${esc(e.thumbnail)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'🏷️'}))">` : '🏷️';
     const period = [e.start_date, e.end_date].filter(Boolean).join(' ~ ') || '상시';
     return `<div class="admin-row ${e.id === editingId ? 'active' : ''}" data-id="${e.id}">
       <input type="checkbox" class="admin-row-check" data-id="${e.id}" ${selected.has(e.id) ? 'checked' : ''} />
-      <div class="admin-row-thumb">${thumb}</div>
+      <div class="admin-row-thumb">${thumbHtml(e.thumbnail, '🏷️')}</div>
       <div class="admin-row-body">
         <div class="admin-row-name">${esc(e.name)}</div>
         <div class="admin-row-meta">${esc(e.brand_label || e.brand)} · ${esc(period)}</div>
       </div>
     </div>`;
   }).join('');
-  updateBulkUI();
+  updateBulk('bulk', selected, EVENTS.length);
 }
 
-function updateBulkUI() {
-  $('bulkSelected').textContent = `${selected.size}개 선택`;
-  $('bulkDelete').disabled = selected.size === 0;
-  const all = $('bulkCheckAll');
-  all.checked = EVENTS.length > 0 && selected.size === EVENTS.length;
-  all.indeterminate = selected.size > 0 && selected.size < EVENTS.length;
+function updateBulk(prefix, set, total) {
+  $(`${prefix}Selected`).textContent = `${set.size}개 선택`;
+  $(`${prefix}Delete`).disabled = set.size === 0;
+  const all = $(`${prefix}CheckAll`) || $(`${prefix}All`);
+  all.checked = total > 0 && set.size === total;
+  all.indeterminate = set.size > 0 && set.size < total;
 }
 
-async function bulkDelete() {
-  if (!selected.size || !confirm(`${selected.size}개 이벤트를 정말 삭제하시겠습니까?`)) return;
-  const ids = [...selected];
-  $('bulkDelete').disabled = true; $('bulkDelete').textContent = '삭제 중...';
-  const { error } = await db.from('events').delete().in('id', ids);
-  $('bulkDelete').textContent = '선택 삭제';
-  if (error) { $('bulkDelete').disabled = false; return showMsg(error.message, true); }
-  if (ids.includes(editingId)) fillEventForm(null);
-  selected.clear();
-  showMsg(`${ids.length}개 삭제되었습니다.`);
-  await loadEvents();
+async function doBulkDelete(table, set, btnId, onDone) {
+  if (!set.size || !confirm(`${set.size}개를 정말 삭제하시겠습니까?`)) return;
+  const ids = [...set];
+  const btn = $(btnId);
+  btn.disabled = true; btn.textContent = '삭제 중...';
+  const { error } = await db.from(table).delete().in('id', ids);
+  btn.textContent = '선택 삭제';
+  if (error) { btn.disabled = false; return showMsg('adminMsg', error.message, true); }
+  set.clear();
+  onDone(ids);
 }
 
 const EVENT_FIELDS = [
@@ -134,11 +122,11 @@ function fillEventForm(e) {
   $('fHowTo').value = arrToLines(e?.how_to);
   selectedTypes.clear();
   (e?.product_types || []).forEach((t) => selectedTypes.add(t));
-  renderTypeChips();
+  renderTypeChips('fProductTypes', selectedTypes);
   linkedProducts.clear();
   (e?.product_ids || []).forEach((id) => linkedProducts.add(id));
-  renderProdPicker('');
   $('prodSearch').value = '';
+  renderProdPicker('');
   $('adminFormTitle').textContent = e ? `이벤트 #${e.id} 수정` : '새 이벤트 등록';
   $('adminDelete').classList.toggle('hidden', !e);
   renderEventList();
@@ -147,20 +135,20 @@ function fillEventForm(e) {
 
 function renderProdPicker(q) {
   const box = $('prodPicker');
-  const filtered = PRODUCTS.filter((p) =>
-    !q || (p.name + ' ' + p.brand).toLowerCase().includes(q.toLowerCase())
-  );
+  const qLow = q.toLowerCase();
+  const filtered = qLow
+    ? PRODUCTS.filter((p) => (p.name + ' ' + p.brand).toLowerCase().includes(qLow))
+    : PRODUCTS;
   $('linkedCount').textContent = linkedProducts.size ? `(${linkedProducts.size}개 연결됨)` : '';
   if (!filtered.length) { box.innerHTML = '<div class="admin-picker-empty">검색 결과가 없습니다.</div>'; return; }
   box.innerHTML = filtered.map((p) => {
-    const thumb = p.thumbnail ? `<img src="${esc(p.thumbnail)}" alt="" onerror="this.style.display='none'">` : (p.emoji || '💊');
-    const disc = p.original_price > p.sale_price ? Math.round((1 - p.sale_price / p.original_price) * 100) : 0;
+    const d = discPct(p);
     return `<label class="admin-picker-row">
       <input type="checkbox" data-pid="${p.id}" ${linkedProducts.has(p.id) ? 'checked' : ''} />
-      <div class="admin-picker-thumb">${thumb}</div>
-      <div>
+      <div class="admin-picker-thumb">${thumbHtml(p.thumbnail, p.emoji || '💊')}</div>
+      <div class="admin-picker-info">
         <div class="admin-picker-name">${esc(p.name)}</div>
-        <div class="admin-picker-meta">${esc(p.store || p.brand)}${disc > 0 ? ` · -${disc}%` : ''} · ${fmtPrice(p.sale_price)}</div>
+        <div class="admin-picker-meta">${esc(p.store || p.brand)}${d ? ` · -${d}%` : ''} · ${fmtPrice(p.sale_price)}</div>
       </div>
     </label>`;
   }).join('');
@@ -183,13 +171,14 @@ function collectEventForm() {
 async function saveEvent(ev) {
   ev.preventDefault();
   const payload = collectEventForm();
-  if (!payload.brand || !payload.brand_label || !payload.name) return showMsg('브랜드/이름은 필수입니다.', true);
-  $('adminSave').disabled = true; $('adminSave').textContent = '저장 중...';
+  if (!payload.brand || !payload.brand_label || !payload.name) return showMsg('adminMsg', '브랜드/이름은 필수입니다.', true);
+  const btn = $('adminSave');
+  btn.disabled = true; btn.textContent = '저장 중...';
   const id = $('fId').value;
   const { error } = await (id ? db.from('events').update(payload).eq('id', +id) : db.from('events').insert(payload));
-  $('adminSave').disabled = false; $('adminSave').textContent = '저장';
-  if (error) return showMsg(error.message, true);
-  showMsg(id ? '수정되었습니다.' : '등록되었습니다.');
+  btn.disabled = false; btn.textContent = '저장';
+  if (error) return showMsg('adminMsg', error.message, true);
+  showMsg('adminMsg', id ? '수정되었습니다.' : '등록되었습니다.');
   fillEventForm(null);
   await loadEvents();
 }
@@ -198,8 +187,8 @@ async function deleteEvent() {
   const id = +$('fId').value;
   if (!id || !confirm('정말 삭제하시겠습니까?')) return;
   const { error } = await db.from('events').delete().eq('id', id);
-  if (error) return showMsg(error.message, true);
-  showMsg('삭제되었습니다.');
+  if (error) return showMsg('adminMsg', error.message, true);
+  showMsg('adminMsg', '삭제되었습니다.');
   fillEventForm(null);
   await loadEvents();
 }
@@ -213,46 +202,25 @@ async function loadProducts() {
 
 function renderProdList(q) {
   const box = $('prodList');
-  const filtered = PRODUCTS.filter((p) =>
-    !q || (p.name + ' ' + p.brand).toLowerCase().includes(q.toLowerCase())
-  );
+  const qLow = q.toLowerCase();
+  const filtered = qLow
+    ? PRODUCTS.filter((p) => (p.name + ' ' + p.brand).toLowerCase().includes(qLow))
+    : PRODUCTS;
   $('prodCount').textContent = PRODUCTS.length;
   for (const id of [...prodSelected]) if (!PRODUCTS.find((p) => p.id === id)) prodSelected.delete(id);
-  if (!filtered.length) { box.innerHTML = '<div class="admin-row-empty">상품이 없습니다.</div>'; updateProdBulkUI(); return; }
+  if (!filtered.length) { box.innerHTML = '<div class="admin-row-empty">상품이 없습니다.</div>'; updateBulk('prodBulk', prodSelected, PRODUCTS.length); return; }
   box.innerHTML = filtered.map((p) => {
-    const thumb = p.thumbnail ? `<img src="${esc(p.thumbnail)}" alt="" onerror="this.style.display='none'">` : (p.emoji || '💊');
-    const disc = p.original_price > p.sale_price ? Math.round((1 - p.sale_price / p.original_price) * 100) : 0;
+    const d = discPct(p);
     return `<div class="admin-row ${p.id === prodEditingId ? 'active' : ''}" data-id="${p.id}">
       <input type="checkbox" class="prod-row-check" data-id="${p.id}" ${prodSelected.has(p.id) ? 'checked' : ''} />
-      <div class="admin-row-thumb">${thumb}</div>
+      <div class="admin-row-thumb">${thumbHtml(p.thumbnail, p.emoji || '💊')}</div>
       <div class="admin-row-body">
         <div class="admin-row-name">${esc(p.name)}</div>
-        <div class="admin-row-meta">${esc(p.brand)}${disc > 0 ? ` · -${disc}%` : ''} · ${fmtPrice(p.sale_price)}</div>
+        <div class="admin-row-meta">${esc(p.brand)}${d ? ` · -${d}%` : ''} · ${fmtPrice(p.sale_price)}</div>
       </div>
     </div>`;
   }).join('');
-  updateProdBulkUI();
-}
-
-function updateProdBulkUI() {
-  $('prodBulkSelected').textContent = `${prodSelected.size}개 선택`;
-  $('prodBulkDelete').disabled = prodSelected.size === 0;
-  const all = $('prodBulkAll');
-  all.checked = PRODUCTS.length > 0 && prodSelected.size === PRODUCTS.length;
-  all.indeterminate = prodSelected.size > 0 && prodSelected.size < PRODUCTS.length;
-}
-
-async function prodBulkDelete() {
-  if (!prodSelected.size || !confirm(`${prodSelected.size}개 상품을 정말 삭제하시겠습니까?`)) return;
-  const ids = [...prodSelected];
-  $('prodBulkDelete').disabled = true; $('prodBulkDelete').textContent = '삭제 중...';
-  const { error } = await db.from('products').delete().in('id', ids);
-  $('prodBulkDelete').textContent = '선택 삭제';
-  if (error) { $('prodBulkDelete').disabled = false; return showMsg(error.message, true); }
-  if (ids.includes(prodEditingId)) fillProdForm(null);
-  prodSelected.clear();
-  showMsg(`${ids.length}개 삭제되었습니다.`);
-  await loadProducts();
+  updateBulk('prodBulk', prodSelected, PRODUCTS.length);
 }
 
 function fillProdForm(p) {
@@ -268,7 +236,7 @@ function fillProdForm(p) {
   $('pLink').value = p?.link ?? '';
   selectedPCategory.clear();
   if (p?.category) selectedPCategory.add(p.category);
-  renderPCategoryChips();
+  renderTypeChips('pCategory', selectedPCategory);
   $('prodFormTitle').textContent = p ? `상품 #${p.id} 수정` : '새 상품 등록';
   $('prodDelete').classList.toggle('hidden', !p);
   renderProdList($('prodListSearch').value);
@@ -278,9 +246,10 @@ function fillProdForm(p) {
 async function saveProd(ev) {
   ev.preventDefault();
   const name = $('pName').value.trim(), brand = $('pBrand').value;
-  if (!name || !brand) return showProdMsg('상품명과 브랜드는 필수입니다.', true);
+  if (!name || !brand) return showMsg('prodMsg', '상품명과 브랜드는 필수입니다.', true);
   const payload = {
-    name, brand, store: $('pStore').value.trim() || brand,
+    name, brand,
+    store: $('pStore').value.trim() || brand,
     emoji: $('pEmoji').value.trim() || '💊',
     category: [...selectedPCategory][0] || '보충제',
     thumbnail: $('pThumbnail').value.trim() || null,
@@ -289,12 +258,13 @@ async function saveProd(ev) {
     link: $('pLink').value.trim() || null,
     updated_at: new Date().toISOString(),
   };
-  $('prodSave').disabled = true; $('prodSave').textContent = '저장 중...';
+  const btn = $('prodSave');
+  btn.disabled = true; btn.textContent = '저장 중...';
   const id = $('pId').value;
   const { error } = await (id ? db.from('products').update(payload).eq('id', +id) : db.from('products').insert(payload));
-  $('prodSave').disabled = false; $('prodSave').textContent = '저장';
-  if (error) return showProdMsg(error.message, true);
-  showProdMsg(id ? '수정되었습니다.' : '등록되었습니다.');
+  btn.disabled = false; btn.textContent = '저장';
+  if (error) return showMsg('prodMsg', error.message, true);
+  showMsg('prodMsg', id ? '수정되었습니다.' : '등록되었습니다.');
   fillProdForm(null);
   await loadProducts();
 }
@@ -303,8 +273,8 @@ async function deleteProd() {
   const id = +$('pId').value;
   if (!id || !confirm('정말 삭제하시겠습니까?')) return;
   const { error } = await db.from('products').delete().eq('id', id);
-  if (error) return showProdMsg(error.message, true);
-  showProdMsg('삭제되었습니다.');
+  if (error) return showMsg('prodMsg', error.message, true);
+  showMsg('prodMsg', '삭제되었습니다.');
   fillProdForm(null);
   await loadProducts();
 }
@@ -322,30 +292,31 @@ function closeOptionModal() { $('optionModal').classList.add('hidden'); optionMo
 
 async function saveOption() {
   const key = $('optKey').value.trim(), label = $('optLabel').value.trim();
-  const setErr = (t) => { $('optionMsg').textContent = t; $('optionMsg').classList.remove('hidden', 'error'); $('optionMsg').classList.add('error'); };
+  const setErr = (t) => { const m = $('optionMsg'); m.textContent = t; m.classList.remove('hidden'); m.classList.add('error'); };
   if (!key || !label) return setErr('키와 표시명을 모두 입력해 주세요.');
   if (!/^[a-z0-9_-]+$/i.test(key)) return setErr('키는 영문/숫자/-/_ 만 가능합니다.');
   if ((optionModalKind === 'brand' ? BRANDS : TYPES).find((r) => r.value === key)) return setErr('이미 존재하는 키입니다.');
-  $('optionSave').disabled = true; $('optionSave').textContent = '추가 중...';
-  const { error } = await db.from('filter_options').insert({ type: optionModalKind === 'brand' ? 'brand' : 'category', value: key, label, sort_order: 999 });
-  $('optionSave').disabled = false; $('optionSave').textContent = '추가';
+  const btn = $('optionSave');
+  btn.disabled = true; btn.textContent = '추가 중...';
+  const { error } = await db.from('filter_options').insert({
+    type: optionModalKind === 'brand' ? 'brand' : 'category',
+    value: key, label, sort_order: 999,
+  });
+  btn.disabled = false; btn.textContent = '추가';
   if (error) return setErr(error.message);
   await loadOptions();
   if (optionModalKind === 'brand') { $('fBrand').value = key; syncBrandLabel(); }
-  else { selectedTypes.add(key); renderTypeChips(); }
+  else { selectedTypes.add(key); renderTypeChips('fProductTypes', selectedTypes); }
   closeOptionModal();
-  showMsg('추가되었습니다.');
+  showMsg('adminMsg', '추가되었습니다.');
 }
 
 // ─── UTILS ────────────────────────────────────────────────
-function showMsg(text, isError = false) {
-  const el = $('adminMsg');
-  el.textContent = text; el.classList.toggle('error', isError); el.classList.remove('hidden');
-  setTimeout(() => el.classList.add('hidden'), 3500);
-}
-function showProdMsg(text, isError = false) {
-  const el = $('prodMsg');
-  el.textContent = text; el.classList.toggle('error', isError); el.classList.remove('hidden');
+function showMsg(id, text, isError = false) {
+  const el = $(id);
+  el.textContent = text;
+  el.classList.toggle('error', isError);
+  el.classList.remove('hidden');
   setTimeout(() => el.classList.add('hidden'), 3500);
 }
 
@@ -365,6 +336,43 @@ function renderGate() {
   $('gateLogin').addEventListener('click', () => (location.href = 'index.html'));
 }
 
+// Chip toggle handler (single-select or multi-select)
+function attachChipHandler(containerId, set, multi) {
+  $(containerId).addEventListener('click', (e) => {
+    const item = e.target.closest('.admin-chip-item');
+    if (!item) return;
+    e.preventDefault();
+    const v = item.dataset.value;
+    if (multi) {
+      if (set.has(v)) set.delete(v); else set.add(v);
+      item.querySelector('input').checked = set.has(v);
+      item.classList.toggle('checked', set.has(v));
+    } else {
+      set.clear(); set.add(v);
+      renderTypeChips(containerId, set);
+    }
+  });
+}
+
+// List row click/check handler factory
+function attachListHandler(listId, items, selSet, fill, updateFn) {
+  $(listId).addEventListener('click', (e) => {
+    const cb = e.target.closest('input[type="checkbox"][data-id]');
+    if (cb) {
+      e.stopPropagation();
+      const id = +cb.dataset.id;
+      if (cb.checked) selSet.add(id); else selSet.delete(id);
+      updateFn();
+      return;
+    }
+    const row = e.target.closest('.admin-row');
+    if (row) {
+      const found = items().find((x) => x.id === +row.dataset.id);
+      if (found) fill(found);
+    }
+  });
+}
+
 // ─── INIT ─────────────────────────────────────────────────
 async function init() {
   const { data } = await db.auth.getSession();
@@ -373,7 +381,6 @@ async function init() {
   $('adminLogin').textContent = data.session.user.email || '로그인됨';
   $('adminLogin').addEventListener('click', async () => { await db.auth.signOut(); location.href = 'index.html'; });
 
-  // Admin tab switching
   document.querySelectorAll('.admin-tab').forEach((b) => b.addEventListener('click', () => switchAdminTab(b.dataset.tab)));
 
   // Event form
@@ -381,18 +388,9 @@ async function init() {
   $('adminReset').addEventListener('click', () => fillEventForm(null));
   $('adminDelete').addEventListener('click', deleteEvent);
   $('fBrand').addEventListener('change', syncBrandLabel);
+  attachChipHandler('fProductTypes', selectedTypes, true);
 
-  $('fProductTypes').addEventListener('click', (e) => {
-    const item = e.target.closest('.admin-chip-item');
-    if (!item) return;
-    e.preventDefault();
-    const v = item.dataset.value;
-    if (selectedTypes.has(v)) selectedTypes.delete(v); else selectedTypes.add(v);
-    item.querySelector('input').checked = selectedTypes.has(v);
-    item.classList.toggle('checked', selectedTypes.has(v));
-  });
-
-  // Product picker (linked products in event form)
+  // Product picker
   $('prodSearch').addEventListener('input', (e) => renderProdPicker(e.target.value));
   $('prodPicker').addEventListener('change', (e) => {
     const cb = e.target.closest('[data-pid]');
@@ -403,16 +401,19 @@ async function init() {
   });
 
   // Event list
-  $('adminList').addEventListener('click', (e) => {
-    const cb = e.target.closest('.admin-row-check');
-    if (cb) { e.stopPropagation(); const id = +cb.dataset.id; if (cb.checked) selected.add(id); else selected.delete(id); updateBulkUI(); return; }
-    const row = e.target.closest('.admin-row');
-    if (row) { const found = EVENTS.find((x) => x.id === +row.dataset.id); if (found) fillEventForm(found); }
+  attachListHandler('adminList', () => EVENTS, selected, fillEventForm, () => updateBulk('bulk', selected, EVENTS.length));
+  $('bulkCheckAll').addEventListener('change', (e) => {
+    selected.clear();
+    if (e.target.checked) EVENTS.forEach((ev) => selected.add(ev.id));
+    renderEventList();
   });
-  $('bulkCheckAll').addEventListener('change', (e) => { selected.clear(); if (e.target.checked) EVENTS.forEach((ev) => selected.add(ev.id)); renderEventList(); });
-  $('bulkDelete').addEventListener('click', bulkDelete);
+  $('bulkDelete').addEventListener('click', () => doBulkDelete('events', selected, 'bulkDelete', (ids) => {
+    if (ids.includes(editingId)) fillEventForm(null);
+    showMsg('adminMsg', `${ids.length}개 삭제되었습니다.`);
+    loadEvents();
+  }));
 
-  // Brand/type option modals
+  // Brand/type modals
   $('addBrandBtn').addEventListener('click', () => openOptionModal('brand'));
   $('addTypeBtn').addEventListener('click', () => openOptionModal('type'));
   $('optionModalClose').addEventListener('click', closeOptionModal);
@@ -425,26 +426,21 @@ async function init() {
   $('prodForm').addEventListener('submit', saveProd);
   $('prodReset').addEventListener('click', () => fillProdForm(null));
   $('prodDelete').addEventListener('click', deleteProd);
-
-  $('pCategory').addEventListener('click', (e) => {
-    const item = e.target.closest('.admin-chip-item');
-    if (!item) return;
-    e.preventDefault();
-    selectedPCategory.clear();
-    selectedPCategory.add(item.dataset.value);
-    renderPCategoryChips();
-  });
+  attachChipHandler('pCategory', selectedPCategory, false);
 
   // Product list
   $('prodListSearch').addEventListener('input', (e) => renderProdList(e.target.value));
-  $('prodList').addEventListener('click', (e) => {
-    const cb = e.target.closest('.prod-row-check');
-    if (cb) { e.stopPropagation(); const id = +cb.dataset.id; if (cb.checked) prodSelected.add(id); else prodSelected.delete(id); updateProdBulkUI(); return; }
-    const row = e.target.closest('.admin-row');
-    if (row) { const found = PRODUCTS.find((x) => x.id === +row.dataset.id); if (found) fillProdForm(found); }
+  attachListHandler('prodList', () => PRODUCTS, prodSelected, fillProdForm, () => updateBulk('prodBulk', prodSelected, PRODUCTS.length));
+  $('prodBulkAll').addEventListener('change', (e) => {
+    prodSelected.clear();
+    if (e.target.checked) PRODUCTS.forEach((p) => prodSelected.add(p.id));
+    renderProdList($('prodListSearch').value);
   });
-  $('prodBulkAll').addEventListener('change', (e) => { prodSelected.clear(); if (e.target.checked) PRODUCTS.forEach((p) => prodSelected.add(p.id)); renderProdList($('prodListSearch').value); });
-  $('prodBulkDelete').addEventListener('click', prodBulkDelete);
+  $('prodBulkDelete').addEventListener('click', () => doBulkDelete('products', prodSelected, 'prodBulkDelete', (ids) => {
+    if (ids.includes(prodEditingId)) fillProdForm(null);
+    showMsg('prodMsg', `${ids.length}개 삭제되었습니다.`);
+    loadProducts();
+  }));
 
   await Promise.all([loadOptions(), loadEvents(), loadProducts()]);
 }
