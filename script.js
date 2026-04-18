@@ -560,6 +560,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     buildDynamicFilters();
     initListeners();
     render();
+    renderProducts();
     showLoading(false);
   } catch (err) { showDbError(err.message); }
 });

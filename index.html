@@ -35,12 +35,12 @@
 
   <!-- 탭 바 -->
   <nav class="tab-bar" id="tabBar">
-    <button class="tab-btn active" data-tab="events">🎁 이벤트</button>
-    <button class="tab-btn" data-tab="products">📦 상품</button>
+    <button class="tab-btn active" data-tab="products">📦 상품</button>
+    <button class="tab-btn" data-tab="events">🎁 이벤트</button>
   </nav>
 
   <!-- ===== 이벤트 탭 ===== -->
-  <div id="eventsTab">
+  <div id="eventsTab" class="hidden">
     <div class="filter-row">
       <div class="filter-left">
         <button class="sort-btn" id="sortBtn">
@@ -69,7 +69,7 @@
   </div>
 
   <!-- ===== 상품 탭 ===== -->
-  <div id="productsTab" class="hidden">
+  <div id="productsTab">
     <div class="filter-row">
       <div class="filter-left">
         <button class="sort-btn" id="prodSortBtn">
@@ -81,7 +81,7 @@
     <main>
       <section class="events-section">
         <div class="result-bar"><strong id="prodResultCount">0</strong>개 상품</div>
-        <div class="events-grid" id="productsGrid"></div>
+        <div class="prod-grid" id="productsGrid"></div>
         <div class="empty-state hidden" id="prodEmptyState">
           <div class="empty-icon">📦</div>
           <p>등록된 상품이 없습니다.</p>

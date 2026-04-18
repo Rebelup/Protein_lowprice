@@ -154,30 +154,31 @@ body {
   padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 
-/* ── PRODUCT CARD ── */
+/* ── PRODUCT GRID & CARD ── */
+.prod-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .prod-card {
-  display: flex; gap: 12px; padding: 12px;
+  display: flex; flex-direction: column;
   background: var(--white); border: 1px solid var(--border); border-radius: var(--radius);
   cursor: pointer; transition: border-color .15s, transform .15s;
-  text-decoration: none; color: inherit;
+  text-decoration: none; color: inherit; overflow: hidden;
 }
 .prod-card:hover { border-color: var(--blue); transform: translateY(-1px); }
 .prod-card-thumb {
-  flex-shrink: 0; width: 80px; height: 80px; border-radius: 10px;
-  background: var(--bg); overflow: hidden;
-  display: flex; align-items: center; justify-content: center; font-size: 28px;
+  width: 100%; aspect-ratio: 1; background: var(--bg);
+  display: flex; align-items: center; justify-content: center; font-size: 36px;
+  overflow: hidden;
 }
 .prod-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
-.prod-card-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; justify-content: center; }
+.prod-card-body { padding: 10px; display: flex; flex-direction: column; gap: 3px; }
 .prod-card-name {
-  font-size: 14px; font-weight: 700; line-height: 1.35;
+  font-size: 13px; font-weight: 700; line-height: 1.35;
   display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
 }
-.prod-card-brand { font-size: 12px; color: var(--muted); }
-.prod-card-price { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
-.prod-pct { font-size: 13px; font-weight: 800; color: var(--red); }
-.prod-sale { font-size: 15px; font-weight: 800; }
-.prod-orig { font-size: 12px; color: var(--muted); text-decoration: line-through; }
+.prod-card-brand { font-size: 11.5px; color: var(--muted); }
+.prod-card-price { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+.prod-pct { font-size: 12.5px; font-weight: 800; color: var(--red); }
+.prod-sale { font-size: 14px; font-weight: 800; }
+.prod-orig { font-size: 11.5px; color: var(--muted); text-decoration: line-through; }
 
 /* ── FOOTER ── */
 .site-footer {
