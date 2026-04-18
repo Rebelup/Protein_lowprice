@@ -122,7 +122,7 @@ function renderProdCategoryChips() {
 function renderProducts() {
   let items = PRODUCTS.filter((p) => {
     if (prodState.category && p.category !== prodState.category) return false;
-    if (prodState.brands.size && !prodState.brands.has(p.brand)) return false;
+    if (prodState.brands.size > 0 && prodState.brands.size < ALL_BRANDS.length && !prodState.brands.has(p.brand)) return false;
     const price = p.salePrice;
     if (prodState.priceRange === 'u30000' && price > 30000) return false;
     if (prodState.priceRange === 'u50000' && price > 50000) return false;
@@ -280,10 +280,11 @@ function closeSheet(sheet, overlay) {
   }, { once: true });
 }
 function dragToClose(sheet, closeFn) {
-  let startY = 0, dy = 0, active = false;
+  let startY = 0, dy = 0, startTime = 0, active = false;
   sheet.addEventListener('touchstart', (e) => {
     if (sheet.scrollTop > 0) return;
-    startY = e.touches[0].clientY; dy = 0; active = true;
+    startY = e.touches[0].clientY; startTime = Date.now();
+    dy = 0; active = true;
     sheet.style.transition = 'none';
   }, { passive: true });
   sheet.addEventListener('touchmove', (e) => {
@@ -294,9 +295,24 @@ function dragToClose(sheet, closeFn) {
   sheet.addEventListener('touchend', () => {
     if (!active) return;
     active = false;
-    sheet.style.transition = '';
-    sheet.style.transform = '';
-    if (dy > 120) closeFn();
+    const velocity = dy / Math.max(1, Date.now() - startTime); // px/ms
+    const shouldClose = dy > 100 || velocity > 0.4;
+    if (shouldClose) {
+      sheet.style.transition = 'transform .28s cubic-bezier(0.32, 0, 0.67, 0)';
+      sheet.style.transform = 'translateX(-50%) translateY(110%)';
+      sheet.addEventListener('transitionend', () => {
+        sheet.style.transition = '';
+        sheet.style.transform = '';
+        closeFn();
+      }, { once: true });
+    } else {
+      sheet.style.transition = 'transform .35s var(--ease)';
+      sheet.style.transform = 'translateX(-50%) translateY(0)';
+      sheet.addEventListener('transitionend', () => {
+        sheet.style.transition = '';
+        sheet.style.transform = '';
+      }, { once: true });
+    }
     dy = 0;
   });
 }
