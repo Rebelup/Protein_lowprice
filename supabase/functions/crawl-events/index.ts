@@ -34,8 +34,8 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
-const ANTHROPIC_KEY = Deno.env.get('ANTHROPIC_API_KEY') ?? '';
-const JINA_KEY      = Deno.env.get('JINA_API_KEY') ?? '';
+const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
+const JINA_KEY   = Deno.env.get('JINA_API_KEY') ?? '';
 
 /* ─── 타입 ─────────────────────────────────────────────── */
 interface EventRow {
@@ -195,9 +195,9 @@ async function extractBoardArticleUrls(boardUrl: string): Promise<string[]> {
   return urls.slice(0, 5);
 }
 
-/* ─── Claude Haiku 이벤트 추출 ────────────────────────────── */
+/* ─── Gemini 이벤트 추출 ────────────────────────────────── */
 async function extractEventsWithClaude(brand: BrandConfig, content: string): Promise<EventRow[]> {
-  if (!ANTHROPIC_KEY) throw new Error('ANTHROPIC_API_KEY not configured');
+  if (!GEMINI_KEY) throw new Error('GEMINI_API_KEY not configured');
 
   const today = new Date().toISOString().slice(0, 10);
 
@@ -240,24 +240,19 @@ async function extractEventsWithClaude(brand: BrandConfig, content: string): Pro
 페이지 내용:
 ${content.slice(0, 12000)}`;
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': ANTHROPIC_KEY,
-      'anthropic-version': '2023-06-01',
+  const res = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+      signal: AbortSignal.timeout(40000),
     },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-    signal: AbortSignal.timeout(40000),
-  });
+  );
 
-  if (!res.ok) throw new Error(`Claude API ${res.status}: ${await res.text()}`);
-  const data = await res.json() as { content: Array<{ text: string }> };
-  const raw = data.content?.[0]?.text?.trim() ?? '[]';
+  if (!res.ok) throw new Error(`Gemini API ${res.status}: ${await res.text()}`);
+  const data = await res.json() as { candidates: Array<{ content: { parts: Array<{ text: string }> } }> };
+  const raw = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() ?? '[]';
 
   let parsed: Array<Record<string, unknown>>;
   try {
@@ -401,7 +396,7 @@ Deno.serve(async (req) => {
       : BRANDS;
 
     console.log(`[crawl-events] 시작: ${targets.map(b => b.id).join(', ')}`);
-    console.log(`[crawl-events] ANTHROPIC_KEY 설정 여부: ${!!ANTHROPIC_KEY}`);
+    console.log(`[crawl-events] GEMINI_KEY 설정 여부: ${!!GEMINI_KEY}`);
 
     const summary: Record<string, unknown> = {};
 
