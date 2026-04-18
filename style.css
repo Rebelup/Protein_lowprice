@@ -378,7 +378,53 @@ body {
 }
 .ep-cta:hover { opacity: .9; }
 
-/* ── LOGIN ── */
+/* ── PRODUCT PAGE ── */
+.pp-hero {
+  display: flex; gap: 16px; align-items: center;
+  padding: 20px 18px; background: var(--white); margin-bottom: 8px;
+}
+.pp-hero-thumb {
+  flex-shrink: 0; width: 90px; height: 90px; border-radius: 12px;
+  background: var(--bg); overflow: hidden;
+  display: flex; align-items: center; justify-content: center; font-size: 36px;
+}
+.pp-hero-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.pp-hero-info { flex: 1; min-width: 0; }
+.pp-hero-brand { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+.pp-hero-name { font-size: 17px; font-weight: 800; line-height: 1.3; margin-bottom: 8px; }
+.pp-hero-price { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.pp-pct { font-size: 16px; font-weight: 800; color: var(--red); }
+.pp-sale { font-size: 18px; font-weight: 800; }
+.pp-orig { font-size: 13px; color: var(--muted); text-decoration: line-through; }
+
+.pp-nutri {
+  display: grid; grid-template-columns: repeat(4, 1fr);
+  background: var(--border); gap: 1px;
+  border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
+}
+.pp-nutri-item { background: var(--white); padding: 12px 6px; text-align: center; }
+.pp-nutri-val { font-size: 16px; font-weight: 800; color: var(--text); }
+.pp-nutri-unit { font-size: 11px; font-weight: 600; color: var(--sub); }
+.pp-nutri-label { font-size: 11px; color: var(--muted); margin-top: 3px; }
+.pp-serving { font-size: 12px; color: var(--muted); margin-top: 8px; text-align: right; }
+
+.pp-event-card {
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 10px; background: var(--bg);
+}
+.pp-event-card:last-child { margin-bottom: 0; }
+.pp-event-name {
+  font-size: 14px; font-weight: 800; margin-bottom: 4px; color: var(--text);
+}
+.pp-event-meta { font-size: 12px; color: var(--muted); margin-bottom: 12px; }
+.pp-event-cta {
+  display: block; width: 100%; padding: 10px 0; text-align: center;
+  background: var(--blue); color: var(--white); border-radius: 8px;
+  font-size: 13.5px; font-weight: 700; text-decoration: none;
+  margin-top: 12px;
+}
+
+
 .login-sheet { padding: 0 22px 30px; }
 .login-header { display: flex; justify-content: flex-end; padding: 14px 0 2px; }
 .login-logo { font-size: 40px; text-align: center; margin-bottom: 8px; }

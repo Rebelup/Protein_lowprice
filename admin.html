@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260425" />
-  <link rel="stylesheet" href="admin.css?v=20260425" />
+  <link rel="stylesheet" href="style.css?v=20260426" />
+  <link rel="stylesheet" href="admin.css?v=20260426" />
 </head>
 <body>
   <header class="site-header">
@@ -230,6 +230,32 @@
             <input type="url" id="pLink" placeholder="https://..." />
           </label>
 
+          <div class="admin-field-row">
+            <label class="admin-field">
+              <span>칼로리 (kcal)</span>
+              <input type="number" id="pCalories" min="0" />
+            </label>
+            <label class="admin-field">
+              <span>1회 제공량 (g)</span>
+              <input type="number" id="pServingSize" min="0" step="0.1" />
+            </label>
+          </div>
+
+          <div class="admin-field-row">
+            <label class="admin-field">
+              <span>단백질 (g)</span>
+              <input type="number" id="pProtein" min="0" step="0.1" />
+            </label>
+            <label class="admin-field">
+              <span>탄수화물 (g)</span>
+              <input type="number" id="pCarb" min="0" step="0.1" />
+            </label>
+            <label class="admin-field">
+              <span>지방 (g)</span>
+              <input type="number" id="pFat" min="0" step="0.1" />
+            </label>
+          </div>
+
           <div id="prodMsg" class="admin-msg hidden"></div>
 
           <div class="admin-actions">
@@ -285,6 +311,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260425"></script>
+  <script src="admin.js?v=20260426"></script>
 </body>
 </html>

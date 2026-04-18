@@ -232,6 +232,11 @@ function fillProdForm(p) {
   $('pOrigPrice').value = p?.original_price ?? '';
   $('pSalePrice').value = p?.sale_price ?? '';
   $('pLink').value = p?.link ?? '';
+  $('pCalories').value = p?.calories ?? '';
+  $('pServingSize').value = p?.serving_size_g ?? '';
+  $('pProtein').value = p?.protein_g ?? '';
+  $('pCarb').value = p?.carb_g ?? '';
+  $('pFat').value = p?.fat_g ?? '';
   [1, 2, 3, 4].forEach((n) => { $(`pCat${n}`).value = p?.[`category${n}`] ?? ''; });
   $('prodFormTitle').textContent = p ? `상품 #${p.id} 수정` : '새 상품 등록';
   $('prodDelete').classList.toggle('hidden', !p);
@@ -255,6 +260,11 @@ async function saveProd(ev) {
     original_price: +$('pOrigPrice').value || 0,
     sale_price: +$('pSalePrice').value || 0,
     link: $('pLink').value.trim() || null,
+    calories: +$('pCalories').value || null,
+    serving_size_g: +$('pServingSize').value || null,
+    protein_g: +$('pProtein').value || null,
+    carb_g: +$('pCarb').value || null,
+    fat_g: +$('pFat').value || null,
     updated_at: new Date().toISOString(),
   };
   const btn = $('prodSave');

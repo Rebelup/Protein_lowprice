@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>프로틴 이벤트 모음</title>
-  <link rel="stylesheet" href="style.css?v=20260423" />
+  <link rel="stylesheet" href="style.css?v=20260426" />
 </head>
 <body>
 
@@ -233,6 +233,17 @@
     </div>
   </div>
 
+  <!-- 상품 상세 페이지 -->
+  <div class="event-page hidden" id="prodPage">
+    <div class="ep-header">
+      <button class="ep-back" id="prodPageBack" aria-label="뒤로">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span class="ep-title">상품 상세</span>
+    </div>
+    <div class="ep-body" id="prodPageBody"></div>
+  </div>
+
   <!-- 이벤트 상세 페이지 -->
   <div class="event-page hidden" id="eventPage">
     <div class="ep-header">
@@ -260,6 +271,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="script.js?v=20260423"></script>
+  <script src="script.js?v=20260426"></script>
 </body>
 </html>

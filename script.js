@@ -47,6 +47,8 @@ async function loadProducts() {
     emoji: p.emoji || '💊', thumbnail: p.thumbnail || '',
     originalPrice: p.original_price || 0, salePrice: p.sale_price || 0,
     link: p.link || '#',
+    calories: p.calories ?? null, servingSize: p.serving_size_g ?? null,
+    protein: p.protein_g ?? null, carb: p.carb_g ?? null, fat: p.fat_g ?? null,
   }));
 }
 
@@ -61,6 +63,7 @@ async function loadEvents() {
     conditions: e.conditions || [], howTo: e.how_to || [],
     couponNote: e.coupon_note || '', couponCode: e.coupon_code || '',
     productTypes: e.product_types || [],
+    productIds: e.product_ids || [],
     thumbnail: e.thumbnail || '',
   }));
 }
@@ -100,7 +103,7 @@ function renderProductCard(p) {
   const thumb = p.thumbnail
     ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
     : p.emoji;
-  return `<a class="prod-card" href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener noreferrer">
+  return `<article class="prod-card" data-pid="${p.id}">
     <div class="prod-card-thumb">${thumb}</div>
     <div class="prod-card-body">
       <div class="prod-card-name">${esc(p.name)}</div>
@@ -111,7 +114,7 @@ function renderProductCard(p) {
         ${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
       </div>
     </div>
-  </a>`;
+  </article>`;
 }
 
 function renderProdCat1Chips() {
@@ -276,6 +279,94 @@ function renderEventPage(e) {
 
   $('epCtaBtn')?.addEventListener('click', (ev) => {
     if (!currentUser) { ev.preventDefault(); pendingLink = ev.currentTarget.getAttribute('href'); openLoginSheet(); }
+  });
+}
+
+/* ── PRODUCT PAGE ── */
+function openProductPage(id) {
+  const p = PRODUCTS.find((x) => x.id === id);
+  if (!p) return;
+  renderProductPage(p);
+  const page = $('prodPage');
+  page.classList.remove('hidden');
+  page.getBoundingClientRect();
+  page.classList.add('page-open');
+  document.body.style.overflow = 'hidden';
+  history.pushState({ prodId: id }, '', `?product=${id}`);
+}
+
+function closeProductPage() {
+  const page = $('prodPage');
+  page.classList.remove('page-open');
+  page.addEventListener('transitionend', () => {
+    page.classList.add('hidden');
+    $('prodPageBody').textContent = '';
+    document.body.style.overflow = '';
+  }, { once: true });
+  if (history.state?.prodId) history.back();
+}
+
+function renderProductPage(p) {
+  const disc = p.originalPrice > p.salePrice ? Math.round((1 - p.salePrice / p.originalPrice) * 100) : 0;
+  const thumb = p.thumbnail
+    ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
+    : p.emoji;
+  const sect = (title, body) => `<div class="ep-section"><div class="ep-section-title">${title}</div>${body}</div>`;
+
+  // 영양 정보
+  const hasNutri = p.protein !== null || p.carb !== null || p.fat !== null || p.calories !== null;
+  const nutriSection = hasNutri ? sect('영양 정보', `
+    <div class="pp-nutri">
+      <div class="pp-nutri-item"><div class="pp-nutri-val">${p.calories ?? '-'}</div><div class="pp-nutri-unit">kcal</div><div class="pp-nutri-label">칼로리</div></div>
+      <div class="pp-nutri-item"><div class="pp-nutri-val">${p.protein ?? '-'}</div><div class="pp-nutri-unit">g</div><div class="pp-nutri-label">단백질</div></div>
+      <div class="pp-nutri-item"><div class="pp-nutri-val">${p.carb ?? '-'}</div><div class="pp-nutri-unit">g</div><div class="pp-nutri-label">탄수화물</div></div>
+      <div class="pp-nutri-item"><div class="pp-nutri-val">${p.fat ?? '-'}</div><div class="pp-nutri-unit">g</div><div class="pp-nutri-label">지방</div></div>
+    </div>
+    ${p.servingSize ? `<p class="pp-serving">1회 제공량 ${p.servingSize}g 기준</p>` : ''}`) : '';
+
+  // 관련 이벤트
+  const linked = EVENTS.filter((e) => e.productIds.includes(p.id) && e.active !== false);
+  const eventsSection = linked.length ? sect('관련 이벤트', linked.map((e) => {
+    const conds = e.conditions?.length
+      ? `<div class="ep-section-title" style="font-size:12px;color:var(--muted);margin:10px 0 6px">이벤트 조건</div><ul class="ep-list">${e.conditions.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>`
+      : '';
+    const howTo = e.howTo?.length
+      ? `<div class="ep-section-title" style="font-size:12px;color:var(--muted);margin:10px 0 6px">참여 방법</div><ol class="ep-steps">${e.howTo.map((s, i) => `<li class="ep-step"><span class="ep-step-num">${i + 1}</span><span class="ep-step-text">${esc(s)}</span></li>`).join('')}</ol>`
+      : '';
+    const coupon = e.couponCode
+      ? `<div class="ep-coupon" style="margin-top:10px"><code>${esc(e.couponCode)}</code><button class="ep-coupon-copy" data-code="${esc(e.couponCode)}">복사</button></div>${e.couponNote ? `<p class="ep-coupon-note">${esc(e.couponNote)}</p>` : ''}`
+      : '';
+    return `<div class="pp-event-card">
+      <div class="pp-event-name">${e.discountPct ? `<span style="color:var(--red);margin-right:6px">-${e.discountPct}%</span>` : ''}${esc(e.name)}</div>
+      <div class="pp-event-meta">${esc(e.brandLabel)} · ${e.endDate ? `~${fmtDate(e.endDate)}` : '상시'}</div>
+      ${conds}${howTo}${coupon}
+      <a class="pp-event-cta" href="${esc(safeUrl(e.link))}" target="_blank" rel="noopener noreferrer">이벤트 페이지로 이동 →</a>
+    </div>`;
+  }).join('')) : '';
+
+  $('prodPageBody').innerHTML = `
+    <div class="pp-hero">
+      <div class="pp-hero-thumb">${thumb}</div>
+      <div class="pp-hero-info">
+        <div class="pp-hero-brand">${esc(p.store || p.brand)}</div>
+        <div class="pp-hero-name">${esc(p.name)}</div>
+        <div class="pp-hero-price">
+          ${disc > 0 ? `<span class="pp-pct">-${disc}%</span>` : ''}
+          <span class="pp-sale">${fmtPrice(p.salePrice)}</span>
+          ${disc > 0 ? `<span class="pp-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
+        </div>
+      </div>
+    </div>
+    <div class="ep-cta-wrap"><a class="ep-cta" href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener noreferrer">구매하러 가기 →</a></div>
+    ${nutriSection}${eventsSection}`;
+
+  $('prodPageBody').querySelectorAll('.ep-coupon-copy').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      navigator.clipboard?.writeText(btn.dataset.code).then(() => {
+        btn.textContent = '복사됨!';
+        setTimeout(() => { btn.textContent = '복사'; }, 1500);
+      });
+    });
   });
 }
 
@@ -505,6 +596,11 @@ function initListeners() {
     if (card) openEventPage(parseInt(card.dataset.eid));
   });
 
+  $('productsGrid').addEventListener('click', (e) => {
+    const card = e.target.closest('.prod-card');
+    if (card) openProductPage(parseInt(card.dataset.pid));
+  });
+
   overlay.addEventListener('click', () => {
     [sortSheet, filterSheet, $('userSheet')]
       .filter((s) => !s.classList.contains('hidden'))
@@ -616,15 +712,23 @@ function initListeners() {
   });
 
   $('eventPageBack').addEventListener('click', closeEventPage);
+  $('prodPageBack').addEventListener('click', closeProductPage);
   window.addEventListener('popstate', () => {
-    const page = $('eventPage');
-    if (page.classList.contains('hidden')) return;
-    page.classList.remove('page-open');
-    page.addEventListener('transitionend', () => {
-      page.classList.add('hidden');
-      $('eventPageBody').textContent = '';
-      document.body.style.overflow = '';
-    }, { once: true });
+    if (!$('eventPage').classList.contains('hidden')) {
+      $('eventPage').classList.remove('page-open');
+      $('eventPage').addEventListener('transitionend', () => {
+        $('eventPage').classList.add('hidden');
+        $('eventPageBody').textContent = '';
+        document.body.style.overflow = '';
+      }, { once: true });
+    } else if (!$('prodPage').classList.contains('hidden')) {
+      $('prodPage').classList.remove('page-open');
+      $('prodPage').addEventListener('transitionend', () => {
+        $('prodPage').classList.add('hidden');
+        $('prodPageBody').textContent = '';
+        document.body.style.overflow = '';
+      }, { once: true });
+    }
   });
 
   dragToClose(sortSheet, () => closeSheet(sortSheet, overlay));
