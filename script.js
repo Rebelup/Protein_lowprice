@@ -469,9 +469,12 @@ function initListeners() {
 /* ── INIT ── */
 document.addEventListener('DOMContentLoaded', async () => {
   showLoading(true);
-  db.auth.onAuthStateChange((_ev, session) => {
+  db.auth.onAuthStateChange((ev, session) => {
     currentUser = session?.user ?? null;
     updateAuthUI(currentUser);
+    if (ev === 'SIGNED_IN' && location.hash.includes('access_token')) {
+      history.replaceState(null, '', location.pathname + location.search);
+    }
     if (currentUser && pendingLink) {
       window.open(pendingLink, '_blank', 'noopener,noreferrer');
       pendingLink = null;
