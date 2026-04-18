@@ -16,10 +16,11 @@ const thumbHtml = (src, fallback) => src
   : fallback;
 
 let EVENTS = [], PRODUCTS = [], BRANDS = [];
-let CATS = [[], [], [], []]; // cat1..cat4
+let CATS = [[], [], [], []];
 let editingId = null, prodEditingId = null, optionModalKind = null;
 const selected = new Set();
 const linkedProducts = new Set();
+const linkedEvents = new Set();
 const prodSelected = new Set();
 
 // ─── filter_options ──────────────────────────────────────
@@ -31,7 +32,6 @@ async function loadOptions() {
   renderBrandSelect('fBrand'); renderBrandSelect('pBrand');
   [1, 2, 3, 4].forEach(renderCatSelect);
 }
-
 
 function renderCatSelect(n) {
   const sel = $(`pCat${n}`);
@@ -54,7 +54,6 @@ function syncBrandLabel() {
   const sel = $('fBrand');
   $('fBrandLabel').value = sel.options[sel.selectedIndex]?.dataset.label || '';
 }
-
 
 // ─── EVENTS ──────────────────────────────────────────────
 async function loadEvents() {
@@ -132,26 +131,38 @@ function fillEventForm(e) {
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
-function renderProdPicker(q) {
-  const box = $('prodPicker');
+// Shared picker renderer — used for both product picker and event picker
+function renderPicker(q, { boxId, countId, items, linked, attr, searchText, rowMeta, emptyMsg, fallback }) {
+  const box = $(boxId);
   const qLow = q.toLowerCase();
-  const filtered = qLow
-    ? PRODUCTS.filter((p) => (p.name + ' ' + p.brand).toLowerCase().includes(qLow))
-    : PRODUCTS;
-  $('linkedCount').textContent = linkedProducts.size ? `(${linkedProducts.size}개 연결됨)` : '';
-  if (!filtered.length) { box.innerHTML = '<div class="admin-picker-empty">검색 결과가 없습니다.</div>'; return; }
-  box.innerHTML = filtered.map((p) => {
-    const d = discPct(p);
-    return `<label class="admin-picker-row">
-      <input type="checkbox" data-pid="${p.id}" ${linkedProducts.has(p.id) ? 'checked' : ''} />
-      <div class="admin-picker-thumb">${thumbHtml(p.thumbnail, p.emoji || '💊')}</div>
-      <div class="admin-picker-info">
-        <div class="admin-picker-name">${esc(p.name)}</div>
-        <div class="admin-picker-meta">${esc(p.store || p.brand)}${d ? ` · -${d}%` : ''} · ${fmtPrice(p.sale_price)}</div>
-      </div>
-    </label>`;
-  }).join('');
+  const filtered = qLow ? items.filter((x) => searchText(x).toLowerCase().includes(qLow)) : items;
+  $(countId).textContent = linked.size ? `(${linked.size}개 연결됨)` : '';
+  if (!filtered.length) { box.innerHTML = `<div class="admin-picker-empty">${emptyMsg}</div>`; return; }
+  box.innerHTML = filtered.map((x) => `<label class="admin-picker-row">
+    <input type="checkbox" ${attr}="${x.id}" ${linked.has(x.id) ? 'checked' : ''} />
+    <div class="admin-picker-thumb">${thumbHtml(x.thumbnail, x.emoji || fallback)}</div>
+    <div class="admin-picker-info">
+      <div class="admin-picker-name">${esc(x.name)}</div>
+      <div class="admin-picker-meta">${rowMeta(x)}</div>
+    </div>
+  </label>`).join('');
 }
+
+const renderProdPicker = (q) => renderPicker(q, {
+  boxId: 'prodPicker', countId: 'linkedCount',
+  items: PRODUCTS, linked: linkedProducts, attr: 'data-pid',
+  searchText: (p) => p.name + ' ' + p.brand,
+  rowMeta: (p) => { const d = discPct(p); return `${esc(p.store || p.brand)}${d ? ` · -${d}%` : ''} · ${fmtPrice(p.sale_price)}`; },
+  emptyMsg: '검색 결과가 없습니다.', fallback: '💊',
+});
+
+const renderEventPicker = (q) => renderPicker(q, {
+  boxId: 'eventPicker', countId: 'linkedEventCount',
+  items: EVENTS, linked: linkedEvents, attr: 'data-eid',
+  searchText: (e) => e.name + ' ' + (e.brand_label || e.brand),
+  rowMeta: (e) => `${esc(e.brand_label || e.brand)} · ${esc([e.start_date, e.end_date].filter(Boolean).join(' ~ ') || '상시')}`,
+  emptyMsg: '이벤트가 없습니다.', fallback: '🏷️',
+});
 
 function collectEventForm() {
   const payload = {};
@@ -238,6 +249,10 @@ function fillProdForm(p) {
   $('pCarb').value = p?.carb_g ?? '';
   $('pFat').value = p?.fat_g ?? '';
   [1, 2, 3, 4].forEach((n) => { $(`pCat${n}`).value = p?.[`category${n}`] ?? ''; });
+  linkedEvents.clear();
+  if (p?.id) EVENTS.filter((e) => (e.product_ids || []).includes(p.id)).forEach((e) => linkedEvents.add(e.id));
+  $('eventSearch').value = '';
+  renderEventPicker('');
   $('prodFormTitle').textContent = p ? `상품 #${p.id} 수정` : '새 상품 등록';
   $('prodDelete').classList.toggle('hidden', !p);
   renderProdList($('prodListSearch').value);
@@ -269,11 +284,42 @@ async function saveProd(ev) {
   };
   const btn = $('prodSave');
   btn.disabled = true; btn.textContent = '저장 중...';
-  const id = $('pId').value;
-  const { error } = await (id ? db.from('products').update(payload).eq('id', +id) : db.from('products').insert(payload));
+  const existingId = $('pId').value;
+  let prodId = existingId ? +existingId : null;
+  let saveError;
+  if (existingId) {
+    ({ error: saveError } = await db.from('products').update(payload).eq('id', +existingId));
+  } else {
+    const { data, error } = await db.from('products').insert(payload).select('id').single();
+    saveError = error;
+    if (data) prodId = data.id;
+  }
   btn.disabled = false; btn.textContent = '저장';
-  if (error) return showMsg('prodMsg', error.message, true);
-  showMsg('prodMsg', id ? '수정되었습니다.' : '등록되었습니다.');
+  if (saveError) return showMsg('prodMsg', saveError.message, true);
+
+  // Sync reverse event links: update product_ids on each affected event
+  if (prodId) {
+    const evMap = new Map(EVENTS.map((e) => [e.id, e]));
+    const prevLinked = new Set(EVENTS.filter((e) => (e.product_ids || []).includes(prodId)).map((e) => e.id));
+    const toAdd = [...linkedEvents].filter((id) => !prevLinked.has(id));
+    const toRemove = [...prevLinked].filter((id) => !linkedEvents.has(id));
+    await Promise.all([
+      ...toAdd.map((evId) => {
+        const e = evMap.get(evId);
+        if (!e) return Promise.resolve();
+        e.product_ids = [...new Set([...(e.product_ids || []), prodId])];
+        return db.from('events').update({ product_ids: e.product_ids }).eq('id', evId);
+      }),
+      ...toRemove.map((evId) => {
+        const e = evMap.get(evId);
+        if (!e) return Promise.resolve();
+        e.product_ids = (e.product_ids || []).filter((id) => id !== prodId);
+        return db.from('events').update({ product_ids: e.product_ids }).eq('id', evId);
+      }),
+    ]);
+  }
+
+  showMsg('prodMsg', existingId ? '수정되었습니다.' : '등록되었습니다.');
   fillProdForm(null);
   await loadProducts();
 }
@@ -289,7 +335,7 @@ async function deleteProd() {
 }
 
 // ─── OPTION MODAL ─────────────────────────────────────────
-const MODAL_TITLES = { brand: '새 브랜드 추가', type: '새 이벤트 상품유형 추가', cat1: '카테고리 1 추가', cat2: '카테고리 2 추가', cat3: '카테고리 3 추가', cat4: '카테고리 4 추가' };
+const MODAL_TITLES = { brand: '새 브랜드 추가', cat1: '카테고리 1 추가', cat2: '카테고리 2 추가', cat3: '카테고리 3 추가', cat4: '카테고리 4 추가' };
 
 function openOptionModal(kind) {
   optionModalKind = kind;
@@ -306,19 +352,18 @@ async function saveOption() {
   const setErr = (t) => { const m = $('optionMsg'); m.textContent = t; m.classList.remove('hidden'); m.classList.add('error'); };
   if (!key || !label) return setErr('키와 표시명을 모두 입력해 주세요.');
   if (!/^[a-z0-9_-]+$/i.test(key)) return setErr('키는 영문/숫자/-/_ 만 가능합니다.');
-  const checkList = optionModalKind === 'brand' ? BRANDS : optionModalKind === 'type' ? TYPES : (CATS[+optionModalKind.slice(3) - 1] || []);
+  const checkList = optionModalKind === 'brand' ? BRANDS : (CATS[+optionModalKind.slice(3) - 1] || []);
   if (checkList.find((r) => r.value === key)) return setErr('이미 존재하는 키입니다.');
   const btn = $('optionSave');
   btn.disabled = true; btn.textContent = '추가 중...';
   const { error } = await db.from('filter_options').insert({
-    type: optionModalKind === 'brand' ? 'brand' : optionModalKind === 'type' ? 'category' : optionModalKind,
+    type: optionModalKind === 'brand' ? 'brand' : optionModalKind,
     value: key, label, sort_order: 999,
   });
   btn.disabled = false; btn.textContent = '추가';
   if (error) return setErr(error.message);
   await loadOptions();
   if (optionModalKind === 'brand') { $('fBrand').value = key; syncBrandLabel(); }
-  else if (optionModalKind === 'type') { /* type 추가 후 별도 처리 없음 */ }
   else if (/^cat[1-4]$/.test(optionModalKind)) { const n = +optionModalKind[3]; renderCatSelect(n); $(`pCat${n}`).value = key; }
   closeOptionModal();
   showMsg('adminMsg', '추가되었습니다.');
@@ -349,8 +394,6 @@ function renderGate() {
   $('gateLogin').addEventListener('click', () => (location.href = 'index.html'));
 }
 
-
-// List row click/check handler factory
 function attachListHandler(listId, items, selSet, fill, updateFn) {
   $(listId).addEventListener('click', (e) => {
     const cb = e.target.closest('input[type="checkbox"][data-id]');
@@ -371,7 +414,9 @@ function attachListHandler(listId, items, selSet, fill, updateFn) {
 
 // ─── INIT ─────────────────────────────────────────────────
 async function init() {
+  const mainEl = document.querySelector('main');
   const { data } = await db.auth.getSession();
+  mainEl.style.visibility = '';
   if (!data.session) { renderGate(); return; }
 
   $('adminLogin').textContent = data.session.user.email || '로그인됨';
@@ -384,7 +429,6 @@ async function init() {
   $('adminReset').addEventListener('click', () => fillEventForm(null));
   $('adminDelete').addEventListener('click', deleteEvent);
   $('fBrand').addEventListener('change', syncBrandLabel);
-  // Product picker
   $('prodSearch').addEventListener('input', (e) => renderProdPicker(e.target.value));
   $('prodPicker').addEventListener('change', (e) => {
     const cb = e.target.closest('[data-pid]');
@@ -407,7 +451,7 @@ async function init() {
     loadEvents();
   }));
 
-  // Brand/type modals
+  // Brand/cat modals
   $('addBrandBtn').addEventListener('click', () => openOptionModal('brand'));
   $('optionModalClose').addEventListener('click', closeOptionModal);
   $('optionCancel').addEventListener('click', closeOptionModal);
@@ -420,6 +464,14 @@ async function init() {
   $('prodReset').addEventListener('click', () => fillProdForm(null));
   $('prodDelete').addEventListener('click', deleteProd);
   [1, 2, 3, 4].forEach((n) => $(`addCat${n}Btn`).addEventListener('click', () => openOptionModal(`cat${n}`)));
+  $('eventSearch').addEventListener('input', (e) => renderEventPicker(e.target.value));
+  $('eventPicker').addEventListener('change', (e) => {
+    const cb = e.target.closest('[data-eid]');
+    if (!cb) return;
+    const id = +cb.dataset.eid;
+    if (cb.checked) linkedEvents.add(id); else linkedEvents.delete(id);
+    $('linkedEventCount').textContent = linkedEvents.size ? `(${linkedEvents.size}개 연결됨)` : '';
+  });
 
   // Product list
   $('prodListSearch').addEventListener('input', (e) => renderProdList(e.target.value));
@@ -436,6 +488,8 @@ async function init() {
   }));
 
   await Promise.all([loadOptions(), loadEvents(), loadProducts()]);
+  renderProdPicker('');
+  renderEventPicker('');
 }
 
 document.addEventListener('DOMContentLoaded', init);

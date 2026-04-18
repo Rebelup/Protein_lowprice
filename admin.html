@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260426" />
-  <link rel="stylesheet" href="admin.css?v=20260426" />
+  <link rel="stylesheet" href="style.css?v=20260418" />
+  <link rel="stylesheet" href="admin.css?v=20260418" />
 </head>
 <body>
   <header class="site-header">
@@ -21,7 +21,7 @@
     <button class="admin-tab" data-tab="products">상품</button>
   </nav>
 
-  <main class="admin-main">
+  <main class="admin-main" style="visibility:hidden">
 
     <!-- ===== 이벤트 탭 ===== -->
     <div id="adminEventsTab">
@@ -256,6 +256,12 @@
             </label>
           </div>
 
+          <div class="admin-field">
+            <span>관련 이벤트 <small id="linkedEventCount"></small></span>
+            <input type="text" id="eventSearch" placeholder="이벤트명/브랜드 검색..." style="margin-bottom:6px" />
+            <div class="admin-prod-picker" id="eventPicker"></div>
+          </div>
+
           <div id="prodMsg" class="admin-msg hidden"></div>
 
           <div class="admin-actions">
@@ -311,6 +317,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260426"></script>
+  <script src="admin.js?v=20260418"></script>
 </body>
 </html>
