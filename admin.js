@@ -13,6 +13,7 @@ const csvToArr = (s) => String(s ?? '').split(',').map(v => v.trim()).filter(Boo
 
 let EVENTS = [];
 let editingId = null;
+const selected = new Set();
 
 const FIELDS = [
   ['fBrand', 'brand'], ['fBrandLabel', 'brand_label'],
@@ -32,8 +33,10 @@ async function loadEvents() {
 function renderList() {
   const box = $('adminList');
   $('adminCount').textContent = EVENTS.length;
+  for (const id of [...selected]) if (!EVENTS.find((e) => e.id === id)) selected.delete(id);
   if (!EVENTS.length) {
     box.innerHTML = '<div class="admin-row-empty">등록된 이벤트가 없습니다.</div>';
+    updateBulkUI();
     return;
   }
   box.innerHTML = EVENTS.map((e) => {
@@ -42,6 +45,7 @@ function renderList() {
       : '🏷️';
     const period = [e.start_date, e.end_date].filter(Boolean).join(' ~ ') || '상시';
     return `<div class="admin-row ${e.id === editingId ? 'active' : ''}" data-id="${e.id}">
+      <input type="checkbox" class="admin-row-check" data-id="${e.id}" ${selected.has(e.id) ? 'checked' : ''} />
       <div class="admin-row-thumb">${thumb}</div>
       <div class="admin-row-body">
         <div class="admin-row-name">${esc(e.name)}</div>
@@ -49,6 +53,30 @@ function renderList() {
       </div>
     </div>`;
   }).join('');
+  updateBulkUI();
+}
+
+function updateBulkUI() {
+  $('bulkSelected').textContent = `${selected.size}개 선택`;
+  $('bulkDelete').disabled = selected.size === 0;
+  const all = $('bulkCheckAll');
+  all.checked = EVENTS.length > 0 && selected.size === EVENTS.length;
+  all.indeterminate = selected.size > 0 && selected.size < EVENTS.length;
+}
+
+async function bulkDelete() {
+  if (!selected.size) return;
+  if (!confirm(`${selected.size}개 이벤트를 정말 삭제하시겠습니까?`)) return;
+  const ids = [...selected];
+  const btn = $('bulkDelete');
+  btn.disabled = true; btn.textContent = '삭제 중...';
+  const { error } = await db.from('events').delete().in('id', ids);
+  btn.textContent = '선택 삭제';
+  if (error) { btn.disabled = false; return showMsg(error.message, true); }
+  if (ids.includes(editingId)) fillForm(null);
+  selected.clear();
+  showMsg(`${ids.length}개 삭제되었습니다.`);
+  await loadEvents();
 }
 
 function fillForm(e) {
@@ -140,11 +168,27 @@ async function init() {
   $('adminReset').addEventListener('click', () => fillForm(null));
   $('adminDelete').addEventListener('click', deleteEvent);
   $('adminList').addEventListener('click', (e) => {
+    const cb = e.target.closest('.admin-row-check');
+    if (cb) {
+      e.stopPropagation();
+      const id = +cb.dataset.id;
+      if (cb.checked) selected.add(id); else selected.delete(id);
+      updateBulkUI();
+      return;
+    }
     const row = e.target.closest('.admin-row');
     if (!row) return;
     const found = EVENTS.find((x) => x.id === +row.dataset.id);
     if (found) fillForm(found);
   });
+
+  $('bulkCheckAll').addEventListener('change', (e) => {
+    selected.clear();
+    if (e.target.checked) EVENTS.forEach((ev) => selected.add(ev.id));
+    renderList();
+  });
+
+  $('bulkDelete').addEventListener('click', bulkDelete);
 
   await loadEvents();
 }

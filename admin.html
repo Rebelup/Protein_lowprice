@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>이벤트 관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260418" />
-  <link rel="stylesheet" href="admin.css?v=20260418" />
+  <link rel="stylesheet" href="style.css?v=20260418b" />
+  <link rel="stylesheet" href="admin.css?v=20260418b" />
 </head>
 <body>
   <header class="site-header">
@@ -120,11 +120,19 @@
         <h2>등록된 이벤트</h2>
         <span class="admin-count" id="adminCount">0</span>
       </div>
+      <div class="admin-bulk-bar">
+        <label class="admin-check-wrap">
+          <input type="checkbox" id="bulkCheckAll" />
+          <span>전체 선택</span>
+        </label>
+        <span class="admin-selected" id="bulkSelected">0개 선택</span>
+        <button type="button" class="admin-danger" id="bulkDelete" disabled>선택 삭제</button>
+      </div>
       <div class="admin-list" id="adminList"></div>
     </section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260418"></script>
+  <script src="admin.js?v=20260418b"></script>
 </body>
 </html>
