@@ -4,11 +4,12 @@ const SUPABASE_URL      = 'https://myficrjdmqbtsgmdxtiu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15ZmljcmpkbXFidHNnbWR4dGl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODY4OTEsImV4cCI6MjA5MTU2Mjg5MX0.G2-_UEqO12SqxELdkZScvrdcYBNPW1gusEBA0ZW6smc';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let EVENTS = [], ALL_BRANDS = [], ALL_TYPES = [];
+let EVENTS = [], PRODUCTS = [], ALL_BRANDS = [], ALL_TYPES = [];
 let currentUser = null, pendingLink = null;
 let brandGroup = null, typeGroup = null;
 
 const state = { search: '', sort: 'discount_desc', brands: new Set(), productTypes: new Set(), period: 'all' };
+const prodState = { sort: 'discount_desc' };
 
 const $ = (id) => document.getElementById(id);
 const $$ = (sel, root = document) => root.querySelectorAll(sel);
@@ -38,6 +39,17 @@ function dDayText(e, long = false) {
 }
 
 /* ── DATA ── */
+async function loadProducts() {
+  const { data } = await db.from('products').select('*').order('id');
+  PRODUCTS = (data || []).map((p) => ({
+    id: p.id, name: p.name, brand: p.brand, store: p.store || p.brand,
+    category: p.category, emoji: p.emoji || '💊',
+    thumbnail: p.thumbnail || '',
+    originalPrice: p.original_price || 0, salePrice: p.sale_price || 0,
+    link: p.link || '#',
+  }));
+}
+
 async function loadEvents() {
   const { data, error } = await db.from('events').select('*').order('id');
   if (error) throw new Error(error.message);
@@ -76,6 +88,53 @@ function getFiltered() {
     if (state.sort === 'name') return a.name.localeCompare(b.name, 'ko');
     return 0;
   });
+}
+
+/* ── PRODUCTS ── */
+const fmtPrice = (n) => n ? '₩' + n.toLocaleString('ko-KR') : '';
+
+function renderProductCard(p) {
+  const disc = p.originalPrice > p.salePrice ? Math.round((1 - p.salePrice / p.originalPrice) * 100) : 0;
+  const thumb = p.thumbnail
+    ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
+    : p.emoji;
+  return `<a class="prod-card" href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener noreferrer">
+    <div class="prod-card-thumb">${thumb}</div>
+    <div class="prod-card-body">
+      <div class="prod-card-name">${esc(p.name)}</div>
+      <div class="prod-card-brand">${esc(p.store)}</div>
+      <div class="prod-card-price">
+        ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
+        <span class="prod-sale">${fmtPrice(p.salePrice)}</span>
+        ${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
+      </div>
+    </div>
+  </a>`;
+}
+
+function renderProducts() {
+  const sorted = [...PRODUCTS].sort((a, b) => {
+    if (prodState.sort === 'discount_desc') {
+      const da = a.originalPrice > a.salePrice ? 1 - a.salePrice / a.originalPrice : 0;
+      const db2 = b.originalPrice > b.salePrice ? 1 - b.salePrice / b.originalPrice : 0;
+      return db2 - da;
+    }
+    if (prodState.sort === 'price_asc') return a.salePrice - b.salePrice;
+    if (prodState.sort === 'price_desc') return b.salePrice - a.salePrice;
+    return a.name.localeCompare(b.name, 'ko');
+  });
+  $('prodResultCount').textContent = sorted.length;
+  const grid = $('productsGrid');
+  if (!sorted.length) { grid.innerHTML = ''; $('prodEmptyState').classList.remove('hidden'); return; }
+  grid.innerHTML = sorted.map(renderProductCard).join('');
+  $('prodEmptyState').classList.add('hidden');
+}
+
+function switchTab(tab) {
+  $$('.tab-btn').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+  $('eventsTab').classList.toggle('hidden', tab !== 'events');
+  $('productsTab').classList.toggle('hidden', tab !== 'products');
+  if (tab === 'products') renderProducts();
 }
 
 /* ── RENDER ── */
@@ -381,6 +440,21 @@ function initListeners() {
       .forEach((s) => closeSheet(s, overlay));
   });
 
+  $$('.tab-btn').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+
+  const prodSortSheet = $('prodSortSheet');
+  $('prodSortBtn').addEventListener('click', () => openSheet(prodSortSheet, overlay));
+  $$('.sort-option', prodSortSheet).forEach((btn) => {
+    btn.addEventListener('click', () => {
+      prodState.sort = btn.dataset.sort;
+      $$('.sort-option', prodSortSheet).forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      $('prodSortLabel').textContent = btn.textContent.trim();
+      closeSheet(prodSortSheet, overlay);
+      renderProducts();
+    });
+  });
+
   $('sortBtn').addEventListener('click', () => openSheet(sortSheet, overlay));
   $$('.sort-option').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -482,7 +556,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
   });
   try {
-    await Promise.all([loadEvents(), loadFilterOptions()]);
+    await Promise.all([loadEvents(), loadFilterOptions(), loadProducts()]);
     buildDynamicFilters();
     initListeners();
     render();
