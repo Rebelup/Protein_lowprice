@@ -148,9 +148,8 @@ body {
 }
 
 /* ── BOTTOM SHEETS ── */
-.sheet-overlay, .login-overlay {
-  position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200;
-}
+.sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200; }
+.login-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 400; }
 .sort-sheet, .filter-sheet, .user-sheet, .login-sheet {
   position: fixed; left: 50%; bottom: 0; width: 100%; max-width: 640px;
   background: var(--white); border-radius: 16px 16px 0 0;
@@ -158,6 +157,7 @@ body {
   transform: translateX(-50%) translateY(110%);
   transition: transform .35s var(--ease);
 }
+.login-sheet { z-index: 450; }
 .sort-sheet.sheet-open, .filter-sheet.sheet-open,
 .user-sheet.sheet-open, .login-sheet.sheet-open {
   transform: translateX(-50%) translateY(0);
