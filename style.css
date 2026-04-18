@@ -154,6 +154,25 @@ body {
   padding: 10px 24px; font-size: 13px; font-weight: 600; cursor: pointer;
 }
 
+/* ── PRODUCT CATEGORY CHIPS ── */
+.prod-cat-row {
+  display: flex; gap: 8px; overflow-x: auto; padding: 8px 14px;
+  background: var(--white); border-bottom: 1px solid var(--border);
+  scrollbar-width: none;
+}
+.prod-cat-row::-webkit-scrollbar { display: none; }
+.prod-cat-chip {
+  flex-shrink: 0; padding: 5px 14px;
+  border: 1.5px solid var(--border); border-radius: 99px;
+  background: var(--white); color: var(--sub);
+  font-size: 13px; font-weight: 600; cursor: pointer;
+  transition: all .15s; white-space: nowrap;
+}
+.prod-cat-chip.active {
+  border-color: var(--blue); color: var(--blue);
+  background: var(--blue-light);
+}
+
 /* ── PRODUCT GRID & CARD ── */
 .prod-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
 .prod-card {

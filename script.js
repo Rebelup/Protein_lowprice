@@ -9,7 +9,7 @@ let currentUser = null, pendingLink = null;
 let brandGroup = null, typeGroup = null;
 
 const state = { search: '', sort: 'discount_desc', brands: new Set(), productTypes: new Set(), period: 'all' };
-const prodState = { sort: 'discount_desc' };
+const prodState = { sort: 'discount_desc', category: '' };
 
 const $ = (id) => document.getElementById(id);
 const $$ = (sel, root = document) => root.querySelectorAll(sel);
@@ -112,8 +112,18 @@ function renderProductCard(p) {
   </a>`;
 }
 
+function renderProdCategoryChips() {
+  const row = $('prodCatRow');
+  if (!row) return;
+  row.innerHTML = `<button class="prod-cat-chip ${!prodState.category ? 'active' : ''}" data-cat="">전체</button>`
+    + ALL_TYPES.map((t) => `<button class="prod-cat-chip ${prodState.category === t.value ? 'active' : ''}" data-cat="${esc(t.value)}">${esc(t.label)}</button>`).join('');
+}
+
 function renderProducts() {
-  const sorted = [...PRODUCTS].sort((a, b) => {
+  let items = prodState.category
+    ? PRODUCTS.filter((p) => p.category === prodState.category)
+    : PRODUCTS;
+  items = [...items].sort((a, b) => {
     if (prodState.sort === 'discount_desc') {
       const da = a.originalPrice > a.salePrice ? 1 - a.salePrice / a.originalPrice : 0;
       const db2 = b.originalPrice > b.salePrice ? 1 - b.salePrice / b.originalPrice : 0;
@@ -123,10 +133,10 @@ function renderProducts() {
     if (prodState.sort === 'price_desc') return b.salePrice - a.salePrice;
     return a.name.localeCompare(b.name, 'ko');
   });
-  $('prodResultCount').textContent = sorted.length;
+  $('prodResultCount').textContent = items.length;
   const grid = $('productsGrid');
-  if (!sorted.length) { grid.innerHTML = ''; $('prodEmptyState').classList.remove('hidden'); return; }
-  grid.innerHTML = sorted.map(renderProductCard).join('');
+  if (!items.length) { grid.innerHTML = ''; $('prodEmptyState').classList.remove('hidden'); return; }
+  grid.innerHTML = items.map(renderProductCard).join('');
   $('prodEmptyState').classList.add('hidden');
 }
 
@@ -442,6 +452,14 @@ function initListeners() {
 
   $$('.tab-btn').forEach((b) => b.addEventListener('click', () => switchTab(b.dataset.tab)));
 
+  $('prodCatRow').addEventListener('click', (e) => {
+    const chip = e.target.closest('.prod-cat-chip');
+    if (!chip) return;
+    prodState.category = chip.dataset.cat;
+    $$('.prod-cat-chip').forEach((c) => c.classList.toggle('active', c.dataset.cat === prodState.category));
+    renderProducts();
+  });
+
   const prodSortSheet = $('prodSortSheet');
   $('prodSortBtn').addEventListener('click', () => openSheet(prodSortSheet, overlay));
   $$('.sort-option', prodSortSheet).forEach((btn) => {
@@ -559,6 +577,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     await Promise.all([loadEvents(), loadFilterOptions(), loadProducts()]);
     buildDynamicFilters();
     initListeners();
+    renderProdCategoryChips();
     render();
     renderProducts();
     showLoading(false);
