@@ -32,7 +32,17 @@ async function loadOptions() {
   CATS = [1, 2, 3, 4].map((n) => rows.filter((r) => r.type === `cat${n}`));
   renderBrandSelect('fBrand'); renderBrandSelect('pBrand');
   renderTypeChips('fProductTypes', selectedTypes);
+  renderProductTypeSelect();
   [1, 2, 3, 4].forEach(renderCatSelect);
+}
+
+function renderProductTypeSelect() {
+  const sel = $('pProductType');
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">선택 안함</option>'
+    + TYPES.map((t) => `<option value="${esc(t.value)}">${esc(t.label)}</option>`).join('');
+  if (cur && TYPES.find((t) => t.value === cur)) sel.value = cur;
 }
 
 function renderCatSelect(n) {
@@ -244,6 +254,7 @@ function fillProdForm(p) {
   $('pOrigPrice').value = p?.original_price ?? '';
   $('pSalePrice').value = p?.sale_price ?? '';
   $('pLink').value = p?.link ?? '';
+  $('pProductType').value = p?.product_type ?? '';
   [1, 2, 3, 4].forEach((n) => { $(`pCat${n}`).value = p?.[`category${n}`] ?? ''; });
   $('prodFormTitle').textContent = p ? `상품 #${p.id} 수정` : '새 상품 등록';
   $('prodDelete').classList.toggle('hidden', !p);
@@ -259,6 +270,7 @@ async function saveProd(ev) {
     name, brand,
     store: $('pStore').value.trim() || brand,
     emoji: $('pEmoji').value.trim() || '💊',
+    product_type: $('pProductType').value || null,
     category1: $('pCat1').value || null,
     category2: $('pCat2').value || null,
     category3: $('pCat3').value || null,
@@ -320,7 +332,7 @@ async function saveOption() {
   if (error) return setErr(error.message);
   await loadOptions();
   if (optionModalKind === 'brand') { $('fBrand').value = key; syncBrandLabel(); }
-  else if (optionModalKind === 'type') { selectedTypes.add(key); renderTypeChips('fProductTypes', selectedTypes); }
+  else if (optionModalKind === 'type') { selectedTypes.add(key); renderTypeChips('fProductTypes', selectedTypes); renderProductTypeSelect(); $('pProductType').value = key; }
   else if (/^cat[1-4]$/.test(optionModalKind)) { const n = +optionModalKind[3]; renderCatSelect(n); $(`pCat${n}`).value = key; }
   closeOptionModal();
   showMsg('adminMsg', '추가되었습니다.');
@@ -441,6 +453,7 @@ async function init() {
   $('prodForm').addEventListener('submit', saveProd);
   $('prodReset').addEventListener('click', () => fillProdForm(null));
   $('prodDelete').addEventListener('click', deleteProd);
+  $('addProdTypeBtn').addEventListener('click', () => openOptionModal('type'));
   [1, 2, 3, 4].forEach((n) => $(`addCat${n}Btn`).addEventListener('click', () => openOptionModal(`cat${n}`)));
 
   // Product list
