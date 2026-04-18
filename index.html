@@ -4,21 +4,19 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>프로틴 이벤트 모음</title>
-  <link rel="stylesheet" href="style.css?v=20260418" />
+  <link rel="stylesheet" href="style.css?v=20260426" />
 </head>
 <body>
 
-  <!-- 로딩 오버레이 -->
   <div id="loadingOverlay" class="loading-overlay">
     <div class="spinner"></div>
-    <p>이벤트 정보를 불러오는 중...</p>
+    <p>불러오는 중...</p>
   </div>
 
-  <!-- ===================== HEADER ===================== -->
   <header class="site-header">
     <div class="header-inner">
       <div class="header-search">
-        <input type="text" id="searchInput" placeholder="이벤트 검색" />
+        <input type="text" id="searchInput" placeholder="검색" />
         <button id="searchBtn" class="search-icon-btn" aria-label="검색">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z"/></svg>
         </button>
@@ -35,26 +33,80 @@
     </div>
   </header>
 
-  <!-- ===================== FILTER ROW ===================== -->
-  <div class="filter-row">
-    <div class="filter-left">
-      <button class="sort-btn" id="sortBtn">
-        <span id="sortLabel">할인 높은순</span>
-        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-      </button>
-      <div class="filter-divider"></div>
-      <button class="filter-btn" id="filterBtn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
-        <span>필터</span>
-        <span class="filter-count hidden" id="filterCount">0</span>
-      </button>
+  <!-- 탭 바 -->
+  <nav class="tab-bar" id="tabBar">
+    <button class="tab-btn active" data-tab="products">상품</button>
+    <button class="tab-btn" data-tab="events">이벤트</button>
+  </nav>
+
+  <!-- ===== 이벤트 탭 ===== -->
+  <div id="eventsTab" class="hidden">
+    <div class="filter-row">
+      <div class="filter-left">
+        <button class="sort-btn" id="sortBtn">
+          <span id="sortLabel">할인 높은순</span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-divider"></div>
+        <button class="filter-btn" id="filterBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+          <span>필터</span>
+          <span class="filter-count hidden" id="filterCount">0</span>
+        </button>
+      </div>
     </div>
+    <main>
+      <section class="events-section">
+        <div class="result-bar"><strong id="resultCount">0</strong>개 이벤트</div>
+        <div class="events-grid" id="eventsGrid"></div>
+        <div class="empty-state hidden" id="emptyState">
+          <div class="empty-icon">🔍</div>
+          <p>조건에 맞는 이벤트가 없습니다.</p>
+          <button class="reset-btn" id="resetFilters">필터 초기화</button>
+        </div>
+      </section>
+    </main>
   </div>
 
-  <!-- ===================== 공유 오버레이 ===================== -->
+  <!-- ===== 상품 탭 ===== -->
+  <div id="productsTab">
+    <div class="filter-row">
+      <div class="filter-left">
+        <button class="sort-btn" id="prodSortBtn">
+          <span id="prodSortLabel">할인 높은순</span>
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="filter-divider"></div>
+        <button class="filter-btn" id="prodFilterBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+          <span>필터</span>
+          <span class="filter-count hidden" id="prodFilterCount">0</span>
+        </button>
+      </div>
+    </div>
+    <div class="prod-cat-row" id="prodCatRow"></div>
+    <div class="prod-cat-row hidden" id="prodCat2Row" style="border-top: 1px solid var(--border); background: var(--bg);"></div>
+    <main>
+      <section class="events-section">
+        <div class="result-bar"><strong id="prodResultCount">0</strong>개 상품</div>
+        <div class="prod-grid" id="productsGrid"></div>
+        <div class="empty-state hidden" id="prodEmptyState">
+          <div class="empty-icon">📦</div>
+          <p>등록된 상품이 없습니다.</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <footer class="site-footer">
+    <p>정보는 참고용이며 실제와 다를 수 있습니다.</p>
+    <p>© 2026 프로틴 이벤트</p>
+  </footer>
+
+  <!-- 공유 오버레이 -->
   <div class="sheet-overlay hidden" id="sheetOverlay"></div>
 
-  <!-- 정렬 시트 -->
+  <!-- 이벤트 정렬 시트 -->
   <div class="sort-sheet hidden" id="sortSheet">
     <div class="sheet-handle"></div>
     <div class="sort-sheet-title">정렬</div>
@@ -63,7 +115,55 @@
     <button class="sort-option" data-sort="name">이름순</button>
   </div>
 
-  <!-- 필터 시트 (브랜드 / 상품유형 / 기간) -->
+  <!-- 상품 정렬 시트 -->
+  <div class="sort-sheet hidden" id="prodSortSheet">
+    <div class="sheet-handle"></div>
+    <div class="sort-sheet-title">정렬</div>
+    <button class="sort-option active" data-sort="discount_desc">할인 높은순</button>
+    <button class="sort-option" data-sort="price_asc">가격 낮은순</button>
+    <button class="sort-option" data-sort="price_desc">가격 높은순</button>
+    <button class="sort-option" data-sort="name">이름순</button>
+  </div>
+
+  <!-- 상품 필터 시트 -->
+  <div class="filter-sheet hidden" id="prodFilterSheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <span class="sheet-title">상품 필터</span>
+      <button class="sheet-close" id="prodFilterSheetClose">✕</button>
+    </div>
+    <div class="filter-sheet-body">
+      <div class="filter-section">
+        <div class="filter-group-title">브랜드</div>
+        <div class="filter-group" id="prodBrandFilterGroup"></div>
+      </div>
+      <div class="filter-section">
+        <div class="filter-group-title">가격대</div>
+        <div class="filter-group" id="prodPriceGroup">
+          <label class="filter-sheet-item checked"><input type="radio" name="prodPrice" class="prod-price-rb" value="all" checked /><span>전체</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodPrice" class="prod-price-rb" value="u30000" /><span>3만원 이하</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodPrice" class="prod-price-rb" value="u50000" /><span>5만원 이하</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodPrice" class="prod-price-rb" value="u100000" /><span>10만원 이하</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodPrice" class="prod-price-rb" value="o100000" /><span>10만원 이상</span></label>
+        </div>
+      </div>
+      <div class="filter-section">
+        <div class="filter-group-title">할인율</div>
+        <div class="filter-group" id="prodDiscountGroup">
+          <label class="filter-sheet-item checked"><input type="radio" name="prodDiscount" class="prod-disc-rb" value="0" checked /><span>전체</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodDiscount" class="prod-disc-rb" value="10" /><span>10% 이상</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodDiscount" class="prod-disc-rb" value="30" /><span>30% 이상</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodDiscount" class="prod-disc-rb" value="50" /><span>50% 이상</span></label>
+        </div>
+      </div>
+    </div>
+    <div class="filter-sheet-footer">
+      <button class="filter-reset-btn" id="prodFilterReset">초기화</button>
+      <button class="filter-apply-btn" id="prodFilterApply">적용하기</button>
+    </div>
+  </div>
+
+  <!-- 필터 시트 -->
   <div class="filter-sheet hidden" id="filterSheet">
     <div class="sheet-handle"></div>
     <div class="sheet-header">
@@ -71,17 +171,14 @@
       <button class="sheet-close" id="filterSheetClose">✕</button>
     </div>
     <div class="filter-sheet-body">
-
       <div class="filter-section">
         <div class="filter-group-title">브랜드</div>
         <div class="filter-group" id="brandFilterGroup"></div>
       </div>
-
       <div class="filter-section">
         <div class="filter-group-title">상품 유형</div>
         <div class="filter-group" id="typeFilterGroup"></div>
       </div>
-
       <div class="filter-section">
         <div class="filter-group-title">기간</div>
         <div class="filter-group" id="periodFilterGroup">
@@ -92,7 +189,6 @@
           <label class="filter-sheet-item"><input type="radio" name="period" class="period-rb" value="ended" /><span>종료</span></label>
         </div>
       </div>
-
     </div>
     <div class="filter-sheet-footer">
       <button class="filter-reset-btn" id="filterReset">초기화</button>
@@ -100,13 +196,12 @@
     </div>
   </div>
 
-  <!-- ===================== LOGIN MODAL ===================== -->
+  <!-- 로그인 시트 -->
   <div class="login-overlay hidden" id="loginOverlay"></div>
   <div class="login-sheet hidden" id="loginSheet">
     <div class="login-header">
       <button class="login-close" id="loginClose">✕</button>
     </div>
-
     <div id="loginForm">
       <div class="login-logo">💪</div>
       <h2 class="login-title">로그인</h2>
@@ -124,7 +219,6 @@
       <button class="login-submit-btn" id="loginSubmit">로그인</button>
       <p class="login-switch">계정이 없으신가요? <button class="link-btn" id="goSignup">회원가입</button></p>
     </div>
-
     <div id="signupForm" class="hidden">
       <div class="login-logo">💪</div>
       <h2 class="login-title">회원가입</h2>
@@ -139,27 +233,18 @@
     </div>
   </div>
 
-  <!-- ===================== MAIN (이벤트 리스트) ===================== -->
-  <main>
-    <section class="events-section">
-      <div class="result-bar">
-        <strong id="resultCount">0</strong>개 이벤트
-      </div>
-      <div class="events-grid" id="eventsGrid"></div>
-      <div class="empty-state hidden" id="emptyState">
-        <div class="empty-icon">🔍</div>
-        <p>조건에 맞는 이벤트가 없습니다.</p>
-        <button class="reset-btn" id="resetFilters">필터 초기화</button>
-      </div>
-    </section>
-  </main>
+  <!-- 상품 상세 페이지 -->
+  <div class="event-page hidden" id="prodPage">
+    <div class="ep-header">
+      <button class="ep-back" id="prodPageBack" aria-label="뒤로">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
+      </button>
+      <span class="ep-title">상품 상세</span>
+    </div>
+    <div class="ep-body" id="prodPageBody"></div>
+  </div>
 
-  <footer class="site-footer">
-    <p>이벤트 정보는 참고용이며 실제와 다를 수 있습니다.</p>
-    <p>© 2026 프로틴 이벤트</p>
-  </footer>
-
-  <!-- ===================== EVENT DETAIL PAGE (full-screen) ===================== -->
+  <!-- 이벤트 상세 페이지 -->
   <div class="event-page hidden" id="eventPage">
     <div class="ep-header">
       <button class="ep-back" id="eventPageBack" aria-label="뒤로">
@@ -170,7 +255,7 @@
     <div class="ep-body" id="eventPageBody"></div>
   </div>
 
-  <!-- ===================== USER INFO SHEET ===================== -->
+  <!-- 유저 시트 -->
   <div class="user-sheet hidden" id="userSheet">
     <div class="sheet-handle"></div>
     <div class="user-sheet-header">
@@ -186,6 +271,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="script.js?v=20260418"></script>
+  <script src="script.js?v=20260426"></script>
 </body>
 </html>
