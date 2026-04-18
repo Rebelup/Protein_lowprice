@@ -16,13 +16,21 @@ const thumbHtml = (src, fallback) => src
   ? `<img src="${esc(src)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${fallback}'}))">`
   : fallback;
 const pad2 = (n) => String(n).padStart(2, '0');
-const isoToDtLocal = (v) => {
+const isoToDatePart = (v) => {
   if (!v) return '';
   const d = new Date(v);
-  if (isNaN(d)) return '';
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  return isNaN(d) ? '' : `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 };
-const dtLocalToISO = (v) => { if (!v) return null; const d = new Date(v); return isNaN(d) ? null : d.toISOString(); };
+const isoToTimePart = (v) => {
+  if (!v) return '';
+  const d = new Date(v);
+  return isNaN(d) ? '' : `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
+const partsToISO = (date, time) => {
+  if (!date) return null;
+  const d = new Date(`${date}T${time || '00:00'}`);
+  return isNaN(d) ? null : d.toISOString();
+};
 const fmtDt = (v) => {
   if (!v) return '';
   const d = new Date(v);
@@ -120,7 +128,7 @@ async function doBulkDelete(table, set, btnId, onDone) {
 const EVENT_FIELDS = [
   ['fName', 'name'], ['fBrand', 'brand'], ['fBrandLabel', 'brand_label'],
   ['fThumbnail', 'thumbnail'], ['fDescription', 'description'],
-  ['fDiscount', 'discount_pct'], ['fStart', 'start_date'], ['fEnd', 'end_date'],
+  ['fDiscount', 'discount_pct'],
   ['fLink', 'link'], ['fCouponCode', 'coupon_code'], ['fCouponNote', 'coupon_note'],
 ];
 
@@ -129,9 +137,12 @@ function fillEventForm(e) {
   $('fId').value = e?.id ?? '';
   EVENT_FIELDS.forEach(([id, key]) => {
     if (id === 'fBrand' || id === 'fBrandLabel') return;
-    if (id === 'fStart' || id === 'fEnd') { $(id).value = isoToDtLocal(e?.[key]); return; }
     $(id).value = e?.[key] ?? (id === 'fDiscount' ? 0 : '');
   });
+  $('fStartDate').value = isoToDatePart(e?.start_date);
+  $('fStartTime').value = isoToTimePart(e?.start_date);
+  $('fEndDate').value = isoToDatePart(e?.end_date);
+  $('fEndTime').value = isoToTimePart(e?.end_date);
   $('fBrand').value = e?.brand ?? '';
   syncBrandLabel();
   $('fActive').value = e?.active === false ? 'false' : 'true';
@@ -184,9 +195,10 @@ function collectEventForm() {
   const payload = {};
   EVENT_FIELDS.forEach(([id, key]) => {
     const v = $(id).value.trim();
-    if (id === 'fStart' || id === 'fEnd') { payload[key] = dtLocalToISO(v); return; }
     payload[key] = v === '' ? null : (key === 'discount_pct' ? +v : v);
   });
+  payload.start_date = partsToISO($('fStartDate').value, $('fStartTime').value);
+  payload.end_date = partsToISO($('fEndDate').value, $('fEndTime').value);
   payload.active = $('fActive').value === 'true';
   payload.conditions = linesToArr($('fConditions').value);
   payload.how_to = linesToArr($('fHowTo').value);
