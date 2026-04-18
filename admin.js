@@ -12,8 +12,12 @@ const arrToLines = (a) => (a || []).join('\n');
 const csvToArr = (s) => String(s ?? '').split(',').map(v => v.trim()).filter(Boolean);
 
 let EVENTS = [];
+let BRANDS = [];
+let TYPES = [];
 let editingId = null;
 const selected = new Set();
+const selectedTypes = new Set();
+let optionModalKind = null;
 
 const FIELDS = [
   ['fBrand', 'brand'], ['fBrandLabel', 'brand_label'],
@@ -28,6 +32,39 @@ async function loadEvents() {
   if (error) return showMsg(error.message, true);
   EVENTS = data || [];
   renderList();
+}
+
+async function loadOptions() {
+  const { data } = await db.from('filter_options').select('*').order('sort_order').order('id');
+  const rows = data || [];
+  BRANDS = rows.filter((r) => r.type === 'brand');
+  TYPES = rows.filter((r) => r.type === 'category');
+  renderBrandSelect();
+  renderTypeChips();
+}
+
+function renderBrandSelect() {
+  const sel = $('fBrand');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="">브랜드 선택</option>'
+    + BRANDS.map((b) => `<option value="${esc(b.value)}" data-label="${esc(b.label)}">${esc(b.label)}</option>`).join('');
+  if (cur && BRANDS.find((b) => b.value === cur)) sel.value = cur;
+  syncBrandLabel();
+}
+
+function syncBrandLabel() {
+  const sel = $('fBrand');
+  const opt = sel.options[sel.selectedIndex];
+  $('fBrandLabel').value = opt?.dataset.label || '';
+}
+
+function renderTypeChips() {
+  const box = $('fProductTypes');
+  box.innerHTML = TYPES.map((t) => `
+    <label class="admin-chip-item ${selectedTypes.has(t.value) ? 'checked' : ''}" data-value="${esc(t.value)}">
+      <input type="checkbox" ${selectedTypes.has(t.value) ? 'checked' : ''} />
+      <span>${esc(t.label)}</span>
+    </label>`).join('');
 }
 
 function renderList() {
@@ -82,11 +119,18 @@ async function bulkDelete() {
 function fillForm(e) {
   editingId = e?.id ?? null;
   $('fId').value = e?.id ?? '';
-  FIELDS.forEach(([id, key]) => { $(id).value = e?.[key] ?? (id === 'fDiscount' ? 0 : ''); });
+  FIELDS.forEach(([id, key]) => {
+    if (id === 'fBrand' || id === 'fBrandLabel') return;
+    $(id).value = e?.[key] ?? (id === 'fDiscount' ? 0 : '');
+  });
+  $('fBrand').value = e?.brand ?? '';
+  syncBrandLabel();
   $('fActive').value = e?.active === false ? 'false' : 'true';
   $('fConditions').value = arrToLines(e?.conditions);
   $('fHowTo').value = arrToLines(e?.how_to);
-  $('fProductTypes').value = (e?.product_types || []).join(', ');
+  selectedTypes.clear();
+  (e?.product_types || []).forEach((t) => selectedTypes.add(t));
+  renderTypeChips();
   $('adminFormTitle').textContent = e ? `이벤트 #${e.id} 수정` : '새 이벤트 등록';
   $('adminDelete').classList.toggle('hidden', !e);
   renderList();
@@ -102,7 +146,7 @@ function collectForm() {
   payload.active = $('fActive').value === 'true';
   payload.conditions = linesToArr($('fConditions').value);
   payload.how_to = linesToArr($('fHowTo').value);
-  payload.product_types = csvToArr($('fProductTypes').value);
+  payload.product_types = [...selectedTypes];
   return payload;
 }
 
@@ -142,6 +186,46 @@ async function deleteEvent() {
   showMsg('삭제되었습니다.');
   fillForm(null);
   await loadEvents();
+}
+
+function openOptionModal(kind) {
+  optionModalKind = kind;
+  $('optionModalTitle').textContent = kind === 'brand' ? '새 브랜드 추가' : '새 상품유형 추가';
+  $('optKey').value = '';
+  $('optLabel').value = '';
+  $('optionMsg').classList.add('hidden');
+  $('optionModal').classList.remove('hidden');
+  setTimeout(() => $('optKey').focus(), 50);
+}
+function closeOptionModal() { $('optionModal').classList.add('hidden'); optionModalKind = null; }
+
+async function saveOption() {
+  const key = $('optKey').value.trim();
+  const label = $('optLabel').value.trim();
+  const msg = $('optionMsg');
+  const setErr = (t) => { msg.textContent = t; msg.classList.remove('hidden'); msg.classList.add('error'); };
+  if (!key || !label) return setErr('키와 표시명을 모두 입력해 주세요.');
+  if (!/^[a-z0-9_-]+$/i.test(key)) return setErr('키는 영문/숫자/-/_ 만 가능합니다.');
+  const existing = (optionModalKind === 'brand' ? BRANDS : TYPES).find((r) => r.value === key);
+  if (existing) return setErr('이미 존재하는 키입니다.');
+
+  const btn = $('optionSave');
+  btn.disabled = true; btn.textContent = '추가 중...';
+  const { error } = await db.from('filter_options').insert({
+    type: optionModalKind === 'brand' ? 'brand' : 'category',
+    value: key, label, sort_order: 999,
+  });
+  btn.disabled = false; btn.textContent = '추가';
+  if (error) return setErr(error.message);
+
+  await loadOptions();
+  if (optionModalKind === 'brand') {
+    $('fBrand').value = key; syncBrandLabel();
+  } else {
+    selectedTypes.add(key); renderTypeChips();
+  }
+  closeOptionModal();
+  showMsg('추가되었습니다.');
 }
 
 function renderGate() {
@@ -190,7 +274,29 @@ async function init() {
 
   $('bulkDelete').addEventListener('click', bulkDelete);
 
-  await loadEvents();
+  $('fBrand').addEventListener('change', syncBrandLabel);
+  $('fProductTypes').addEventListener('click', (e) => {
+    const item = e.target.closest('.admin-chip-item');
+    if (!item) return;
+    e.preventDefault();
+    const v = item.dataset.value;
+    if (selectedTypes.has(v)) selectedTypes.delete(v); else selectedTypes.add(v);
+    const cb = item.querySelector('input');
+    cb.checked = selectedTypes.has(v);
+    item.classList.toggle('checked', selectedTypes.has(v));
+  });
+
+  $('addBrandBtn').addEventListener('click', () => openOptionModal('brand'));
+  $('addTypeBtn').addEventListener('click', () => openOptionModal('type'));
+  $('optionModalClose').addEventListener('click', closeOptionModal);
+  $('optionCancel').addEventListener('click', closeOptionModal);
+  $('optionSave').addEventListener('click', saveOption);
+  $('optionModal').addEventListener('click', (e) => { if (e.target === $('optionModal')) closeOptionModal(); });
+  [$('optKey'), $('optLabel')].forEach((inp) => {
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveOption(); });
+  });
+
+  await Promise.all([loadOptions(), loadEvents()]);
 }
 
 document.addEventListener('DOMContentLoaded', init);

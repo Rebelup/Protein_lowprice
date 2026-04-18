@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>이벤트 관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260418b" />
-  <link rel="stylesheet" href="admin.css?v=20260418b" />
+  <link rel="stylesheet" href="style.css?v=20260418c" />
+  <link rel="stylesheet" href="admin.css?v=20260418c" />
 </head>
 <body>
   <header class="site-header">
@@ -26,15 +26,16 @@
       <form id="adminForm" class="admin-form" autocomplete="off">
         <input type="hidden" id="fId" />
 
-        <label class="admin-field">
-          <span>브랜드 키 <em>*</em></span>
-          <input type="text" id="fBrand" placeholder="예: bsn, on, myprotein" required />
-        </label>
-
-        <label class="admin-field">
-          <span>브랜드 표시명 <em>*</em></span>
-          <input type="text" id="fBrandLabel" placeholder="예: BSN" required />
-        </label>
+        <div class="admin-field">
+          <span>브랜드 <em>*</em></span>
+          <div class="admin-field-inline">
+            <select id="fBrand" required>
+              <option value="">브랜드 선택</option>
+            </select>
+            <button type="button" class="admin-ghost" id="addBrandBtn">+ 새 브랜드</button>
+          </div>
+          <input type="hidden" id="fBrandLabel" />
+        </div>
 
         <label class="admin-field">
           <span>이벤트 이름 <em>*</em></span>
@@ -101,10 +102,13 @@
           <textarea id="fHowTo" rows="3"></textarea>
         </label>
 
-        <label class="admin-field">
-          <span>상품 유형 (쉼표로 구분)</span>
-          <input type="text" id="fProductTypes" placeholder="예: protein,creatine" />
-        </label>
+        <div class="admin-field">
+          <span>상품 유형</span>
+          <div class="admin-field-inline">
+            <div class="admin-chip-list" id="fProductTypes"></div>
+            <button type="button" class="admin-ghost" id="addTypeBtn">+ 새 상품유형</button>
+          </div>
+        </div>
 
         <div id="adminMsg" class="admin-msg hidden"></div>
 
@@ -132,7 +136,31 @@
     </section>
   </main>
 
+  <div class="admin-modal-overlay hidden" id="optionModal">
+    <div class="admin-modal">
+      <div class="admin-modal-head">
+        <h3 id="optionModalTitle">새 항목 추가</h3>
+        <button type="button" class="sheet-close" id="optionModalClose">✕</button>
+      </div>
+      <div class="admin-modal-body">
+        <label class="admin-field">
+          <span>키 (영문/숫자) <em>*</em></span>
+          <input type="text" id="optKey" placeholder="예: bsn" />
+        </label>
+        <label class="admin-field">
+          <span>표시명 <em>*</em></span>
+          <input type="text" id="optLabel" placeholder="예: BSN" />
+        </label>
+        <div id="optionMsg" class="admin-msg hidden"></div>
+      </div>
+      <div class="admin-modal-foot">
+        <button type="button" class="admin-ghost" id="optionCancel">취소</button>
+        <button type="button" class="admin-primary" id="optionSave">추가</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260418b"></script>
+  <script src="admin.js?v=20260418c"></script>
 </body>
 </html>
