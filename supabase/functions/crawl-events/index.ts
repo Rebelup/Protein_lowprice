@@ -34,7 +34,7 @@ const supabase = createClient(
   Deno.env.get('SUPABASE_URL')!,
   Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!,
 );
-const GEMINI_KEY = Deno.env.get('GEMINI_API_KEY') ?? '';
+const GEMINI_KEY = Deno.env.get('AISTUDIO_API_KEY') ?? '';
 const JINA_KEY   = Deno.env.get('JINA_API_KEY') ?? '';
 
 /* ─── 타입 ─────────────────────────────────────────────── */
