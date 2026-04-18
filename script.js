@@ -6,10 +6,10 @@ const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let EVENTS = [], PRODUCTS = [], ALL_BRANDS = [], ALL_TYPES = [];
 let currentUser = null, pendingLink = null;
-let brandGroup = null, typeGroup = null;
+let brandGroup = null, typeGroup = null, prodBrandGroup = null;
 
 const state = { search: '', sort: 'discount_desc', brands: new Set(), productTypes: new Set(), period: 'all' };
-const prodState = { sort: 'discount_desc', category: '' };
+const prodState = { sort: 'discount_desc', category: '', brands: new Set(), priceRange: 'all', discountMin: 0 };
 
 const $ = (id) => document.getElementById(id);
 const $$ = (sel, root = document) => root.querySelectorAll(sel);
@@ -120,9 +120,20 @@ function renderProdCategoryChips() {
 }
 
 function renderProducts() {
-  let items = prodState.category
-    ? PRODUCTS.filter((p) => p.category === prodState.category)
-    : PRODUCTS;
+  let items = PRODUCTS.filter((p) => {
+    if (prodState.category && p.category !== prodState.category) return false;
+    if (prodState.brands.size && !prodState.brands.has(p.brand)) return false;
+    const price = p.salePrice;
+    if (prodState.priceRange === 'u30000' && price > 30000) return false;
+    if (prodState.priceRange === 'u50000' && price > 50000) return false;
+    if (prodState.priceRange === 'u100000' && price > 100000) return false;
+    if (prodState.priceRange === 'o100000' && price < 100000) return false;
+    if (prodState.discountMin > 0) {
+      const d = p.originalPrice > p.salePrice ? Math.round((1 - p.salePrice / p.originalPrice) * 100) : 0;
+      if (d < prodState.discountMin) return false;
+    }
+    return true;
+  });
   items = [...items].sort((a, b) => {
     if (prodState.sort === 'discount_desc') {
       const da = a.originalPrice > a.salePrice ? 1 - a.salePrice / a.originalPrice : 0;
@@ -336,6 +347,8 @@ function buildDynamicFilters() {
   typeGroup = buildCheckboxGroup('typeFilterGroup', 'type-cb', ALL_TYPES);
   state.brands = new Set(ALL_BRANDS.map((b) => b.value));
   state.productTypes = new Set(ALL_TYPES.map((t) => t.value));
+  prodBrandGroup = buildCheckboxGroup('prodBrandFilterGroup', 'prod-brand-cb', ALL_BRANDS);
+  prodState.brands = new Set(ALL_BRANDS.map((b) => b.value));
 }
 
 function updateFilterCount() {
@@ -357,6 +370,24 @@ function resetFilterSheet() {
   $$('#periodFilterGroup .filter-sheet-item').forEach((item) => {
     item.classList.toggle('checked', item.querySelector('input').checked);
   });
+}
+
+function updateProdFilterCount() {
+  const deselected = prodState.brands.size < ALL_BRANDS.length ? 1 : 0;
+  const n = deselected + (prodState.priceRange !== 'all' ? 1 : 0) + (prodState.discountMin > 0 ? 1 : 0);
+  const c = $('prodFilterCount'), b = $('prodFilterBtn');
+  if (n > 0) { c.textContent = n; c.classList.remove('hidden'); b.style.color = 'var(--blue)'; }
+  else { c.classList.add('hidden'); b.style.color = ''; }
+}
+
+function resetProdFilterSheet() {
+  if (prodBrandGroup) {
+    prodBrandGroup.cbs.forEach((cb) => { cb.checked = true; cb.closest('.filter-sheet-item').classList.add('checked'); });
+    prodBrandGroup.allCb.checked = true;
+    prodBrandGroup.allLabel.classList.add('checked');
+  }
+  $$('.prod-price-rb').forEach((rb) => { rb.checked = rb.value === 'all'; rb.closest('.filter-sheet-item').classList.toggle('checked', rb.value === 'all'); });
+  $$('.prod-disc-rb').forEach((rb) => { rb.checked = rb.value === '0'; rb.closest('.filter-sheet-item').classList.toggle('checked', rb.value === '0'); });
 }
 
 /* ── AUTH ── */
@@ -472,6 +503,34 @@ function initListeners() {
       renderProducts();
     });
   });
+
+  const prodFilterSheet = $('prodFilterSheet');
+  $('prodFilterBtn').addEventListener('click', () => openSheet(prodFilterSheet, overlay));
+  $('prodFilterSheetClose').addEventListener('click', () => closeSheet(prodFilterSheet, overlay));
+
+  $$('.prod-price-rb, .prod-disc-rb').forEach((rb) => {
+    rb.addEventListener('change', () => {
+      const grpId = rb.name === 'prodPrice' ? 'prodPriceGroup' : 'prodDiscountGroup';
+      $$(`#${grpId} .filter-sheet-item`).forEach((item) => {
+        item.classList.toggle('checked', item.querySelector('input').checked);
+      });
+    });
+  });
+
+  $('prodFilterReset').addEventListener('click', resetProdFilterSheet);
+
+  $('prodFilterApply').addEventListener('click', () => {
+    prodState.brands = prodBrandGroup
+      ? new Set([...prodBrandGroup.cbs].filter((cb) => cb.checked).map((cb) => cb.value))
+      : new Set(ALL_BRANDS.map((b) => b.value));
+    prodState.priceRange = document.querySelector('.prod-price-rb:checked')?.value || 'all';
+    prodState.discountMin = +(document.querySelector('.prod-disc-rb:checked')?.value || 0);
+    updateProdFilterCount();
+    closeSheet(prodFilterSheet, overlay);
+    renderProducts();
+  });
+
+  dragToClose(prodFilterSheet, () => closeSheet(prodFilterSheet, overlay));
 
   $('sortBtn').addEventListener('click', () => openSheet(sortSheet, overlay));
   $$('.sort-option').forEach((btn) => {

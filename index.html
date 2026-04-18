@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>프로틴 이벤트 모음</title>
-  <link rel="stylesheet" href="style.css?v=20260420" />
+  <link rel="stylesheet" href="style.css?v=20260421" />
 </head>
 <body>
 
@@ -76,6 +76,12 @@
           <span id="prodSortLabel">할인 높은순</span>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
+        <div class="filter-divider"></div>
+        <button class="filter-btn" id="prodFilterBtn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="4" y1="6" x2="20" y2="6"/><line x1="8" y1="12" x2="16" y2="12"/><line x1="11" y1="18" x2="13" y2="18"/></svg>
+          <span>필터</span>
+          <span class="filter-count hidden" id="prodFilterCount">0</span>
+        </button>
       </div>
     </div>
     <div class="prod-cat-row" id="prodCatRow"></div>
@@ -116,6 +122,44 @@
     <button class="sort-option" data-sort="price_asc">가격 낮은순</button>
     <button class="sort-option" data-sort="price_desc">가격 높은순</button>
     <button class="sort-option" data-sort="name">이름순</button>
+  </div>
+
+  <!-- 상품 필터 시트 -->
+  <div class="filter-sheet hidden" id="prodFilterSheet">
+    <div class="sheet-handle"></div>
+    <div class="sheet-header">
+      <span class="sheet-title">상품 필터</span>
+      <button class="sheet-close" id="prodFilterSheetClose">✕</button>
+    </div>
+    <div class="filter-sheet-body">
+      <div class="filter-section">
+        <div class="filter-group-title">브랜드</div>
+        <div class="filter-group" id="prodBrandFilterGroup"></div>
+      </div>
+      <div class="filter-section">
+        <div class="filter-group-title">가격대</div>
+        <div class="filter-group" id="prodPriceGroup">
+          <label class="filter-sheet-item checked"><input type="radio" name="prodPrice" class="prod-price-rb" value="all" checked /><span>전체</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodPrice" class="prod-price-rb" value="u30000" /><span>3만원 이하</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodPrice" class="prod-price-rb" value="u50000" /><span>5만원 이하</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodPrice" class="prod-price-rb" value="u100000" /><span>10만원 이하</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodPrice" class="prod-price-rb" value="o100000" /><span>10만원 이상</span></label>
+        </div>
+      </div>
+      <div class="filter-section">
+        <div class="filter-group-title">할인율</div>
+        <div class="filter-group" id="prodDiscountGroup">
+          <label class="filter-sheet-item checked"><input type="radio" name="prodDiscount" class="prod-disc-rb" value="0" checked /><span>전체</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodDiscount" class="prod-disc-rb" value="10" /><span>10% 이상</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodDiscount" class="prod-disc-rb" value="30" /><span>30% 이상</span></label>
+          <label class="filter-sheet-item"><input type="radio" name="prodDiscount" class="prod-disc-rb" value="50" /><span>50% 이상</span></label>
+        </div>
+      </div>
+    </div>
+    <div class="filter-sheet-footer">
+      <button class="filter-reset-btn" id="prodFilterReset">초기화</button>
+      <button class="filter-apply-btn" id="prodFilterApply">적용하기</button>
+    </div>
   </div>
 
   <!-- 필터 시트 -->
@@ -215,6 +259,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="script.js?v=20260419"></script>
+  <script src="script.js?v=20260421"></script>
 </body>
 </html>
