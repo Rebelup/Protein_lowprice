@@ -2,6 +2,7 @@
 
 const SUPABASE_URL = 'https://myficrjdmqbtsgmdxtiu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15ZmljcmpkbXFidHNnbWR4dGl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODY4OTEsImV4cCI6MjA5MTU2Mjg5MX0.G2-_UEqO12SqxELdkZScvrdcYBNPW1gusEBA0ZW6smc';
+const ADMIN_EMAIL = 'fightingman012@gmail.com';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const $ = (id) => document.getElementById(id);
@@ -14,6 +15,20 @@ const discPct = (p) => p.original_price > p.sale_price ? Math.round((1 - p.sale_
 const thumbHtml = (src, fallback) => src
   ? `<img src="${esc(src)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${fallback}'}))">`
   : fallback;
+const pad2 = (n) => String(n).padStart(2, '0');
+const isoToDtLocal = (v) => {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}T${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
+const dtLocalToISO = (v) => { if (!v) return null; const d = new Date(v); return isNaN(d) ? null : d.toISOString(); };
+const fmtDt = (v) => {
+  if (!v) return '';
+  const d = new Date(v);
+  if (isNaN(d)) return '';
+  return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+};
 
 let EVENTS = [], PRODUCTS = [], BRANDS = [];
 let CATS = [[], [], [], []];
@@ -69,7 +84,7 @@ function renderEventList() {
   for (const id of [...selected]) if (!EVENTS.find((e) => e.id === id)) selected.delete(id);
   if (!EVENTS.length) { box.innerHTML = '<div class="admin-row-empty">등록된 이벤트가 없습니다.</div>'; updateBulk('bulk', selected, EVENTS.length); return; }
   box.innerHTML = EVENTS.map((e) => {
-    const period = [e.start_date, e.end_date].filter(Boolean).join(' ~ ') || '상시';
+    const period = [fmtDt(e.start_date), fmtDt(e.end_date)].filter(Boolean).join(' ~ ') || '상시';
     return `<div class="admin-row ${e.id === editingId ? 'active' : ''}" data-id="${e.id}">
       <input type="checkbox" class="admin-row-check" data-id="${e.id}" ${selected.has(e.id) ? 'checked' : ''} />
       <div class="admin-row-thumb">${thumbHtml(e.thumbnail, '🏷️')}</div>
@@ -114,6 +129,7 @@ function fillEventForm(e) {
   $('fId').value = e?.id ?? '';
   EVENT_FIELDS.forEach(([id, key]) => {
     if (id === 'fBrand' || id === 'fBrandLabel') return;
+    if (id === 'fStart' || id === 'fEnd') { $(id).value = isoToDtLocal(e?.[key]); return; }
     $(id).value = e?.[key] ?? (id === 'fDiscount' ? 0 : '');
   });
   $('fBrand').value = e?.brand ?? '';
@@ -160,7 +176,7 @@ const renderEventPicker = (q) => renderPicker(q, {
   boxId: 'eventPicker', countId: 'linkedEventCount',
   items: EVENTS, linked: linkedEvents, attr: 'data-eid',
   searchText: (e) => e.name + ' ' + (e.brand_label || e.brand),
-  rowMeta: (e) => `${esc(e.brand_label || e.brand)} · ${esc([e.start_date, e.end_date].filter(Boolean).join(' ~ ') || '상시')}`,
+  rowMeta: (e) => `${esc(e.brand_label || e.brand)} · ${esc([fmtDt(e.start_date), fmtDt(e.end_date)].filter(Boolean).join(' ~ ') || '상시')}`,
   emptyMsg: '이벤트가 없습니다.', fallback: '🏷️',
 });
 
@@ -168,6 +184,7 @@ function collectEventForm() {
   const payload = {};
   EVENT_FIELDS.forEach(([id, key]) => {
     const v = $(id).value.trim();
+    if (id === 'fStart' || id === 'fEnd') { payload[key] = dtLocalToISO(v); return; }
     payload[key] = v === '' ? null : (key === 'discount_pct' ? +v : v);
   });
   payload.active = $('fActive').value === 'true';
@@ -384,12 +401,12 @@ function switchAdminTab(tab) {
   $('adminProductsTab').classList.toggle('hidden', tab !== 'products');
 }
 
-function renderGate() {
+function renderGate(forbidden = false) {
   document.querySelector('main').innerHTML = `
     <div class="admin-gate">
-      <h2>🔒 로그인이 필요합니다</h2>
-      <p>관리는 로그인한 사용자만 접근할 수 있습니다.</p>
-      <button class="admin-primary" id="gateLogin">로그인 페이지로</button>
+      <h2>${forbidden ? '⛔ 접근 권한이 없습니다' : '🔒 로그인이 필요합니다'}</h2>
+      <p>${forbidden ? '관리자 계정으로만 접근할 수 있습니다.' : '관리는 로그인한 사용자만 접근할 수 있습니다.'}</p>
+      <button class="admin-primary" id="gateLogin">${forbidden ? '홈으로' : '로그인 페이지로'}</button>
     </div>`;
   $('gateLogin').addEventListener('click', () => (location.href = 'index.html'));
 }
@@ -417,7 +434,8 @@ async function init() {
   const mainEl = document.querySelector('main');
   const { data } = await db.auth.getSession();
   mainEl.style.visibility = '';
-  if (!data.session) { renderGate(); return; }
+  if (!data.session) { renderGate(false); return; }
+  if (data.session.user.email !== ADMIN_EMAIL) { renderGate(true); return; }
 
   $('adminLogin').textContent = data.session.user.email || '로그인됨';
   $('adminLogin').addEventListener('click', async () => { await db.auth.signOut(); location.href = 'index.html'; });

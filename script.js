@@ -2,6 +2,7 @@
 
 const SUPABASE_URL      = 'https://myficrjdmqbtsgmdxtiu.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15ZmljcmpkbXFidHNnbWR4dGl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODY4OTEsImV4cCI6MjA5MTU2Mjg5MX0.G2-_UEqO12SqxELdkZScvrdcYBNPW1gusEBA0ZW6smc';
+const ADMIN_EMAIL = 'fightingman012@gmail.com';
 const db = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let EVENTS = [], PRODUCTS = [], ALL_BRANDS = [], ALL_TYPES = [], ALL_CAT1 = [], ALL_CAT2 = [];
@@ -18,15 +19,22 @@ const ESC_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&
 const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ESC_MAP[c]);
 const safeUrl = (u) => { try { const p = new URL(u); return /^https?:$/.test(p.protocol) ? u : '#'; } catch { return '#'; } };
 const debounce = (fn, ms) => { let t; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms); }; };
-const todayISO = () => new Date().toISOString().slice(0, 10);
+const pad2 = (n) => String(n).padStart(2, '0');
 const daysUntil = (d) => { if (!d) return Infinity; const t = new Date(); t.setHours(0, 0, 0, 0); return Math.ceil((new Date(d) - t) / 86400000); };
-const fmtDate = (d) => d ? d.replaceAll('-', '.') : '';
+const fmtDate = (d) => {
+  if (!d) return '';
+  const dt = new Date(d);
+  if (isNaN(dt)) return '';
+  const base = `${dt.getFullYear()}.${pad2(dt.getMonth() + 1)}.${pad2(dt.getDate())}`;
+  const hm = dt.getHours() || dt.getMinutes() ? ` ${pad2(dt.getHours())}:${pad2(dt.getMinutes())}` : '';
+  return base + hm;
+};
 
 const STATUS_LABEL = { ongoing: '진행중', ending: '종료임박', upcoming: '예정', ended: '종료' };
 function eventStatus(e) {
-  const t = todayISO();
-  if (e.startDate && e.startDate > t) return 'upcoming';
-  if ((e.endDate && e.endDate < t) || !e.active) return 'ended';
+  const now = Date.now();
+  if (e.startDate && new Date(e.startDate).getTime() > now) return 'upcoming';
+  if ((e.endDate && new Date(e.endDate).getTime() < now) || !e.active) return 'ended';
   const left = daysUntil(e.endDate);
   return (left <= 7 && left >= 0) ? 'ending' : 'ongoing';
 }
@@ -538,6 +546,7 @@ function openUserSheet() {
   const initial = name.charAt(0).toUpperCase();
   $('userSheetName').textContent = name;
   $('userSheetEmail').textContent = currentUser.email || '';
+  $('userAdminBtn').classList.toggle('hidden', currentUser.email !== ADMIN_EMAIL);
   const av = $('userAvatar');
   av.textContent = '';
   if (photo) {
