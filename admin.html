@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>관리자</title>
+  <link rel="stylesheet" href="style.css?v=20260418" />
+  <link rel="stylesheet" href="admin.css?v=20260418" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="admin-back">← 목록</a>
+      <div class="admin-title">관리자</div>
+      <button class="auth-btn" id="adminLogin">로그인</button>
+    </div>
+  </header>
+
+  <nav class="admin-tab-bar">
+    <button class="admin-tab active" data-tab="events">이벤트</button>
+    <button class="admin-tab" data-tab="products">상품</button>
+  </nav>
+
+  <main class="admin-main" style="visibility:hidden">
+
+    <!-- ===== 이벤트 탭 ===== -->
+    <div id="adminEventsTab">
+      <section class="admin-panel">
+        <div class="admin-panel-head">
+          <h2 id="adminFormTitle">새 이벤트 등록</h2>
+          <button class="admin-ghost" id="adminReset">초기화</button>
+        </div>
+        <form id="adminForm" class="admin-form" autocomplete="off">
+          <input type="hidden" id="fId" />
+
+          <div class="admin-field">
+            <span>브랜드 <em>*</em></span>
+            <div class="admin-field-inline">
+              <select id="fBrand" required>
+                <option value="">브랜드 선택</option>
+              </select>
+              <button type="button" class="admin-ghost" id="addBrandBtn">+ 새 브랜드</button>
+            </div>
+            <input type="hidden" id="fBrandLabel" />
+          </div>
+
+          <label class="admin-field">
+            <span>이벤트 이름 <em>*</em></span>
+            <input type="text" id="fName" required />
+          </label>
+
+          <label class="admin-field">
+            <span>썸네일 이미지 URL</span>
+            <input type="url" id="fThumbnail" placeholder="https://..." />
+          </label>
+
+          <label class="admin-field">
+            <span>짧은 설명</span>
+            <textarea id="fDescription" rows="2"></textarea>
+          </label>
+
+          <div class="admin-field-row">
+            <label class="admin-field">
+              <span>할인율 (%)</span>
+              <input type="number" id="fDiscount" min="0" max="100" value="0" />
+            </label>
+            <label class="admin-field">
+              <span>활성</span>
+              <select id="fActive">
+                <option value="true">활성</option>
+                <option value="false">비활성</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="admin-field-row">
+            <label class="admin-field">
+              <span>시작일</span>
+              <input type="date" id="fStart" />
+            </label>
+            <label class="admin-field">
+              <span>종료일</span>
+              <input type="date" id="fEnd" />
+            </label>
+          </div>
+
+          <label class="admin-field">
+            <span>이벤트 링크</span>
+            <input type="url" id="fLink" placeholder="https://..." />
+          </label>
+
+          <label class="admin-field">
+            <span>쿠폰 코드</span>
+            <input type="text" id="fCouponCode" />
+          </label>
+
+          <label class="admin-field">
+            <span>쿠폰 안내</span>
+            <input type="text" id="fCouponNote" />
+          </label>
+
+          <label class="admin-field">
+            <span>조건 (줄바꿈으로 구분)</span>
+            <textarea id="fConditions" rows="3" placeholder="조건 1&#10;조건 2"></textarea>
+          </label>
+
+          <label class="admin-field">
+            <span>참여 방법 (줄바꿈으로 구분)</span>
+            <textarea id="fHowTo" rows="3"></textarea>
+          </label>
+
+          <!-- 관련 상품 -->
+          <div class="admin-field">
+            <span>관련 상품 <small id="linkedCount"></small></span>
+            <input type="text" id="prodSearch" placeholder="상품명/브랜드 검색..." style="margin-bottom:6px" />
+            <div class="admin-prod-picker" id="prodPicker"></div>
+          </div>
+
+          <div id="adminMsg" class="admin-msg hidden"></div>
+
+          <div class="admin-actions">
+            <button type="submit" class="admin-primary" id="adminSave">저장</button>
+            <button type="button" class="admin-danger hidden" id="adminDelete">삭제</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="admin-panel">
+        <div class="admin-panel-head">
+          <h2>등록된 이벤트</h2>
+          <span class="admin-count" id="adminCount">0</span>
+        </div>
+        <div class="admin-bulk-bar">
+          <label class="admin-check-wrap">
+            <input type="checkbox" id="bulkCheckAll" />
+            <span>전체 선택</span>
+          </label>
+          <span class="admin-selected" id="bulkSelected">0개 선택</span>
+          <button type="button" class="admin-danger" id="bulkDelete" disabled>선택 삭제</button>
+        </div>
+        <div class="admin-list" id="adminList"></div>
+      </section>
+    </div>
+
+    <!-- ===== 상품 탭 ===== -->
+    <div id="adminProductsTab" class="hidden">
+      <section class="admin-panel">
+        <div class="admin-panel-head">
+          <h2 id="prodFormTitle">새 상품 등록</h2>
+          <button class="admin-ghost" id="prodReset">초기화</button>
+        </div>
+        <form id="prodForm" class="admin-form" autocomplete="off">
+          <input type="hidden" id="pId" />
+
+          <label class="admin-field">
+            <span>상품명 <em>*</em></span>
+            <input type="text" id="pName" required />
+          </label>
+
+          <div class="admin-field">
+            <span>브랜드 <em>*</em></span>
+            <div class="admin-field-inline">
+              <select id="pBrand" required>
+                <option value="">브랜드 선택</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="admin-field-row">
+            <label class="admin-field">
+              <span>스토어명</span>
+              <input type="text" id="pStore" placeholder="예: BSN 공식몰" />
+            </label>
+            <label class="admin-field">
+              <span>이모지</span>
+              <input type="text" id="pEmoji" placeholder="💊" maxlength="4" />
+            </label>
+          </div>
+
+          <div class="admin-field">
+            <span>카테고리 1</span>
+            <div class="admin-field-inline">
+              <select id="pCat1"><option value="">선택 안함</option></select>
+              <button type="button" class="admin-ghost" id="addCat1Btn">+ 새 추가</button>
+            </div>
+          </div>
+
+          <div class="admin-field">
+            <span>카테고리 2</span>
+            <div class="admin-field-inline">
+              <select id="pCat2"><option value="">선택 안함</option></select>
+              <button type="button" class="admin-ghost" id="addCat2Btn">+ 새 추가</button>
+            </div>
+          </div>
+
+          <div class="admin-field">
+            <span>카테고리 3</span>
+            <div class="admin-field-inline">
+              <select id="pCat3"><option value="">선택 안함</option></select>
+              <button type="button" class="admin-ghost" id="addCat3Btn">+ 새 추가</button>
+            </div>
+          </div>
+
+          <div class="admin-field">
+            <span>카테고리 4</span>
+            <div class="admin-field-inline">
+              <select id="pCat4"><option value="">선택 안함</option></select>
+              <button type="button" class="admin-ghost" id="addCat4Btn">+ 새 추가</button>
+            </div>
+          </div>
+
+          <label class="admin-field">
+            <span>썸네일 URL</span>
+            <input type="url" id="pThumbnail" placeholder="https://..." />
+          </label>
+
+          <div class="admin-field-row">
+            <label class="admin-field">
+              <span>정가 (원)</span>
+              <input type="number" id="pOrigPrice" min="0" />
+            </label>
+            <label class="admin-field">
+              <span>판매가 (원) <em>*</em></span>
+              <input type="number" id="pSalePrice" min="0" required />
+            </label>
+          </div>
+
+          <label class="admin-field">
+            <span>구매 링크</span>
+            <input type="url" id="pLink" placeholder="https://..." />
+          </label>
+
+          <div class="admin-field-row">
+            <label class="admin-field">
+              <span>칼로리 (kcal)</span>
+              <input type="number" id="pCalories" min="0" />
+            </label>
+            <label class="admin-field">
+              <span>1회 제공량 (g)</span>
+              <input type="number" id="pServingSize" min="0" step="0.1" />
+            </label>
+          </div>
+
+          <div class="admin-field-row">
+            <label class="admin-field">
+              <span>단백질 (g)</span>
+              <input type="number" id="pProtein" min="0" step="0.1" />
+            </label>
+            <label class="admin-field">
+              <span>탄수화물 (g)</span>
+              <input type="number" id="pCarb" min="0" step="0.1" />
+            </label>
+            <label class="admin-field">
+              <span>지방 (g)</span>
+              <input type="number" id="pFat" min="0" step="0.1" />
+            </label>
+          </div>
+
+          <div class="admin-field">
+            <span>관련 이벤트 <small id="linkedEventCount"></small></span>
+            <input type="text" id="eventSearch" placeholder="이벤트명/브랜드 검색..." style="margin-bottom:6px" />
+            <div class="admin-prod-picker" id="eventPicker"></div>
+          </div>
+
+          <div id="prodMsg" class="admin-msg hidden"></div>
+
+          <div class="admin-actions">
+            <button type="submit" class="admin-primary" id="prodSave">저장</button>
+            <button type="button" class="admin-danger hidden" id="prodDelete">삭제</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="admin-panel">
+        <div class="admin-panel-head">
+          <h2>등록된 상품</h2>
+          <span class="admin-count" id="prodCount">0</span>
+        </div>
+        <div class="admin-bulk-bar">
+          <label class="admin-check-wrap">
+            <input type="checkbox" id="prodBulkAll" />
+            <span>전체 선택</span>
+          </label>
+          <span class="admin-selected" id="prodBulkSelected">0개 선택</span>
+          <button type="button" class="admin-danger" id="prodBulkDelete" disabled>선택 삭제</button>
+        </div>
+        <input type="text" id="prodListSearch" class="admin-list-search" placeholder="상품 검색..." />
+        <div class="admin-list" id="prodList"></div>
+      </section>
+    </div>
+
+  </main>
+
+  <!-- 옵션 추가 모달 -->
+  <div class="admin-modal-overlay hidden" id="optionModal">
+    <div class="admin-modal">
+      <div class="admin-modal-head">
+        <h3 id="optionModalTitle">새 항목 추가</h3>
+        <button type="button" class="sheet-close" id="optionModalClose">✕</button>
+      </div>
+      <div class="admin-modal-body">
+        <label class="admin-field">
+          <span>키 (영문/숫자) <em>*</em></span>
+          <input type="text" id="optKey" placeholder="예: bsn" />
+        </label>
+        <label class="admin-field">
+          <span>표시명 <em>*</em></span>
+          <input type="text" id="optLabel" placeholder="예: BSN" />
+        </label>
+        <div id="optionMsg" class="admin-msg hidden"></div>
+      </div>
+      <div class="admin-modal-foot">
+        <button type="button" class="admin-ghost" id="optionCancel">취소</button>
+        <button type="button" class="admin-primary" id="optionSave">추가</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="admin.js?v=20260418"></script>
+</body>
+</html>
