@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>이벤트 관리자</title>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="admin.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <a href="index.html" class="admin-back">← 목록</a>
+      <div class="admin-title">이벤트 관리</div>
+      <button class="auth-btn" id="adminLogin">로그인</button>
+    </div>
+  </header>
+
+  <main class="admin-main">
+    <section class="admin-panel">
+      <div class="admin-panel-head">
+        <h2 id="adminFormTitle">새 이벤트 등록</h2>
+        <button class="admin-ghost" id="adminReset">초기화</button>
+      </div>
+
+      <form id="adminForm" class="admin-form" autocomplete="off">
+        <input type="hidden" id="fId" />
+
+        <label class="admin-field">
+          <span>브랜드 키 <em>*</em></span>
+          <input type="text" id="fBrand" placeholder="예: bsn, on, myprotein" required />
+        </label>
+
+        <label class="admin-field">
+          <span>브랜드 표시명 <em>*</em></span>
+          <input type="text" id="fBrandLabel" placeholder="예: BSN" required />
+        </label>
+
+        <label class="admin-field">
+          <span>이벤트 이름 <em>*</em></span>
+          <input type="text" id="fName" required />
+        </label>
+
+        <label class="admin-field">
+          <span>썸네일 이미지 URL</span>
+          <input type="url" id="fThumbnail" placeholder="https://..." />
+        </label>
+
+        <label class="admin-field">
+          <span>짧은 설명</span>
+          <textarea id="fDescription" rows="2"></textarea>
+        </label>
+
+        <div class="admin-field-row">
+          <label class="admin-field">
+            <span>할인율 (%)</span>
+            <input type="number" id="fDiscount" min="0" max="100" value="0" />
+          </label>
+          <label class="admin-field">
+            <span>활성</span>
+            <select id="fActive">
+              <option value="true">활성</option>
+              <option value="false">비활성</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="admin-field-row">
+          <label class="admin-field">
+            <span>시작일</span>
+            <input type="date" id="fStart" />
+          </label>
+          <label class="admin-field">
+            <span>종료일</span>
+            <input type="date" id="fEnd" />
+          </label>
+        </div>
+
+        <label class="admin-field">
+          <span>이벤트 링크</span>
+          <input type="url" id="fLink" placeholder="https://..." />
+        </label>
+
+        <label class="admin-field">
+          <span>쿠폰 코드</span>
+          <input type="text" id="fCouponCode" />
+        </label>
+
+        <label class="admin-field">
+          <span>쿠폰 안내</span>
+          <input type="text" id="fCouponNote" />
+        </label>
+
+        <label class="admin-field">
+          <span>조건 (줄바꿈으로 구분)</span>
+          <textarea id="fConditions" rows="3" placeholder="조건 1&#10;조건 2"></textarea>
+        </label>
+
+        <label class="admin-field">
+          <span>참여 방법 (줄바꿈으로 구분)</span>
+          <textarea id="fHowTo" rows="3"></textarea>
+        </label>
+
+        <label class="admin-field">
+          <span>상품 유형 (쉼표로 구분)</span>
+          <input type="text" id="fProductTypes" placeholder="예: protein,creatine" />
+        </label>
+
+        <div id="adminMsg" class="admin-msg hidden"></div>
+
+        <div class="admin-actions">
+          <button type="submit" class="admin-primary" id="adminSave">저장</button>
+          <button type="button" class="admin-danger hidden" id="adminDelete">삭제</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="admin-panel">
+      <div class="admin-panel-head">
+        <h2>등록된 이벤트</h2>
+        <span class="admin-count" id="adminCount">0</span>
+      </div>
+      <div class="admin-list" id="adminList"></div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="admin.js"></script>
+</body>
+</html>
