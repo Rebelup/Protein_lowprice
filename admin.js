@@ -15,11 +15,10 @@ const thumbHtml = (src, fallback) => src
   ? `<img src="${esc(src)}" alt="" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'${fallback}'}))">`
   : fallback;
 
-let EVENTS = [], PRODUCTS = [], BRANDS = [], TYPES = [];
+let EVENTS = [], PRODUCTS = [], BRANDS = [];
 let CATS = [[], [], [], []]; // cat1..cat4
 let editingId = null, prodEditingId = null, optionModalKind = null;
 const selected = new Set();
-const selectedTypes = new Set();
 const linkedProducts = new Set();
 const prodSelected = new Set();
 
@@ -28,22 +27,11 @@ async function loadOptions() {
   const { data } = await db.from('filter_options').select('*').order('sort_order').order('id');
   const rows = data || [];
   BRANDS = rows.filter((r) => r.type === 'brand');
-  TYPES = rows.filter((r) => r.type === 'category');
   CATS = [1, 2, 3, 4].map((n) => rows.filter((r) => r.type === `cat${n}`));
   renderBrandSelect('fBrand'); renderBrandSelect('pBrand');
-  renderTypeChips('fProductTypes', selectedTypes);
-  renderProductTypeSelect();
   [1, 2, 3, 4].forEach(renderCatSelect);
 }
 
-function renderProductTypeSelect() {
-  const sel = $('pProductType');
-  if (!sel) return;
-  const cur = sel.value;
-  sel.innerHTML = '<option value="">선택 안함</option>'
-    + TYPES.map((t) => `<option value="${esc(t.value)}">${esc(t.label)}</option>`).join('');
-  if (cur && TYPES.find((t) => t.value === cur)) sel.value = cur;
-}
 
 function renderCatSelect(n) {
   const sel = $(`pCat${n}`);
@@ -67,12 +55,6 @@ function syncBrandLabel() {
   $('fBrandLabel').value = sel.options[sel.selectedIndex]?.dataset.label || '';
 }
 
-function renderTypeChips(targetId, set) {
-  $(targetId).innerHTML = TYPES.map((t) => `
-    <label class="admin-chip-item ${set.has(t.value) ? 'checked' : ''}" data-value="${esc(t.value)}">
-      <input type="checkbox" ${set.has(t.value) ? 'checked' : ''} /><span>${esc(t.label)}</span>
-    </label>`).join('');
-}
 
 // ─── EVENTS ──────────────────────────────────────────────
 async function loadEvents() {
@@ -140,9 +122,6 @@ function fillEventForm(e) {
   $('fActive').value = e?.active === false ? 'false' : 'true';
   $('fConditions').value = arrToLines(e?.conditions);
   $('fHowTo').value = arrToLines(e?.how_to);
-  selectedTypes.clear();
-  (e?.product_types || []).forEach((t) => selectedTypes.add(t));
-  renderTypeChips('fProductTypes', selectedTypes);
   linkedProducts.clear();
   (e?.product_ids || []).forEach((id) => linkedProducts.add(id));
   $('prodSearch').value = '';
@@ -183,7 +162,6 @@ function collectEventForm() {
   payload.active = $('fActive').value === 'true';
   payload.conditions = linesToArr($('fConditions').value);
   payload.how_to = linesToArr($('fHowTo').value);
-  payload.product_types = [...selectedTypes];
   payload.product_ids = [...linkedProducts];
   return payload;
 }
@@ -254,7 +232,6 @@ function fillProdForm(p) {
   $('pOrigPrice').value = p?.original_price ?? '';
   $('pSalePrice').value = p?.sale_price ?? '';
   $('pLink').value = p?.link ?? '';
-  $('pProductType').value = p?.product_type ?? '';
   [1, 2, 3, 4].forEach((n) => { $(`pCat${n}`).value = p?.[`category${n}`] ?? ''; });
   $('prodFormTitle').textContent = p ? `상품 #${p.id} 수정` : '새 상품 등록';
   $('prodDelete').classList.toggle('hidden', !p);
@@ -270,7 +247,6 @@ async function saveProd(ev) {
     name, brand,
     store: $('pStore').value.trim() || brand,
     emoji: $('pEmoji').value.trim() || '💊',
-    product_type: $('pProductType').value || null,
     category1: $('pCat1').value || null,
     category2: $('pCat2').value || null,
     category3: $('pCat3').value || null,
@@ -332,7 +308,7 @@ async function saveOption() {
   if (error) return setErr(error.message);
   await loadOptions();
   if (optionModalKind === 'brand') { $('fBrand').value = key; syncBrandLabel(); }
-  else if (optionModalKind === 'type') { selectedTypes.add(key); renderTypeChips('fProductTypes', selectedTypes); renderProductTypeSelect(); $('pProductType').value = key; }
+  else if (optionModalKind === 'type') { /* type 추가 후 별도 처리 없음 */ }
   else if (/^cat[1-4]$/.test(optionModalKind)) { const n = +optionModalKind[3]; renderCatSelect(n); $(`pCat${n}`).value = key; }
   closeOptionModal();
   showMsg('adminMsg', '추가되었습니다.');
@@ -363,23 +339,6 @@ function renderGate() {
   $('gateLogin').addEventListener('click', () => (location.href = 'index.html'));
 }
 
-// Chip toggle handler (single-select or multi-select)
-function attachChipHandler(containerId, set, multi) {
-  $(containerId).addEventListener('click', (e) => {
-    const item = e.target.closest('.admin-chip-item');
-    if (!item) return;
-    e.preventDefault();
-    const v = item.dataset.value;
-    if (multi) {
-      if (set.has(v)) set.delete(v); else set.add(v);
-      item.querySelector('input').checked = set.has(v);
-      item.classList.toggle('checked', set.has(v));
-    } else {
-      set.clear(); set.add(v);
-      renderTypeChips(containerId, set);
-    }
-  });
-}
 
 // List row click/check handler factory
 function attachListHandler(listId, items, selSet, fill, updateFn) {
@@ -415,8 +374,6 @@ async function init() {
   $('adminReset').addEventListener('click', () => fillEventForm(null));
   $('adminDelete').addEventListener('click', deleteEvent);
   $('fBrand').addEventListener('change', syncBrandLabel);
-  attachChipHandler('fProductTypes', selectedTypes, true);
-
   // Product picker
   $('prodSearch').addEventListener('input', (e) => renderProdPicker(e.target.value));
   $('prodPicker').addEventListener('change', (e) => {
@@ -442,7 +399,6 @@ async function init() {
 
   // Brand/type modals
   $('addBrandBtn').addEventListener('click', () => openOptionModal('brand'));
-  $('addTypeBtn').addEventListener('click', () => openOptionModal('type'));
   $('optionModalClose').addEventListener('click', closeOptionModal);
   $('optionCancel').addEventListener('click', closeOptionModal);
   $('optionSave').addEventListener('click', saveOption);
@@ -453,7 +409,6 @@ async function init() {
   $('prodForm').addEventListener('submit', saveProd);
   $('prodReset').addEventListener('click', () => fillProdForm(null));
   $('prodDelete').addEventListener('click', deleteProd);
-  $('addProdTypeBtn').addEventListener('click', () => openOptionModal('type'));
   [1, 2, 3, 4].forEach((n) => $(`addCat${n}Btn`).addEventListener('click', () => openOptionModal(`cat${n}`)));
 
   // Product list

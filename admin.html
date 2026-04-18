@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260424" />
-  <link rel="stylesheet" href="admin.css?v=20260424" />
+  <link rel="stylesheet" href="style.css?v=20260425" />
+  <link rel="stylesheet" href="admin.css?v=20260425" />
 </head>
 <body>
   <header class="site-header">
@@ -109,14 +109,6 @@
             <textarea id="fHowTo" rows="3"></textarea>
           </label>
 
-          <div class="admin-field">
-            <span>상품 유형</span>
-            <div class="admin-field-inline">
-              <div class="admin-chip-list" id="fProductTypes"></div>
-              <button type="button" class="admin-ghost" id="addTypeBtn">+ 새 상품유형</button>
-            </div>
-          </div>
-
           <!-- 관련 상품 -->
           <div class="admin-field">
             <span>관련 상품 <small id="linkedCount"></small></span>
@@ -171,16 +163,6 @@
               <select id="pBrand" required>
                 <option value="">브랜드 선택</option>
               </select>
-            </div>
-          </div>
-
-          <div class="admin-field">
-            <span>상품유형</span>
-            <div class="admin-field-inline">
-              <select id="pProductType">
-                <option value="">선택 안함</option>
-              </select>
-              <button type="button" class="admin-ghost" id="addProdTypeBtn">+ 새 추가</button>
             </div>
           </div>
 
@@ -303,6 +285,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260424"></script>
+  <script src="admin.js?v=20260425"></script>
 </body>
 </html>
