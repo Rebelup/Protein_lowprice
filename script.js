@@ -550,8 +550,8 @@ function renderProductPage(p) {
     }
     cardHtml += `<div class="pp-opt-card-row">
       <div class="pp-opt-card-label-left">
-        <span class="pp-opt-card-label">판매가</span>
         ${discOrig > 0 ? `<span class="pp-opt-card-badge">-${discOrig}%</span>` : ''}
+        <span class="pp-opt-card-label">판매가</span>
       </div>
       <span class="pp-opt-card-price">${fmtPrice(basePrice)}</span>
     </div>`;
@@ -602,15 +602,18 @@ function renderProductPage(p) {
           let cardHtml = '';
           if (skuPrice) {
             const discPctOpt = sku.origPrice > sku.price ? Math.round((1 - sku.price / sku.origPrice) * 100) : 0;
+            if (sku.origPrice && sku.origPrice > sku.price) {
+              cardHtml += `<div class="pp-opt-card-row">
+                <span class="pp-opt-card-label pp-opt-card-label--muted">정가</span>
+                <span class="pp-opt-card-orig">${fmtPrice(sku.origPrice)}</span>
+              </div>`;
+            }
             cardHtml += `<div class="pp-opt-card-row">
               <div class="pp-opt-card-label-left">
-                <span class="pp-opt-card-label">선택된 옵션 가격</span>
                 ${discPctOpt > 0 ? `<span class="pp-opt-card-badge">-${discPctOpt}%</span>` : ''}
+                <span class="pp-opt-card-label">판매가</span>
               </div>
-              <div class="pp-opt-card-price-right">
-                ${discPctOpt > 0 ? `<span class="pp-opt-card-orig">${fmtPrice(sku.origPrice)}</span>` : ''}
-                <span class="pp-opt-card-price">${fmtPrice(sku.price)}</span>
-              </div>
+              <span class="pp-opt-card-price">${fmtPrice(sku.price)}</span>
             </div>`;
           } else {
             cardHtml += `<div class="pp-opt-card-row">
