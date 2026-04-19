@@ -442,6 +442,7 @@ function renderOptionGroups() {
   if (!currentOptions.length) {
     c.innerHTML = '<div class="admin-option-empty">옵션 없음 (맛, 용량 등을 추가하세요)</div>';
     $('skuSection').classList.add('hidden');
+    toggleBasePriceFields(false);
     return;
   }
   c.innerHTML = currentOptions.map((g, gi) => `
@@ -467,6 +468,19 @@ function renderOptionGroups() {
   });
   $('skuSection').classList.remove('hidden');
   renderSkuTable();
+  toggleBasePriceFields(true);
+}
+
+function toggleBasePriceFields(hasOptions) {
+  const origField = $('pOrigPrice').closest('label') || $('pOrigPrice').parentElement;
+  const saleField = $('pSalePrice').closest('label') || $('pSalePrice').parentElement;
+  $('pOrigPrice').disabled = hasOptions;
+  $('pSalePrice').disabled = hasOptions;
+  $('pSalePrice').required = !hasOptions;
+  origField.style.opacity = hasOptions ? '0.4' : '';
+  saleField.style.opacity = hasOptions ? '0.4' : '';
+  const hint = $('basePriceHint');
+  if (hint) hint.classList.toggle('hidden', !hasOptions);
 }
 
 function renderSkuTable() {

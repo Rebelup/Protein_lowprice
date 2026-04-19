@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260457" />
-  <link rel="stylesheet" href="admin.css?v=20260457" />
+  <link rel="stylesheet" href="style.css?v=20260459" />
+  <link rel="stylesheet" href="admin.css?v=20260459" />
 </head>
 <body>
   <header class="site-header">
@@ -261,6 +261,7 @@
               <input type="number" id="pSalePrice" min="0" required />
             </label>
           </div>
+          <div class="base-price-hint hidden" id="basePriceHint">⚡ 옵션이 설정되면 가격은 아래 조합별 가격 테이블에서 관리됩니다.</div>
 
           <label class="admin-field">
             <span>구매 링크</span>
@@ -442,6 +443,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260457"></script>
+  <script src="admin.js?v=20260459"></script>
 </body>
 </html>
