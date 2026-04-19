@@ -341,3 +341,9 @@
 .admin-option-empty-hint {
   font-size: 12px; color: var(--muted); font-style: italic;
 }
+.admin-radio-row { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 6px; }
+.admin-radio-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 13.5px; cursor: pointer;
+}
+.admin-radio-label input { accent-color: var(--blue); width: 16px; height: 16px; cursor: pointer; }

@@ -10,7 +10,7 @@ let currentUser = null, pendingLink = null;
 let brandGroup = null, typeGroup = null, prodBrandGroup = null;
 
 const state = { search: '', sort: 'discount_desc', brands: new Set(), productTypes: new Set(), period: 'all' };
-const prodState = { sort: 'discount_desc', cat1: '', cat2: '', brands: new Set(), priceRange: 'all', discountMin: 0, showEventPrice: false };
+const prodState = { sort: 'discount_desc', cat1: '', cat2: '', brands: new Set(), priceRange: 'all', discountMin: 0, showEventPrice: true };
 
 const $ = (id) => document.getElementById(id);
 const $$ = (sel, root = document) => root.querySelectorAll(sel);
@@ -79,6 +79,7 @@ async function loadEvents() {
     productIds: e.product_ids || [],
     thumbnail: e.thumbnail || '',
     combinable: e.combinable ?? false,
+    discountBase: e.discount_base || 'sale',
   }));
 }
 
@@ -112,6 +113,10 @@ function getFiltered() {
 /* ── PRODUCTS ── */
 const fmtPrice = (n) => n ? '₩' + n.toLocaleString('ko-KR') : '';
 
+function eventBasePrice(e, p) {
+  return e.discountBase === 'original' ? (p.originalPrice || p.salePrice) : p.salePrice;
+}
+
 function getBestEventPrice(p) {
   const eligible = EVENTS.filter((e) =>
     e.productIds.includes(p.id) && e.active !== false && e.discountPct &&
@@ -119,7 +124,7 @@ function getBestEventPrice(p) {
   );
   if (!eligible.length || !p.salePrice) return null;
 
-  // Option A: stack all combinable events together (if 2+)
+  // Option A: stack all combinable events (apply each discount sequentially on sale price)
   const combinable = eligible.filter((e) => e.combinable);
   let optionA = null;
   if (combinable.length >= 2) {
@@ -130,7 +135,9 @@ function getBestEventPrice(p) {
 
   // Option B: best single event
   const best = eligible.reduce((a, b) => (b.discountPct > a.discountPct ? b : a));
-  const optionB = { price: Math.round(p.salePrice * (1 - best.discountPct / 100)), pct: best.discountPct, eventName: best.name };
+  const base = eventBasePrice(best, p);
+  const evPrice = Math.round(base * (1 - best.discountPct / 100));
+  const optionB = { price: evPrice, pct: Math.round((1 - evPrice / p.salePrice) * 100), eventName: best.name };
 
   return (optionA && optionA.price < optionB.price) ? optionA : optionB;
 }
@@ -448,7 +455,8 @@ function renderProductPage(p) {
       // 이벤트 적용 시 가격
       let priceHtml = '';
       if (e.discountPct && p.salePrice) {
-        const eventPrice = Math.round(p.salePrice * (1 - e.discountPct / 100));
+        const base = eventBasePrice(e, p);
+        const eventPrice = Math.round(base * (1 - e.discountPct / 100));
         const savings = p.salePrice - eventPrice;
         priceHtml = `<div class="pp-ev-price-box">
           <div class="pp-ev-price-label">이벤트 적용 시 예상 가격</div>
@@ -1105,6 +1113,7 @@ function initListeners() {
   dragToClose($('userSheet'), $('sheetOverlay'));
   dragToClose($('loginSheet'), $('loginOverlay'));
 
+  $('evPriceToggle').classList.add('active');
   $('evPriceToggle').addEventListener('click', () => {
     prodState.showEventPrice = !prodState.showEventPrice;
     $('evPriceToggle').classList.toggle('active', prodState.showEventPrice);

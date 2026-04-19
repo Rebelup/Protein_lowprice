@@ -167,6 +167,8 @@ function fillEventForm(e) {
   syncBrandLabel();
   $('fActive').value = e?.active === false ? 'false' : 'true';
   $('fCombinable').checked = e?.combinable ?? false;
+  const base = e?.discount_base || 'sale';
+  document.querySelector(`input[name="discountBase"][value="${base}"]`).checked = true;
   $('fConditions').value = arrToLines(e?.conditions);
   $('fHowTo').value = arrToLines(e?.how_to);
   linkedProducts.clear();
@@ -222,6 +224,7 @@ function collectEventForm() {
   payload.end_date = partsToISO($('fEndDate').value, $('fEndH').value, $('fEndM').value);
   payload.active = $('fActive').value === 'true';
   payload.combinable = $('fCombinable').checked;
+  payload.discount_base = document.querySelector('input[name="discountBase"]:checked')?.value || 'sale';
   payload.conditions = linesToArr($('fConditions').value);
   payload.how_to = linesToArr($('fHowTo').value);
   payload.product_ids = [...linkedProducts];
