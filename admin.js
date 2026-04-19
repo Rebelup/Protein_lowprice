@@ -164,6 +164,7 @@ function fillEventForm(e) {
   $('fBrand').value = e?.brand ?? '';
   syncBrandLabel();
   $('fActive').value = e?.active === false ? 'false' : 'true';
+  $('fCombinable').checked = e?.combinable ?? false;
   $('fConditions').value = arrToLines(e?.conditions);
   $('fHowTo').value = arrToLines(e?.how_to);
   linkedProducts.clear();
@@ -218,6 +219,7 @@ function collectEventForm() {
   payload.start_date = partsToISO($('fStartDate').value, $('fStartH').value, $('fStartM').value);
   payload.end_date = partsToISO($('fEndDate').value, $('fEndH').value, $('fEndM').value);
   payload.active = $('fActive').value === 'true';
+  payload.combinable = $('fCombinable').checked;
   payload.conditions = linesToArr($('fConditions').value);
   payload.how_to = linesToArr($('fHowTo').value);
   payload.product_ids = [...linkedProducts];

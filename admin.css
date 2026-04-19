@@ -227,6 +227,14 @@
 .admin-gate h2 { font-size: 18px; font-weight: 800; margin-bottom: 10px; }
 .admin-gate p { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
 
+.admin-field--check {
+  flex: 0 0 auto; flex-direction: row !important;
+  align-items: center; gap: 8px !important;
+}
+.admin-field--check input[type="checkbox"] {
+  width: 20px; height: 20px; accent-color: var(--blue); cursor: pointer;
+  flex-shrink: 0; margin: 0;
+}
 .admin-time-row {
   display: flex; align-items: center; gap: 6px;
 }

@@ -76,6 +76,7 @@ async function loadEvents() {
     productTypes: e.product_types || [],
     productIds: e.product_ids || [],
     thumbnail: e.thumbnail || '',
+    combinable: e.combinable ?? false,
   }));
 }
 
@@ -115,12 +116,21 @@ function getBestEventPrice(p) {
     (eventStatus(e) === 'ongoing' || eventStatus(e) === 'ending')
   );
   if (!eligible.length || !p.salePrice) return null;
+
+  // Option A: stack all combinable events together (if 2+)
+  const combinable = eligible.filter((e) => e.combinable);
+  let optionA = null;
+  if (combinable.length >= 2) {
+    let price = p.salePrice;
+    combinable.forEach((e) => { price = Math.round(price * (1 - e.discountPct / 100)); });
+    optionA = { price, pct: Math.round((1 - price / p.salePrice) * 100), eventName: `${combinable.length}개 이벤트 중복 적용` };
+  }
+
+  // Option B: best single event
   const best = eligible.reduce((a, b) => (b.discountPct > a.discountPct ? b : a));
-  return {
-    price: Math.round(p.salePrice * (1 - best.discountPct / 100)),
-    pct: best.discountPct,
-    eventName: best.name,
-  };
+  const optionB = { price: Math.round(p.salePrice * (1 - best.discountPct / 100)), pct: best.discountPct, eventName: best.name };
+
+  return (optionA && optionA.price < optionB.price) ? optionA : optionB;
 }
 
 function renderProductCard(p) {
@@ -468,6 +478,7 @@ function renderProductPage(p) {
             <div class="pp-ev-badges">
               <span class="pp-ev-brand-tag" style="background:${esc(color)}1a;color:${esc(color)}">${esc(e.brandLabel)}</span>
               <span class="pp-ev-status-tag">${stLabel}${dd ? ' · ' + dd : ''}</span>
+              ${e.combinable ? '<span class="pp-ev-combinable-tag">중복 가능</span>' : ''}
             </div>
           </div>
           ${priceHtml}
