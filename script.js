@@ -97,7 +97,7 @@ function getFiltered() {
     return true;
   }).sort((a, b) => {
     if (state.sort === 'discount_desc') return (b.discountPct || 0) - (a.discountPct || 0);
-    if (state.sort === 'end_asc') return (a.endDate || '9999-12-31').localeCompare(b.endDate || '9999-12-31');
+    if (state.sort === 'end_asc') return (a.endDate ? new Date(a.endDate).getTime() : 32503680000000) - (b.endDate ? new Date(b.endDate).getTime() : 32503680000000);
     if (state.sort === 'name') return a.name.localeCompare(b.name, 'ko');
     return 0;
   });

@@ -35,7 +35,8 @@ const fmtDt = (v) => {
   if (!v) return '';
   const d = new Date(v);
   if (isNaN(d)) return '';
-  return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+  const hm = d.getHours() || d.getMinutes() ? ` ${pad2(d.getHours())}:${pad2(d.getMinutes())}` : '';
+  return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}${hm}`;
 };
 
 let EVENTS = [], PRODUCTS = [], BRANDS = [];
