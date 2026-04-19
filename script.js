@@ -60,6 +60,8 @@ async function loadProducts() {
     sodium: p.sodium_mg ?? null,
     sugar: p.sugar_g ?? null, saturatedFat: p.saturated_fat_g ?? null,
     transFat: p.trans_fat_g ?? null, cholesterol: p.cholesterol_mg ?? null,
+    options: p.options || [],
+    optionSkus: (p.option_skus || []).map((s) => ({ combo: s.combo || [], price: s.price || 0, origPrice: s.orig_price || 0 })),
   }));
 }
 
@@ -511,6 +513,22 @@ function renderProductPage(p) {
 
   $('ppCtaBar').innerHTML = `<a class="ep-cta" href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener noreferrer">구매하러 가기 →</a>`;
 
+  // 옵션 선택 UI
+  let optionSectionHtml = '';
+  if (p.options && p.options.length) {
+    const groupsHtml = p.options.map((g, gi) => `
+      <div class="pp-opt-group" data-gi="${gi}">
+        <div class="pp-opt-group-name">${esc(g.name)}</div>
+        <div class="pp-opt-btns">
+          ${(g.values || []).map((v) => `<button type="button" class="pp-opt-btn" data-gi="${gi}" data-val="${esc(v)}">${esc(v)}</button>`).join('')}
+        </div>
+      </div>`).join('');
+    optionSectionHtml = `<div class="pp-opt-section" id="ppOptSection">
+      ${groupsHtml}
+      <div class="pp-opt-selected-price hidden" id="ppOptPrice"></div>
+    </div>`;
+  }
+
   $('prodPageBody').innerHTML = `
     <div class="pp-hero">
       <div class="pp-hero-thumb">${thumb}</div>
@@ -520,8 +538,46 @@ function renderProductPage(p) {
         ${heroPriceHtml}
       </div>
     </div>
+    ${optionSectionHtml}
     ${tabBar}
     ${eventsSection}${nutriSection}${reviewSection}`;
+
+  // 옵션 선택 핸들러
+  if (p.options && p.options.length) {
+    const selectedVals = new Array(p.options.length).fill(null);
+    const updateOptPrice = () => {
+      const priceEl = $('ppOptPrice');
+      if (!priceEl) return;
+      if (selectedVals.some((v) => v === null)) { priceEl.classList.add('hidden'); return; }
+      const sku = p.optionSkus.find((s) => s.combo.length === selectedVals.length && s.combo.every((v, i) => v === selectedVals[i]));
+      if (sku && sku.price > 0) {
+        const discPctOpt = sku.origPrice > sku.price ? Math.round((1 - sku.price / sku.origPrice) * 100) : 0;
+        priceEl.innerHTML = `<span class="pp-opt-sel-label">선택된 옵션 가격</span>
+          ${discPctOpt > 0 ? `<span class="pp-opt-orig-price">${fmtPrice(sku.origPrice)}</span>` : ''}
+          <span class="pp-opt-price">${fmtPrice(sku.price)}</span>
+          ${discPctOpt > 0 ? `<span class="pp-opt-save-badge">-${discPctOpt}%</span>` : ''}`;
+        priceEl.classList.remove('hidden');
+      } else {
+        priceEl.innerHTML = `<span class="pp-opt-sel-label">가격 정보 없음</span>`;
+        priceEl.classList.remove('hidden');
+      }
+    };
+    $('prodPageBody').addEventListener('click', (e) => {
+      const btn = e.target.closest('.pp-opt-btn');
+      if (!btn) return;
+      const gi = +btn.dataset.gi;
+      const val = btn.dataset.val;
+      const group = $('prodPageBody').querySelector(`.pp-opt-group[data-gi="${gi}"]`);
+      group.querySelectorAll('.pp-opt-btn').forEach((b) => b.classList.remove('active'));
+      if (selectedVals[gi] === val) {
+        selectedVals[gi] = null;
+      } else {
+        btn.classList.add('active');
+        selectedVals[gi] = val;
+      }
+      updateOptPrice();
+    });
+  }
 
   $('prodPageBody').querySelectorAll('.pp-inner-tab').forEach((tab) => {
     tab.addEventListener('click', () => {

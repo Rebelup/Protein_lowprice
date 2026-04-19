@@ -61,6 +61,8 @@ const selected = new Set();
 const linkedProducts = new Set();
 const linkedEvents = new Set();
 const prodSelected = new Set();
+let currentOptions = []; // [{name, values:[]}] max 3
+let currentSkus = [];    // [{combo:[], price:0, origPrice:0}]
 
 // ─── filter_options ──────────────────────────────────────
 async function loadOptions() {
@@ -303,6 +305,9 @@ function fillProdForm(p) {
   $('pTransFat').value = p?.trans_fat_g ?? '';
   $('pCholesterol').value = p?.cholesterol_mg ?? '';
   [1, 2, 3, 4].forEach((n) => { $(`pCat${n}`).value = p?.[`category${n}`] ?? ''; });
+  currentOptions = JSON.parse(JSON.stringify(p?.options || []));
+  currentSkus = (p?.option_skus || []).map((s) => ({ combo: [...(s.combo || [])], price: s.price || 0, origPrice: s.orig_price || 0 }));
+  renderOptionGroups();
   linkedEvents.clear();
   if (p?.id) EVENTS.filter((e) => (e.product_ids || []).includes(p.id)).forEach((e) => linkedEvents.add(e.id));
   $('eventSearch').value = '';
@@ -341,6 +346,9 @@ async function saveProd(ev) {
     cholesterol_mg: +$('pCholesterol').value || null,
     updated_at: new Date().toISOString(),
   };
+  syncOptionsFromDOM();
+  payload.options = currentOptions.filter((g) => g.name && g.values.filter(Boolean).length);
+  payload.option_skus = currentSkus.filter((s) => s.price > 0).map((s) => ({ combo: s.combo, price: s.price, orig_price: s.origPrice || 0 }));
   const btn = $('prodSave');
   btn.disabled = true; btn.textContent = '저장 중...';
   const existingId = $('pId').value;
@@ -391,6 +399,85 @@ async function deleteProd() {
   showMsg('prodMsg', '삭제되었습니다.');
   fillProdForm(null);
   await loadProducts();
+}
+
+// ─── PRODUCT OPTIONS ──────────────────────────────────────
+function syncOptionsFromDOM() {
+  document.querySelectorAll('.option-name-input').forEach((inp) => {
+    const gi = +inp.dataset.gi;
+    if (currentOptions[gi]) currentOptions[gi].name = inp.value.trim();
+  });
+  document.querySelectorAll('.sku-combo-sel').forEach((sel) => {
+    const si = +sel.dataset.si, ci = +sel.dataset.ci;
+    if (currentSkus[si]) currentSkus[si].combo[ci] = sel.value;
+  });
+  document.querySelectorAll('.sku-price').forEach((inp) => {
+    const si = +inp.dataset.si;
+    if (currentSkus[si]) currentSkus[si].price = +inp.value || 0;
+  });
+  document.querySelectorAll('.sku-orig').forEach((inp) => {
+    const si = +inp.dataset.si;
+    if (currentSkus[si]) currentSkus[si].origPrice = +inp.value || 0;
+  });
+}
+
+function renderOptionGroups() {
+  const c = $('optionGroupsContainer');
+  $('addOptionGroupBtn').disabled = currentOptions.length >= 3;
+  if (!currentOptions.length) {
+    c.innerHTML = '<div class="admin-option-empty">옵션 없음 (맛, 용량 등을 추가하세요)</div>';
+    $('skuSection').classList.add('hidden');
+    return;
+  }
+  c.innerHTML = currentOptions.map((g, gi) => `
+    <div class="admin-option-group">
+      <div class="admin-option-group-row">
+        <input type="text" class="admin-input-sm option-name-input" data-gi="${gi}" value="${esc(g.name)}" placeholder="옵션명 (예: 맛)" />
+        <button type="button" class="admin-ghost option-group-del" data-gi="${gi}">삭제</button>
+      </div>
+      <div class="admin-option-vals">
+        ${g.values.map((v, vi) => `<span class="admin-opt-chip">${esc(v)}<button type="button" class="opt-chip-del" data-gi="${gi}" data-vi="${vi}">✕</button></span>`).join('')}
+        <input type="text" class="admin-input-sm admin-opt-val-new" data-gi="${gi}" placeholder="값 입력 후 Enter" style="width:130px" />
+      </div>
+    </div>`).join('');
+  $('skuSection').classList.remove('hidden');
+  renderSkuTable();
+}
+
+function renderSkuTable() {
+  const c = $('skuTableContainer');
+  if (!currentSkus.length) {
+    c.innerHTML = '<div class="admin-option-empty">조합별 가격을 추가하거나 "자동 생성"을 눌러주세요.</div>';
+    return;
+  }
+  const headers = currentOptions.map((g) => esc(g.name || '?'));
+  c.innerHTML = `<div class="admin-sku-wrap"><table class="admin-sku-table">
+    <thead><tr>${headers.map((h) => `<th>${h}</th>`).join('')}<th>판매가</th><th>정가</th><th></th></tr></thead>
+    <tbody>${currentSkus.map((sku, si) => `<tr>
+      ${currentOptions.map((g, ci) => `<td><select class="admin-input-sm sku-combo-sel" data-si="${si}" data-ci="${ci}">
+        <option value="">선택</option>
+        ${g.values.map((v) => `<option value="${esc(v)}" ${sku.combo[ci] === v ? 'selected' : ''}>${esc(v)}</option>`).join('')}
+      </select></td>`).join('')}
+      <td><input type="number" class="admin-input-sm sku-price" data-si="${si}" value="${sku.price || ''}" placeholder="판매가" style="width:90px" /></td>
+      <td><input type="number" class="admin-input-sm sku-orig" data-si="${si}" value="${sku.origPrice || ''}" placeholder="정가" style="width:90px" /></td>
+      <td><button type="button" class="admin-ghost sku-del-btn" data-si="${si}">✕</button></td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+
+function generateAllCombinations() {
+  syncOptionsFromDOM();
+  const groups = currentOptions.map((g) => g.values.filter(Boolean));
+  if (!groups.length || groups.some((v) => !v.length)) {
+    showMsg('prodMsg', '모든 옵션 그룹에 값을 추가해 주세요.', true);
+    return;
+  }
+  const combos = groups.reduce((acc, vals) => acc.flatMap((a) => vals.map((v) => [...a, v])), [[]]);
+  const existing = new Set(currentSkus.map((s) => s.combo.join('\0')));
+  combos.forEach((combo) => {
+    if (!existing.has(combo.join('\0'))) { currentSkus.push({ combo, price: 0, origPrice: 0 }); existing.add(combo.join('\0')); }
+  });
+  renderSkuTable();
 }
 
 // ─── OPTION MODAL ─────────────────────────────────────────
@@ -632,6 +719,63 @@ async function init() {
     if (cb.checked) linkedEvents.add(id); else linkedEvents.delete(id);
     $('linkedEventCount').textContent = linkedEvents.size ? `(${linkedEvents.size}개 연결됨)` : '';
   });
+
+  // Product options
+  $('addOptionGroupBtn').addEventListener('click', () => {
+    syncOptionsFromDOM();
+    if (currentOptions.length >= 3) return;
+    currentOptions.push({ name: '', values: [] });
+    renderOptionGroups();
+    const inputs = document.querySelectorAll('.option-name-input');
+    if (inputs.length) inputs[inputs.length - 1].focus();
+  });
+  $('optionGroupsContainer').addEventListener('click', (e) => {
+    const del = e.target.closest('.option-group-del');
+    if (del) {
+      syncOptionsFromDOM();
+      currentOptions.splice(+del.dataset.gi, 1);
+      currentSkus = [];
+      renderOptionGroups();
+      return;
+    }
+    const chipDel = e.target.closest('.opt-chip-del');
+    if (chipDel) {
+      syncOptionsFromDOM();
+      const gi = +chipDel.dataset.gi, vi = +chipDel.dataset.vi;
+      const removed = currentOptions[gi].values[vi];
+      currentOptions[gi].values.splice(vi, 1);
+      currentSkus = currentSkus.filter((s) => s.combo[gi] !== removed);
+      renderOptionGroups();
+    }
+  });
+  $('optionGroupsContainer').addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const inp = e.target.closest('.admin-opt-val-new');
+    if (!inp) return;
+    e.preventDefault();
+    syncOptionsFromDOM();
+    const gi = +inp.dataset.gi;
+    const val = inp.value.trim();
+    if (val && !currentOptions[gi].values.includes(val)) {
+      currentOptions[gi].values.push(val);
+      renderOptionGroups();
+      const newInp = document.querySelectorAll(`.admin-opt-val-new[data-gi="${gi}"]`)[0];
+      if (newInp) newInp.focus();
+    }
+  });
+  $('skuTableContainer').addEventListener('click', (e) => {
+    const del = e.target.closest('.sku-del-btn');
+    if (!del) return;
+    syncOptionsFromDOM();
+    currentSkus.splice(+del.dataset.si, 1);
+    renderSkuTable();
+  });
+  $('addSkuRowBtn').addEventListener('click', () => {
+    syncOptionsFromDOM();
+    currentSkus.push({ combo: currentOptions.map(() => ''), price: 0, origPrice: 0 });
+    renderSkuTable();
+  });
+  $('genCombosBtn').addEventListener('click', generateAllCombinations);
 
   // Product list
   $('prodListSearch').addEventListener('input', (e) => renderProdList(e.target.value));

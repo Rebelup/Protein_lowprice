@@ -280,3 +280,50 @@
 }
 .admin-time-row select:focus { border-color: var(--blue); }
 .admin-time-sep { font-size: 16px; font-weight: 700; color: var(--sub); flex-shrink: 0; }
+
+/* ── PRODUCT OPTIONS (ADMIN) ── */
+.admin-option-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.admin-option-empty {
+  font-size: 13px; color: var(--muted); text-align: center;
+  padding: 12px 0;
+}
+.admin-option-group {
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px; margin-bottom: 8px; background: var(--white);
+}
+.admin-option-group-row {
+  display: flex; gap: 8px; align-items: center; margin-bottom: 10px;
+}
+.admin-input-sm {
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13px; background: var(--white); color: var(--text);
+  outline: none; transition: border-color .15s;
+}
+.admin-input-sm:focus { border-color: var(--blue); }
+.admin-option-vals {
+  display: flex; flex-wrap: wrap; gap: 6px; align-items: center;
+}
+.admin-opt-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 4px 10px; border-radius: 99px;
+  background: var(--blue-light); color: var(--blue);
+  font-size: 12.5px; font-weight: 600;
+}
+.opt-chip-del {
+  background: none; border: none; cursor: pointer;
+  font-size: 11px; color: var(--blue); padding: 0; line-height: 1;
+  opacity: .7;
+}
+.opt-chip-del:hover { opacity: 1; }
+.admin-sku-wrap { overflow-x: auto; }
+.admin-sku-table {
+  width: 100%; border-collapse: collapse; font-size: 13px;
+}
+.admin-sku-table th, .admin-sku-table td {
+  padding: 7px 10px; border-bottom: 1px solid var(--border);
+  text-align: left; white-space: nowrap;
+}
+.admin-sku-table th { font-weight: 700; color: var(--sub); background: var(--bg); }

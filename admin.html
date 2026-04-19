@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260452" />
-  <link rel="stylesheet" href="admin.css?v=20260452" />
+  <link rel="stylesheet" href="style.css?v=20260453" />
+  <link rel="stylesheet" href="admin.css?v=20260453" />
 </head>
 <body>
   <header class="site-header">
@@ -308,6 +308,26 @@
             </label>
           </div>
 
+          <!-- 옵션 설정 -->
+          <div class="admin-field">
+            <div class="admin-option-header">
+              <span>옵션 설정 <small>(최대 3개)</small></span>
+              <button type="button" class="admin-ghost" id="addOptionGroupBtn">+ 옵션 추가</button>
+            </div>
+            <div id="optionGroupsContainer"></div>
+          </div>
+
+          <div class="admin-field hidden" id="skuSection">
+            <div class="admin-option-header">
+              <span>조합별 가격</span>
+              <div style="display:flex;gap:6px">
+                <button type="button" class="admin-ghost" id="genCombosBtn">자동 생성</button>
+                <button type="button" class="admin-ghost" id="addSkuRowBtn">+ 추가</button>
+              </div>
+            </div>
+            <div id="skuTableContainer"></div>
+          </div>
+
           <div class="admin-field">
             <span>관련 이벤트 <small id="linkedEventCount"></small></span>
             <input type="text" id="eventSearch" placeholder="이벤트명/브랜드 검색..." style="margin-bottom:6px" />
@@ -408,6 +428,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260452"></script>
+  <script src="admin.js?v=20260453"></script>
 </body>
 </html>
