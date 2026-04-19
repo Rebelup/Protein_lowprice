@@ -379,8 +379,9 @@ function renderProductPage(p) {
     ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
     : p.emoji;
   const sect = (title, body) => `<div class="ep-section"><div class="ep-section-title">${title}</div>${body}</div>`;
+  const hasOptions = p.options && p.options.length > 0;
   const ev = getBestEventPrice(p);
-  const heroPriceHtml = ev
+  const heroPriceHtml = hasOptions ? '' : (ev
     ? `<div class="pp-hero-price">
         <span class="pp-pct">-${ev.pct}%</span>
         <span class="pp-sale">${fmtPrice(ev.price)}</span>
@@ -391,7 +392,7 @@ function renderProductPage(p) {
         ${disc > 0 ? `<span class="pp-pct">-${disc}%</span>` : ''}
         <span class="pp-sale">${fmtPrice(p.salePrice)}</span>
         ${disc > 0 ? `<span class="pp-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
-      </div>`;
+      </div>`);
 
   // 영양 정보
   const hasNutri = p.protein !== null || p.carb !== null || p.fat !== null || p.calories !== null;
@@ -458,7 +459,7 @@ function renderProductPage(p) {
         const base = eventBasePrice(e, p);
         const eventPrice = Math.round(base * (1 - e.discountPct / 100));
         const savings = p.salePrice - eventPrice;
-        priceHtml = `<div class="pp-ev-price-box">
+        priceHtml = `<div class="pp-ev-price-box" data-discount-pct="${e.discountPct}" data-discount-base="${e.discountBase || 'sale'}">
           <div class="pp-ev-price-label">이벤트 적용 시 예상 가격</div>
           <div class="pp-ev-price-row">
             <span class="pp-ev-orig-price">${fmtPrice(p.salePrice)}</span>
@@ -552,24 +553,56 @@ function renderProductPage(p) {
 
   // 옵션 선택 핸들러
   if (p.options && p.options.length) {
-    const selectedVals = new Array(p.options.length).fill(null);
-    const updateOptPrice = () => {
+    const selectedVals = p.options.map((g) => g.values[0] || null);
+
+    const updatePrices = () => {
+      const allSelected = selectedVals.every((v) => v !== null);
+      const sku = allSelected
+        ? p.optionSkus.find((s) => s.combo.length === selectedVals.length && s.combo.every((v, i) => v === selectedVals[i]))
+        : null;
+      const skuPrice = sku && sku.price > 0 ? sku.price : null;
+      const basePrice = skuPrice || p.salePrice;
+
+      // 옵션 가격 표시
       const priceEl = $('ppOptPrice');
-      if (!priceEl) return;
-      if (selectedVals.some((v) => v === null)) { priceEl.classList.add('hidden'); return; }
-      const sku = p.optionSkus.find((s) => s.combo.length === selectedVals.length && s.combo.every((v, i) => v === selectedVals[i]));
-      if (sku && sku.price > 0) {
-        const discPctOpt = sku.origPrice > sku.price ? Math.round((1 - sku.price / sku.origPrice) * 100) : 0;
-        priceEl.innerHTML = `<span class="pp-opt-sel-label">선택된 옵션 가격</span>
-          ${discPctOpt > 0 ? `<span class="pp-opt-orig-price">${fmtPrice(sku.origPrice)}</span>` : ''}
-          <span class="pp-opt-price">${fmtPrice(sku.price)}</span>
-          ${discPctOpt > 0 ? `<span class="pp-opt-save-badge">-${discPctOpt}%</span>` : ''}`;
-        priceEl.classList.remove('hidden');
-      } else {
-        priceEl.innerHTML = `<span class="pp-opt-sel-label">가격 정보 없음</span>`;
-        priceEl.classList.remove('hidden');
+      if (priceEl) {
+        if (allSelected) {
+          if (skuPrice) {
+            const discPctOpt = sku.origPrice > sku.price ? Math.round((1 - sku.price / sku.origPrice) * 100) : 0;
+            priceEl.innerHTML = `<span class="pp-opt-sel-label">선택된 옵션 가격</span>
+              ${discPctOpt > 0 ? `<span class="pp-opt-orig-price">${fmtPrice(sku.origPrice)}</span>` : ''}
+              <span class="pp-opt-price">${fmtPrice(sku.price)}</span>
+              ${discPctOpt > 0 ? `<span class="pp-opt-save-badge">-${discPctOpt}%</span>` : ''}`;
+          } else {
+            priceEl.innerHTML = `<span class="pp-opt-sel-label">가격 정보 없음</span>`;
+          }
+          priceEl.classList.remove('hidden');
+        } else {
+          priceEl.classList.add('hidden');
+        }
       }
+
+      // 이벤트 카드 가격 업데이트
+      $('prodPageBody').querySelectorAll('.pp-ev-price-box[data-discount-pct]').forEach((box) => {
+        const discPct = +box.dataset.discountPct;
+        const discBase = box.dataset.discountBase;
+        const base = discBase === 'original' ? (p.originalPrice || p.salePrice) : basePrice;
+        const evPrice = Math.round(base * (1 - discPct / 100));
+        const savings = basePrice - evPrice;
+        box.querySelector('.pp-ev-orig-price').textContent = fmtPrice(basePrice);
+        box.querySelector('.pp-ev-event-price').textContent = fmtPrice(evPrice);
+        box.querySelector('.pp-ev-save-text').textContent = `${fmtPrice(Math.max(0, savings))} 절약`;
+      });
     };
+
+    // 첫 번째 옵션 자동 선택 표시
+    p.options.forEach((g, gi) => {
+      if (!g.values[0]) return;
+      const btns = $('prodPageBody').querySelectorAll(`.pp-opt-btn[data-gi="${gi}"]`);
+      if (btns[0]) btns[0].classList.add('active');
+    });
+    updatePrices();
+
     $('prodPageBody').addEventListener('click', (e) => {
       const btn = e.target.closest('.pp-opt-btn');
       if (!btn) return;
@@ -583,7 +616,7 @@ function renderProductPage(p) {
         btn.classList.add('active');
         selectedVals[gi] = val;
       }
-      updateOptPrice();
+      updatePrices();
     });
   }
 
