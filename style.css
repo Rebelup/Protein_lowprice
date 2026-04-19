@@ -469,33 +469,50 @@ body {
 
 /* ── EVENT CARDS IN PRODUCT PAGE ── */
 .pp-ev-card {
-  border-radius: 16px; overflow: hidden;
-  box-shadow: 0 3px 16px rgba(0,0,0,.10);
+  border-radius: 14px; overflow: hidden;
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow);
   margin-bottom: 14px; background: var(--white);
 }
 .pp-ev-card:last-child { margin-bottom: 0; }
-.pp-ev-top { padding: 18px 18px 22px; color: #fff; }
-.pp-ev-top-meta {
+.pp-ev-accent { height: 5px; width: 100%; }
+.pp-ev-inner { padding: 16px 18px 18px; }
+.pp-ev-head { margin-bottom: 12px; }
+.pp-ev-name {
+  font-size: 15px; font-weight: 800; color: var(--text);
+  line-height: 1.35; margin-bottom: 8px;
+}
+.pp-ev-badges { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.pp-ev-brand-tag {
+  font-size: 11px; font-weight: 700; padding: 3px 10px;
+  border-radius: 99px;
+}
+.pp-ev-status-tag {
+  font-size: 11px; font-weight: 600; padding: 3px 10px;
+  border-radius: 99px; background: var(--bg); color: var(--sub);
+}
+.pp-ev-price-box {
+  background: var(--bg); border-radius: 10px;
+  padding: 12px 14px; margin-bottom: 14px;
+}
+.pp-ev-price-label { font-size: 11.5px; color: var(--muted); margin-bottom: 8px; font-weight: 500; }
+.pp-ev-price-row {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 4px;
+}
+.pp-ev-orig-price { font-size: 13px; color: var(--muted); text-decoration: line-through; }
+.pp-ev-arr { font-size: 12px; color: var(--muted); }
+.pp-ev-event-price { font-size: 18px; font-weight: 900; color: var(--text); }
+.pp-ev-save-badge {
+  font-size: 11px; font-weight: 700; padding: 2px 8px;
+  background: #FFF0EE; color: var(--red); border-radius: 99px;
+}
+.pp-ev-save-text { font-size: 12px; color: var(--red); font-weight: 600; }
+.pp-ev-detail-row {
   display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 12px;
+  padding: 10px 0; border-top: 1px solid var(--border); font-size: 13px;
 }
-.pp-ev-brand-pill, .pp-ev-status-pill {
-  font-size: 11px; font-weight: 700;
-  background: rgba(255,255,255,.22); padding: 3px 10px;
-  border-radius: 99px; backdrop-filter: blur(4px);
-}
-.pp-ev-disc-big {
-  font-size: 38px; font-weight: 900; letter-spacing: -1px;
-  line-height: 1; margin-bottom: 6px;
-}
-.pp-ev-ev-name { font-size: 15px; font-weight: 700; line-height: 1.35; opacity: .95; }
-.pp-ev-body { padding: 4px 18px 18px; }
-.pp-ev-info-row {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px;
-}
-.pp-ev-info-label { color: var(--muted); font-weight: 500; }
-.pp-ev-info-val { color: var(--text); font-weight: 600; text-align: right; }
+.pp-ev-detail-label { color: var(--muted); font-weight: 500; }
+.pp-ev-detail-val { color: var(--text); font-weight: 600; text-align: right; }
 .pp-ev-sub-head { font-size: 12.5px; font-weight: 700; color: var(--sub); margin: 14px 0 8px; }
 .pp-ev-cond-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 7px; }
 .pp-ev-cond-list li {
@@ -514,7 +531,7 @@ body {
 .pp-ev-step-text { font-size: 13px; color: var(--text); line-height: 1.55; }
 .pp-ev-link-btn {
   display: block; width: 100%; padding: 13px 0; text-align: center;
-  background: #1A2240; color: #fff; border-radius: 10px;
+  background: var(--blue); color: #fff; border-radius: 10px;
   font-size: 14px; font-weight: 700; text-decoration: none;
   margin-top: 16px; transition: opacity .15s;
 }
