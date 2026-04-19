@@ -574,15 +574,23 @@ function renderAlerts() {
 
   const box = $('alertList');
   if (!ALERTS.length) { box.innerHTML = '<div class="admin-row-empty">알림이 없습니다.</div>'; return; }
+  const typeClass = (label) => {
+    if (!label) return '';
+    if (label.includes('가격 변동')) return 'alert-type--price';
+    if (label.includes('새 상품')) return 'alert-type--product';
+    if (label.includes('새 이벤트')) return 'alert-type--event';
+    if (label.includes('페이지 변경')) return 'alert-type--page';
+    return '';
+  };
   box.innerHTML = ALERTS.map((a) => `
     <div class="alert-row ${a.seen ? 'alert-row--seen' : ''}">
       <div class="alert-row-head">
-        <span class="alert-brand">${esc(a.label || a.brand || '(브랜드 없음)')}</span>
+        <span class="alert-type-badge ${typeClass(a.label)}">${esc(a.label || a.brand || '알림')}</span>
         <span class="alert-date">${fmtDt(a.created_at)}</span>
-        ${!a.seen ? `<button class="admin-ghost alert-seen-btn" data-id="${a.id}">확인</button>` : '<span class="alert-done">✓ 확인됨</span>'}
+        ${!a.seen ? `<button class="admin-ghost alert-seen-btn" data-id="${a.id}">확인</button>` : '<span class="alert-done">✓</span>'}
       </div>
-      <a class="alert-url" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.url)}</a>
-      ${a.snippet ? `<div class="alert-snippet">${esc(a.snippet.slice(0, 200))}…</div>` : ''}
+      ${a.url ? `<a class="alert-url" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.url)}</a>` : ''}
+      ${a.snippet ? `<div class="alert-snippet">${esc(a.snippet)}</div>` : ''}
     </div>`).join('');
 }
 

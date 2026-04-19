@@ -242,9 +242,16 @@
 }
 .alert-row--seen { background: var(--white); border-color: var(--border); opacity: .65; }
 .alert-row-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
-.alert-brand { font-size: 13px; font-weight: 700; flex: 1; }
+.alert-type-badge {
+  font-size: 11.5px; font-weight: 700; padding: 3px 9px; border-radius: 99px;
+  background: #F59E0B22; color: #B45309; flex: 1;
+}
+.alert-type-badge.alert-type--price { background: #EDE9FE; color: #6D28D9; }
+.alert-type-badge.alert-type--product { background: #DCFCE7; color: #166534; }
+.alert-type-badge.alert-type--event { background: #DBEAFE; color: #1D4ED8; }
+.alert-type-badge.alert-type--page { background: #FEF3C7; color: #92400E; }
 .alert-date { font-size: 11.5px; color: var(--muted); }
-.alert-done { font-size: 11.5px; color: #4CAF50; font-weight: 700; }
+.alert-done { font-size: 11px; color: #4CAF50; font-weight: 700; }
 .alert-url {
   display: block; font-size: 11.5px; color: var(--blue);
   text-decoration: none; margin-bottom: 6px;
