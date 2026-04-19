@@ -600,6 +600,7 @@ body {
   background: #FFF8E1; border-radius: 10px; border: 1px solid #FFE082;
 }
 .pp-opt-card.hidden { display: none; }
+.pp-opt-card--standalone { margin-top: 0; }
 .pp-opt-card-row {
   display: flex; justify-content: space-between; align-items: center;
 }
