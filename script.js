@@ -325,7 +325,8 @@ function renderProductPage(p) {
   // 영양 정보
   const hasNutri = p.protein !== null || p.carb !== null || p.fat !== null || p.calories !== null;
   const hasMacro = p.protein !== null && p.carb !== null && p.fat !== null;
-  const nutriSection = hasNutri ? (() => {
+  let nutriSection = '';
+  if (hasNutri) {
     const prot = p.protein ?? 0, carb = p.carb ?? 0, fat = p.fat ?? 0;
     const total = hasMacro ? prot + carb + fat : 0;
     const pct = (n) => total ? Math.round(n / total * 100) : 0;
@@ -358,28 +359,43 @@ function renderProductPage(p) {
     ].filter(([, v]) => v !== null)
      .map(([label, val]) => `<tr><td class="nt-label">${label}</td><td class="nt-val">${val}</td></tr>`).join('');
     const servingNote = p.servingSize ? `<div class="nt-serving">1회 제공량 ${p.servingSize}g 기준</div>` : '';
-    return sect('영양 정보', `${macroRows}<div class="nutri-table-wrap">${servingNote}<table class="nutri-table"><tbody>${tableRows}</tbody></table></div>`);
-  })() : '';
+    nutriSection = `<div id="ppNutriSection">${sect('영양 정보', `${macroRows}<div class="nutri-table-wrap">${servingNote}<table class="nutri-table"><tbody>${tableRows}</tbody></table></div>`)}</div>`;
+  }
 
   // 관련 이벤트
   const linked = EVENTS.filter((e) => e.productIds.includes(p.id) && e.active !== false);
-  const eventsSection = linked.length ? sect('관련 이벤트', linked.map((e) => {
-    const conds = e.conditions?.length
-      ? `<div class="ep-section-title" style="font-size:12px;color:var(--muted);margin:10px 0 6px">이벤트 조건</div><ul class="ep-list">${e.conditions.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>`
-      : '';
-    const howTo = e.howTo?.length
-      ? `<div class="ep-section-title" style="font-size:12px;color:var(--muted);margin:10px 0 6px">참여 방법</div><ol class="ep-steps">${e.howTo.map((s, i) => `<li class="ep-step"><span class="ep-step-num">${i + 1}</span><span class="ep-step-text">${esc(s)}</span></li>`).join('')}</ol>`
-      : '';
-    const coupon = e.couponCode
-      ? `<div class="ep-coupon" style="margin-top:10px"><code>${esc(e.couponCode)}</code><button class="ep-coupon-copy" data-code="${esc(e.couponCode)}">복사</button></div>${e.couponNote ? `<p class="ep-coupon-note">${esc(e.couponNote)}</p>` : ''}`
-      : '';
-    return `<div class="pp-event-card">
-      <div class="pp-event-name">${e.discountPct ? `<span style="color:var(--red);margin-right:6px">-${e.discountPct}%</span>` : ''}${esc(e.name)}</div>
-      <div class="pp-event-meta">${esc(e.brandLabel)} · ${e.endDate ? `~${fmtDate(e.endDate)}` : '상시'}</div>
-      ${conds}${howTo}${coupon}
-      <a class="pp-event-cta" href="${esc(safeUrl(e.link))}" target="_blank" rel="noopener noreferrer">이벤트 페이지로 이동 →</a>
-    </div>`;
-  }).join('')) : '';
+  let eventsSection = '';
+  if (linked.length) {
+    const cards = linked.map((e) => {
+      const conds = e.conditions?.length
+        ? `<div class="pp-ev-subtitle">💡 이벤트 조건</div><ul class="ep-list">${e.conditions.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>`
+        : '';
+      const howTo = e.howTo?.length
+        ? `<div class="pp-ev-subtitle">📋 참여 방법</div><ol class="ep-steps">${e.howTo.map((s, i) => `<li class="ep-step"><span class="ep-step-num" style="background:${esc(e.color || '#1A69E5')}">${i + 1}</span><span class="ep-step-text">${esc(s)}</span></li>`).join('')}</ol>`
+        : '';
+      const coupon = e.couponCode
+        ? `<div class="ep-coupon" style="margin-top:12px"><code>${esc(e.couponCode)}</code><button class="ep-coupon-copy" data-code="${esc(e.couponCode)}">복사</button></div>${e.couponNote ? `<p class="ep-coupon-note">${esc(e.couponNote)}</p>` : ''}`
+        : '';
+      return `<div class="pp-event-card">
+        <div class="pp-event-header">
+          ${e.discountPct ? `<span class="pp-event-pct">-${e.discountPct}%</span>` : ''}
+          <span class="pp-event-name-text">${esc(e.name)}</span>
+        </div>
+        <div class="pp-event-meta">${esc(e.brandLabel)} · ${e.endDate ? `~${fmtDate(e.endDate)}` : '상시'}</div>
+        ${conds}${howTo}${coupon}
+        <a class="pp-event-cta" href="${esc(safeUrl(e.link))}" target="_blank" rel="noopener noreferrer">이벤트 페이지로 이동 →</a>
+      </div>`;
+    }).join('');
+    eventsSection = `<div id="ppEventsSection">${sect('관련 이벤트', cards)}</div>`;
+  }
+
+  // 탭 바 (두 섹션 모두 있을 때만)
+  const tabs = [];
+  if (eventsSection) tabs.push({ target: 'ppEventsSection', label: '이벤트' });
+  if (nutriSection) tabs.push({ target: 'ppNutriSection', label: '영양성분' });
+  const tabBar = tabs.length > 1
+    ? `<div class="pp-inner-tabs">${tabs.map((t, i) => `<button class="pp-inner-tab${i === 0 ? ' active' : ''}" data-target="${t.target}">${t.label}</button>`).join('')}</div>`
+    : '';
 
   $('prodPageBody').innerHTML = `
     <div class="pp-hero">
@@ -395,7 +411,17 @@ function renderProductPage(p) {
       </div>
     </div>
     <div class="ep-cta-wrap"><a class="ep-cta" href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener noreferrer">구매하러 가기 →</a></div>
-    ${nutriSection}${eventsSection}`;
+    ${tabBar}
+    ${eventsSection}${nutriSection}`;
+
+  $('prodPageBody').querySelectorAll('.pp-inner-tab').forEach((tab) => {
+    tab.addEventListener('click', () => {
+      $('prodPageBody').querySelectorAll('.pp-inner-tab').forEach((t) => t.classList.remove('active'));
+      tab.classList.add('active');
+      const target = $(tab.dataset.target);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  });
 
   $('prodPageBody').querySelectorAll('.ep-coupon-copy').forEach((btn) => {
     btn.addEventListener('click', () => {
@@ -408,16 +434,25 @@ function renderProductPage(p) {
 }
 
 /* ── SHEET HELPERS ── */
+const SHEET_EASE = 'cubic-bezier(0.32, 0.72, 0, 1)';
 function openSheet(sheet, overlay) {
   sheet.classList.remove('hidden');
   if (overlay) overlay.classList.remove('hidden');
+  sheet.style.transition = 'none';
+  sheet.style.transform = 'translateX(-50%) translateY(110%)';
   sheet.getBoundingClientRect();
-  sheet.classList.add('sheet-open');
+  sheet.style.transition = `transform .35s ${SHEET_EASE}`;
+  sheet.style.transform = 'translateX(-50%) translateY(0)';
+  setTimeout(() => { sheet.style.transition = ''; sheet.style.transform = ''; sheet.classList.add('sheet-open'); }, 360);
 }
 function closeSheet(sheet, overlay) {
-  sheet.classList.remove('sheet-open');
-  if (overlay) overlay.classList.add('hidden'); // CSS fades overlay (see style.css)
-  setTimeout(() => { sheet.classList.add('hidden'); }, 360);
+  sheet.style.transition = 'none';
+  sheet.style.transform = 'translateX(-50%) translateY(0)';
+  sheet.getBoundingClientRect();
+  sheet.style.transition = `transform .35s ${SHEET_EASE}`;
+  sheet.style.transform = 'translateX(-50%) translateY(110%)';
+  if (overlay) overlay.classList.add('hidden');
+  setTimeout(() => { sheet.style.transition = ''; sheet.style.transform = ''; sheet.classList.remove('sheet-open'); sheet.classList.add('hidden'); }, 360);
 }
 function dragToClose(sheet, overlay) {
   let startY = 0, dy = 0, startTime = 0, dragging = false;
@@ -439,14 +474,11 @@ function dragToClose(sheet, overlay) {
     const doClose = dy > 100 || velocity > 0.4;
     sheet.style.transition = doClose
       ? 'transform .28s cubic-bezier(0.32,0,0.67,0)'
-      : 'transform .35s var(--ease)';
-    sheet.style.transform = doClose
-      ? 'translateX(-50%) translateY(110%)'
-      : 'translateX(-50%) translateY(0)';
+      : `transform .35s ${SHEET_EASE}`;
+    sheet.style.transform = doClose ? 'translateX(-50%) translateY(110%)' : 'translateX(-50%) translateY(0)';
     setTimeout(() => {
-      sheet.style.transition = '';
-      sheet.style.transform = '';
-      if (doClose) closeSheet(sheet, overlay);
+      sheet.style.transition = ''; sheet.style.transform = '';
+      if (doClose) { sheet.classList.remove('sheet-open'); sheet.classList.add('hidden'); if (overlay) overlay.classList.add('hidden'); }
     }, doClose ? 290 : 360);
     dy = 0;
   });
