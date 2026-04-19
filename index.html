@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>프로틴 이벤트 모음</title>
-  <link rel="stylesheet" href="style.css?v=20260449" />
+  <link rel="stylesheet" href="style.css?v=20260450" />
 </head>
 <body>
 
@@ -70,7 +70,7 @@
 
   <!-- ===== 상품 탭 ===== -->
   <div id="productsTab">
-    <div class="filter-row">
+    <div class="filter-row filter-row--spread">
       <div class="filter-left">
         <button class="sort-btn" id="prodSortBtn">
           <span id="prodSortLabel">할인 높은순</span>
@@ -83,6 +83,10 @@
           <span class="filter-count hidden" id="prodFilterCount">0</span>
         </button>
       </div>
+      <button class="ev-price-toggle" id="evPriceToggle">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+        이벤트 적용가
+      </button>
     </div>
     <div class="prod-cat-row" id="prodCatRow"></div>
     <div class="prod-cat-row hidden" id="prodCat2Row" style="border-top: 1px solid var(--border); background: var(--bg);"></div>
@@ -276,6 +280,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <div class="toast" id="toast"></div>
-  <script src="script.js?v=20260449"></script>
+  <script src="script.js?v=20260450"></script>
 </body>
 </html>

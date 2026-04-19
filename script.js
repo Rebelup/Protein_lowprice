@@ -10,7 +10,7 @@ let currentUser = null, pendingLink = null;
 let brandGroup = null, typeGroup = null, prodBrandGroup = null;
 
 const state = { search: '', sort: 'discount_desc', brands: new Set(), productTypes: new Set(), period: 'all' };
-const prodState = { sort: 'discount_desc', cat1: '', cat2: '', brands: new Set(), priceRange: 'all', discountMin: 0 };
+const prodState = { sort: 'discount_desc', cat1: '', cat2: '', brands: new Set(), priceRange: 'all', discountMin: 0, showEventPrice: false };
 
 const $ = (id) => document.getElementById(id);
 const $$ = (sel, root = document) => root.querySelectorAll(sel);
@@ -109,21 +109,55 @@ function getFiltered() {
 /* ── PRODUCTS ── */
 const fmtPrice = (n) => n ? '₩' + n.toLocaleString('ko-KR') : '';
 
+function getBestEventPrice(p) {
+  const eligible = EVENTS.filter((e) =>
+    e.productIds.includes(p.id) && e.active !== false && e.discountPct &&
+    (eventStatus(e) === 'ongoing' || eventStatus(e) === 'ending')
+  );
+  if (!eligible.length || !p.salePrice) return null;
+  const best = eligible.reduce((a, b) => (b.discountPct > a.discountPct ? b : a));
+  return {
+    price: Math.round(p.salePrice * (1 - best.discountPct / 100)),
+    pct: best.discountPct,
+    eventName: best.name,
+  };
+}
+
 function renderProductCard(p) {
   const disc = p.originalPrice > p.salePrice ? Math.round((1 - p.salePrice / p.originalPrice) * 100) : 0;
   const thumb = p.thumbnail
     ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
     : p.emoji;
+  let priceHtml;
+  if (prodState.showEventPrice) {
+    const ev = getBestEventPrice(p);
+    if (ev) {
+      priceHtml = `<div class="prod-card-price">
+          <span class="prod-pct">-${ev.pct}%</span>
+          <span class="prod-sale">${fmtPrice(ev.price)}</span>
+          <span class="prod-orig">${fmtPrice(p.salePrice)}</span>
+        </div>
+        <div class="prod-ev-tag">⚡ 이벤트 적용가</div>`;
+    } else {
+      priceHtml = `<div class="prod-card-price">
+          ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
+          <span class="prod-sale">${fmtPrice(p.salePrice)}</span>
+          ${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
+        </div>`;
+    }
+  } else {
+    priceHtml = `<div class="prod-card-price">
+        ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
+        <span class="prod-sale">${fmtPrice(p.salePrice)}</span>
+        ${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
+      </div>`;
+  }
   return `<article class="prod-card" data-pid="${p.id}">
     <div class="prod-card-thumb">${thumb}</div>
     <div class="prod-card-body">
       <div class="prod-card-name">${esc(p.name)}</div>
       <div class="prod-card-brand">${esc(p.store)}</div>
-      <div class="prod-card-price">
-        ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
-        <span class="prod-sale">${fmtPrice(p.salePrice)}</span>
-        ${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
-      </div>
+      ${priceHtml}
     </div>
   </article>`;
 }
@@ -326,6 +360,19 @@ function renderProductPage(p) {
     ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
     : p.emoji;
   const sect = (title, body) => `<div class="ep-section"><div class="ep-section-title">${title}</div>${body}</div>`;
+  const ev = getBestEventPrice(p);
+  const heroPriceHtml = ev
+    ? `<div class="pp-hero-price">
+        <span class="pp-pct">-${ev.pct}%</span>
+        <span class="pp-sale">${fmtPrice(ev.price)}</span>
+        <span class="pp-orig">${fmtPrice(p.salePrice)}</span>
+      </div>
+      <div class="pp-ev-price-hint">⚡ 이벤트 적용 시 예상가</div>`
+    : `<div class="pp-hero-price">
+        ${disc > 0 ? `<span class="pp-pct">-${disc}%</span>` : ''}
+        <span class="pp-sale">${fmtPrice(p.salePrice)}</span>
+        ${disc > 0 ? `<span class="pp-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
+      </div>`;
 
   // 영양 정보
   const hasNutri = p.protein !== null || p.carb !== null || p.fat !== null || p.calories !== null;
@@ -459,11 +506,7 @@ function renderProductPage(p) {
       <div class="pp-hero-info">
         <div class="pp-hero-brand">${esc(p.store || p.brand)}</div>
         <div class="pp-hero-name">${esc(p.name)}</div>
-        <div class="pp-hero-price">
-          ${disc > 0 ? `<span class="pp-pct">-${disc}%</span>` : ''}
-          <span class="pp-sale">${fmtPrice(p.salePrice)}</span>
-          ${disc > 0 ? `<span class="pp-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
-        </div>
+        ${heroPriceHtml}
       </div>
     </div>
     ${tabBar}
@@ -994,6 +1037,12 @@ function initListeners() {
   dragToClose(filterSheet, overlay);
   dragToClose($('userSheet'), $('sheetOverlay'));
   dragToClose($('loginSheet'), $('loginOverlay'));
+
+  $('evPriceToggle').addEventListener('click', () => {
+    prodState.showEventPrice = !prodState.showEventPrice;
+    $('evPriceToggle').classList.toggle('active', prodState.showEventPrice);
+    renderProducts();
+  });
 
   $('prodPageShare').addEventListener('click', () => {
     navigator.clipboard?.writeText(location.href).then(() => {
