@@ -441,6 +441,105 @@ function switchAdminTab(tab) {
   document.querySelectorAll('.admin-tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
   $('adminEventsTab').classList.toggle('hidden', tab !== 'events');
   $('adminProductsTab').classList.toggle('hidden', tab !== 'products');
+  $('adminAlertsTab').classList.toggle('hidden', tab !== 'alerts');
+  if (tab === 'alerts') { loadAlerts(); loadCrawlTargets(); }
+}
+
+// ─── CRAWL ALERTS ──────────────────────────────────────────
+let ALERTS = [], TARGETS = [];
+
+async function loadAlerts() {
+  const { data } = await db.from('crawl_alerts').select('*').order('created_at', { ascending: false }).limit(100);
+  ALERTS = data || [];
+  renderAlerts();
+}
+
+function renderAlerts() {
+  const badge = $('alertBadge');
+  const unseen = ALERTS.filter((a) => !a.seen).length;
+  badge.textContent = unseen;
+  badge.classList.toggle('hidden', unseen === 0);
+
+  const box = $('alertList');
+  if (!ALERTS.length) { box.innerHTML = '<div class="admin-row-empty">알림이 없습니다.</div>'; return; }
+  box.innerHTML = ALERTS.map((a) => `
+    <div class="alert-row ${a.seen ? 'alert-row--seen' : ''}">
+      <div class="alert-row-head">
+        <span class="alert-brand">${esc(a.label || a.brand || '(브랜드 없음)')}</span>
+        <span class="alert-date">${fmtDt(a.created_at)}</span>
+        ${!a.seen ? `<button class="admin-ghost alert-seen-btn" data-id="${a.id}">확인</button>` : '<span class="alert-done">✓ 확인됨</span>'}
+      </div>
+      <a class="alert-url" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.url)}</a>
+      ${a.snippet ? `<div class="alert-snippet">${esc(a.snippet.slice(0, 200))}…</div>` : ''}
+    </div>`).join('');
+}
+
+async function markSeen(id) {
+  await db.from('crawl_alerts').update({ seen: true }).eq('id', id);
+  ALERTS = ALERTS.map((a) => (a.id === id ? { ...a, seen: true } : a));
+  renderAlerts();
+}
+
+async function markAllSeen() {
+  const ids = ALERTS.filter((a) => !a.seen).map((a) => a.id);
+  if (!ids.length) return;
+  await db.from('crawl_alerts').update({ seen: true }).in('id', ids);
+  ALERTS = ALERTS.map((a) => ({ ...a, seen: true }));
+  renderAlerts();
+}
+
+async function loadCrawlTargets() {
+  const { data } = await db.from('crawl_targets').select('*').order('id');
+  TARGETS = data || [];
+  renderCrawlTargets();
+}
+
+function renderCrawlTargets() {
+  const box = $('targetList');
+  if (!TARGETS.length) { box.innerHTML = '<div class="admin-row-empty">모니터링 대상이 없습니다. URL을 추가해 주세요.</div>'; return; }
+  box.innerHTML = TARGETS.map((t) => `
+    <div class="admin-row">
+      <div class="admin-row-body">
+        <div class="admin-row-name">${esc(t.label || t.brand || t.url)}</div>
+        <div class="admin-row-meta">
+          <a class="target-url" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer">${esc(t.url)}</a>
+          ${t.last_checked_at ? ` · 마지막: ${fmtDt(t.last_checked_at)}` : ' · 미확인'}
+        </div>
+      </div>
+      <button class="admin-ghost target-toggle-btn ${t.active ? '' : 'target-inactive'}" data-id="${t.id}" data-active="${t.active}">${t.active ? '활성' : '비활성'}</button>
+      <button class="admin-ghost target-del-btn" data-id="${t.id}">삭제</button>
+    </div>`).join('');
+}
+
+async function saveCrawlTarget(ev) {
+  ev.preventDefault();
+  const brand = $('tBrand').value.trim(), label = $('tLabel').value.trim(), url = $('tUrl').value.trim();
+  if (!url) return showMsg('targetMsg', 'URL을 입력해 주세요.', true);
+  const btn = ev.submitter; btn.disabled = true;
+  const { error } = await db.from('crawl_targets').insert({ brand, label, url });
+  btn.disabled = false;
+  if (error) return showMsg('targetMsg', error.message, true);
+  $('tBrand').value = ''; $('tLabel').value = ''; $('tUrl').value = '';
+  showMsg('targetMsg', '추가되었습니다.');
+  await loadCrawlTargets();
+}
+
+async function runCrawlNow() {
+  const btn = $('runCrawlNowBtn');
+  btn.disabled = true; btn.textContent = '실행 중...';
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/crawl-events`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+    });
+    const data = await res.json();
+    showMsg('targetMsg', `완료: ${data.checked}개 확인, ${data.alerts}개 변경 발견`);
+    await loadAlerts();
+    await loadCrawlTargets();
+  } catch (e) {
+    showMsg('targetMsg', '실행 실패: ' + e.message, true);
+  }
+  btn.disabled = false; btn.textContent = '지금 실행';
 }
 
 function renderGate(forbidden = false) {
@@ -548,9 +647,25 @@ async function init() {
     loadProducts();
   }));
 
+  // Alerts tab
+  $('alertList').addEventListener('click', async (e) => {
+    const btn = e.target.closest('.alert-seen-btn');
+    if (btn) await markSeen(+btn.dataset.id);
+  });
+  $('markAllSeenBtn').addEventListener('click', markAllSeen);
+  $('targetForm').addEventListener('submit', saveCrawlTarget);
+  $('targetList').addEventListener('click', async (e) => {
+    const del = e.target.closest('.target-del-btn');
+    if (del) { if (!confirm('삭제하시겠습니까?')) return; await db.from('crawl_targets').delete().eq('id', +del.dataset.id); await loadCrawlTargets(); return; }
+    const tog = e.target.closest('.target-toggle-btn');
+    if (tog) { await db.from('crawl_targets').update({ active: tog.dataset.active !== 'true' }).eq('id', +tog.dataset.id); await loadCrawlTargets(); }
+  });
+  $('runCrawlNowBtn').addEventListener('click', runCrawlNow);
+
   await Promise.all([loadOptions(), loadEvents(), loadProducts()]);
   renderProdPicker('');
   renderEventPicker('');
+  loadAlerts();
 }
 
 document.addEventListener('DOMContentLoaded', init);

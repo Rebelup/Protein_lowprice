@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260451" />
-  <link rel="stylesheet" href="admin.css?v=20260451" />
+  <link rel="stylesheet" href="style.css?v=20260452" />
+  <link rel="stylesheet" href="admin.css?v=20260452" />
 </head>
 <body>
   <header class="site-header">
@@ -19,6 +19,7 @@
   <nav class="admin-tab-bar">
     <button class="admin-tab active" data-tab="events">이벤트</button>
     <button class="admin-tab" data-tab="products">상품</button>
+    <button class="admin-tab" data-tab="alerts">알림<span class="admin-alert-badge hidden" id="alertBadge">0</span></button>
   </nav>
 
   <main class="admin-main" style="visibility:hidden">
@@ -340,6 +341,45 @@
       </section>
     </div>
 
+    <!-- ===== 알림 탭 ===== -->
+    <div id="adminAlertsTab" class="hidden">
+      <section class="admin-panel">
+        <div class="admin-panel-head">
+          <h2>크롤링 알림</h2>
+          <button class="admin-ghost" id="markAllSeenBtn">모두 확인 완료</button>
+        </div>
+        <div id="alertList"><div class="admin-row-empty">알림이 없습니다.</div></div>
+      </section>
+
+      <section class="admin-panel">
+        <div class="admin-panel-head">
+          <h2>모니터링 대상</h2>
+          <button class="admin-ghost" id="runCrawlNowBtn">지금 실행</button>
+        </div>
+        <form id="targetForm" class="admin-form" autocomplete="off" style="margin-bottom:14px">
+          <div class="admin-field-row">
+            <label class="admin-field">
+              <span>브랜드</span>
+              <input type="text" id="tBrand" placeholder="예: bsn" />
+            </label>
+            <label class="admin-field">
+              <span>표시명</span>
+              <input type="text" id="tLabel" placeholder="예: BSN 공식몰" />
+            </label>
+          </div>
+          <label class="admin-field">
+            <span>모니터링 URL <em>*</em></span>
+            <input type="url" id="tUrl" placeholder="https://..." required />
+          </label>
+          <div id="targetMsg" class="admin-msg hidden"></div>
+          <div class="admin-actions">
+            <button type="submit" class="admin-primary">URL 추가</button>
+          </div>
+        </form>
+        <div id="targetList" class="admin-list"></div>
+      </section>
+    </div>
+
   </main>
 
   <!-- 옵션 추가 모달 -->
@@ -368,6 +408,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260451"></script>
+  <script src="admin.js?v=20260452"></script>
 </body>
 </html>
