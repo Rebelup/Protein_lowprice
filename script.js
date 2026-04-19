@@ -336,17 +336,17 @@ function renderProductPage(p) {
         <div class="nutri-bar-row">
           <span class="nutri-bar-label">단백질</span>
           <div class="nutri-bar-track"><div class="nutri-bar-fill nb-prot" style="width:${barW(prot)}%"></div></div>
-          <span class="nutri-bar-val">${prot}g <em>${pct(prot)}%</em></span>
+          <span class="nutri-bar-g">${prot}g</span><span class="nutri-bar-pct">${pct(prot)}%</span>
         </div>
         <div class="nutri-bar-row">
           <span class="nutri-bar-label">탄수화물</span>
           <div class="nutri-bar-track"><div class="nutri-bar-fill nb-carb" style="width:${barW(carb)}%"></div></div>
-          <span class="nutri-bar-val">${carb}g <em>${pct(carb)}%</em></span>
+          <span class="nutri-bar-g">${carb}g</span><span class="nutri-bar-pct">${pct(carb)}%</span>
         </div>
         <div class="nutri-bar-row">
           <span class="nutri-bar-label">지방</span>
           <div class="nutri-bar-track"><div class="nutri-bar-fill nb-fat" style="width:${barW(fat)}%"></div></div>
-          <span class="nutri-bar-val">${fat}g <em>${pct(fat)}%</em></span>
+          <span class="nutri-bar-g">${fat}g</span><span class="nutri-bar-pct">${pct(fat)}%</span>
         </div>
       </div>` : '';
     const tableRows = [
@@ -416,45 +416,43 @@ function openSheet(sheet, overlay) {
 }
 function closeSheet(sheet, overlay) {
   sheet.classList.remove('sheet-open');
-  sheet.addEventListener('transitionend', () => {
+  setTimeout(() => {
     sheet.classList.add('hidden');
-    overlay?.classList.add('hidden');
-  }, { once: true });
+    if (overlay && ![$('sortSheet'), $('filterSheet'), $('prodSortSheet'), $('prodFilterSheet'), $('userSheet')]
+        .some((s) => s !== sheet && s.classList.contains('sheet-open'))) {
+      overlay.classList.add('hidden');
+    }
+  }, 360);
 }
-function dragToClose(sheet, closeFn) {
-  let startY = 0, dy = 0, startTime = 0, active = false;
+function dragToClose(sheet, overlay) {
+  let startY = 0, dy = 0, startTime = 0, dragging = false;
   sheet.addEventListener('touchstart', (e) => {
     if (sheet.scrollTop > 0) return;
     startY = e.touches[0].clientY; startTime = Date.now();
-    dy = 0; active = true;
+    dy = 0; dragging = true;
     sheet.style.transition = 'none';
   }, { passive: true });
   sheet.addEventListener('touchmove', (e) => {
-    if (!active) return;
+    if (!dragging) return;
     dy = Math.max(0, e.touches[0].clientY - startY);
     sheet.style.transform = `translateX(-50%) translateY(${dy}px)`;
   }, { passive: true });
   sheet.addEventListener('touchend', () => {
-    if (!active) return;
-    active = false;
-    const velocity = dy / Math.max(1, Date.now() - startTime); // px/ms
-    const shouldClose = dy > 100 || velocity > 0.4;
-    if (shouldClose) {
-      sheet.style.transition = 'transform .28s cubic-bezier(0.32, 0, 0.67, 0)';
-      sheet.style.transform = 'translateX(-50%) translateY(110%)';
-      sheet.addEventListener('transitionend', () => {
-        sheet.style.transition = '';
-        sheet.style.transform = '';
-        closeFn();
-      }, { once: true });
-    } else {
-      sheet.style.transition = 'transform .35s var(--ease)';
-      sheet.style.transform = 'translateX(-50%) translateY(0)';
-      sheet.addEventListener('transitionend', () => {
-        sheet.style.transition = '';
-        sheet.style.transform = '';
-      }, { once: true });
-    }
+    if (!dragging) return;
+    dragging = false;
+    const velocity = dy / Math.max(1, Date.now() - startTime);
+    const doClose = dy > 100 || velocity > 0.4;
+    sheet.style.transition = doClose
+      ? 'transform .28s cubic-bezier(0.32,0,0.67,0)'
+      : 'transform .35s var(--ease)';
+    sheet.style.transform = doClose
+      ? 'translateX(-50%) translateY(110%)'
+      : 'translateX(-50%) translateY(0)';
+    setTimeout(() => {
+      sheet.style.transition = '';
+      sheet.style.transform = '';
+      if (doClose) closeSheet(sheet, overlay);
+    }, doClose ? 290 : 360);
     dy = 0;
   });
 }
@@ -703,7 +701,7 @@ function initListeners() {
     renderProducts();
   });
 
-  dragToClose(prodFilterSheet, () => closeSheet(prodFilterSheet, overlay));
+  dragToClose(prodFilterSheet, overlay);
 
   $('sortBtn').addEventListener('click', () => openSheet(sortSheet, overlay));
   $$('.sort-option').forEach((btn) => {
@@ -769,15 +767,15 @@ function initListeners() {
     }
   });
 
-  dragToClose(sortSheet, () => closeSheet(sortSheet, overlay));
-  dragToClose(filterSheet, () => closeSheet(filterSheet, overlay));
-  dragToClose($('userSheet'), closeUserSheet);
-  dragToClose($('loginSheet'), closeLoginSheet);
+  dragToClose(sortSheet, overlay);
+  dragToClose(filterSheet, overlay);
+  dragToClose($('userSheet'), $('sheetOverlay'));
+  dragToClose($('loginSheet'), $('loginOverlay'));
 
   $('authBtn').addEventListener('click', openLoginSheet);
   $('userBtn').addEventListener('click', openUserSheet);
   $('userSheetClose').addEventListener('click', closeUserSheet);
-  $('userLogoutBtn').addEventListener('click', () => { closeUserSheet(); db.auth.signOut(); });
+  $('userLogoutBtn').addEventListener('click', async () => { closeSheet($('userSheet'), $('sheetOverlay')); await db.auth.signOut(); });
   $('loginOverlay').addEventListener('click', closeLoginSheet);
   $('loginClose').addEventListener('click', closeLoginSheet);
   $('goSignup').addEventListener('click', () => {

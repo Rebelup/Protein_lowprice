@@ -412,11 +412,16 @@ body {
 .nb-prot { background: #1E7BCD; }
 .nb-carb { background: #F59E0B; }
 .nb-fat  { background: #EF4444; }
-.nutri-bar-val {
-  flex-shrink: 0; width: 70px; text-align: right;
-  font-size: 12.5px; color: var(--sub);
+.nutri-bar-g {
+  flex-shrink: 0; width: 38px; text-align: right;
+  font-size: 12.5px; font-weight: 700; color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
-.nutri-bar-val em { font-style: normal; font-weight: 700; color: var(--text); margin-left: 4px; }
+.nutri-bar-pct {
+  flex-shrink: 0; width: 36px; text-align: right;
+  font-size: 11.5px; color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── 영양 성분표 ── */
 .nutri-table-wrap {
