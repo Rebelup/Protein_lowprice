@@ -113,8 +113,20 @@ function getFiltered() {
 /* ── PRODUCTS ── */
 const fmtPrice = (n) => n ? '₩' + n.toLocaleString('ko-KR') : '';
 
+function getFirstSkuPrice(p) {
+  if (p.options?.length && p.optionSkus?.length) {
+    const firstVals = p.options.map((g) => g.values[0] || '');
+    const sku = p.optionSkus.find((s) => s.combo.length === firstVals.length && s.combo.every((v, i) => v === firstVals[i]));
+    if (sku && sku.price > 0) return sku.price;
+    const fallback = p.optionSkus.find((s) => s.price > 0);
+    if (fallback) return fallback.price;
+  }
+  return p.salePrice;
+}
+
 function eventBasePrice(e, p) {
-  return e.discountBase === 'original' ? (p.originalPrice || p.salePrice) : p.salePrice;
+  const sale = getFirstSkuPrice(p);
+  return e.discountBase === 'original' ? (p.originalPrice || sale) : sale;
 }
 
 function getBestEventPrice(p) {
@@ -122,28 +134,28 @@ function getBestEventPrice(p) {
     e.productIds.includes(p.id) && e.active !== false && e.discountPct &&
     (eventStatus(e) === 'ongoing' || eventStatus(e) === 'ending')
   );
-  if (!eligible.length || !p.salePrice) return null;
+  const basePrice = getFirstSkuPrice(p);
+  if (!eligible.length || !basePrice) return null;
 
-  // Option A: stack all combinable events (apply each discount sequentially on sale price)
   const combinable = eligible.filter((e) => e.combinable);
   let optionA = null;
   if (combinable.length >= 2) {
-    let price = p.salePrice;
+    let price = basePrice;
     combinable.forEach((e) => { price = Math.round(price * (1 - e.discountPct / 100)); });
-    optionA = { price, pct: Math.round((1 - price / p.salePrice) * 100), eventName: `${combinable.length}개 이벤트 중복 적용` };
+    optionA = { price, pct: Math.round((1 - price / basePrice) * 100), eventName: `${combinable.length}개 이벤트 중복 적용` };
   }
 
-  // Option B: best single event
   const best = eligible.reduce((a, b) => (b.discountPct > a.discountPct ? b : a));
   const base = eventBasePrice(best, p);
   const evPrice = Math.round(base * (1 - best.discountPct / 100));
-  const optionB = { price: evPrice, pct: Math.round((1 - evPrice / p.salePrice) * 100), eventName: best.name };
+  const optionB = { price: evPrice, pct: Math.round((1 - evPrice / basePrice) * 100), eventName: best.name };
 
   return (optionA && optionA.price < optionB.price) ? optionA : optionB;
 }
 
 function renderProductCard(p) {
-  const disc = p.originalPrice > p.salePrice ? Math.round((1 - p.salePrice / p.originalPrice) * 100) : 0;
+  const basePrice = getFirstSkuPrice(p);
+  const disc = p.originalPrice > basePrice ? Math.round((1 - basePrice / p.originalPrice) * 100) : 0;
   const thumb = p.thumbnail
     ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
     : p.emoji;
@@ -154,20 +166,20 @@ function renderProductCard(p) {
       priceHtml = `<div class="prod-card-price">
           <span class="prod-pct">-${ev.pct}%</span>
           <span class="prod-sale">${fmtPrice(ev.price)}</span>
-          <span class="prod-orig">${fmtPrice(p.salePrice)}</span>
+          <span class="prod-orig">${fmtPrice(basePrice)}</span>
         </div>
         <div class="prod-ev-tag">⚡ 이벤트 적용가</div>`;
     } else {
       priceHtml = `<div class="prod-card-price">
           ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
-          <span class="prod-sale">${fmtPrice(p.salePrice)}</span>
+          <span class="prod-sale">${fmtPrice(basePrice)}</span>
           ${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
         </div>`;
     }
   } else {
     priceHtml = `<div class="prod-card-price">
         ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
-        <span class="prod-sale">${fmtPrice(p.salePrice)}</span>
+        <span class="prod-sale">${fmtPrice(basePrice)}</span>
         ${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
       </div>`;
   }
