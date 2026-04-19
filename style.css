@@ -601,6 +601,23 @@ body {
 .pp-opt-sel-label { font-size: 12px; color: var(--blue); font-weight: 600; }
 .pp-opt-orig-price { font-size: 12px; color: var(--muted); text-decoration: line-through; }
 .pp-opt-price { font-size: 18px; font-weight: 800; color: var(--blue); }
+.pp-opt-evt-summary {
+  margin-top: 10px; padding: 12px 14px;
+  background: #FFF8E1; border-radius: 10px; border: 1px solid #FFE082;
+}
+.pp-opt-evt-summary.hidden { display: none; }
+.pp-opt-evt-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 8px;
+}
+.pp-opt-evt-label { font-size: 12.5px; font-weight: 600; color: #B45309; }
+.pp-opt-evt-disc { font-size: 13px; font-weight: 700; color: var(--red); }
+.pp-opt-evt-final {
+  display: flex; justify-content: space-between; align-items: center;
+  padding-top: 8px; border-top: 1px solid #FFE082;
+}
+.pp-opt-evt-final-label { font-size: 13px; font-weight: 700; color: var(--text); }
+.pp-opt-evt-final-price { font-size: 20px; font-weight: 800; color: var(--blue); }
 .pp-opt-save-badge {
   font-size: 11px; font-weight: 700; padding: 3px 8px;
   border-radius: 99px; background: var(--red); color: #fff;

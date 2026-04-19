@@ -59,7 +59,10 @@
   border-color: var(--blue);
 }
 .admin-field textarea { resize: vertical; min-height: 60px; }
-.admin-field-row { display: flex; gap: 10px; }
+.admin-field-row { display: flex; gap: 10px; flex-wrap: wrap; }
+.admin-field-row .admin-field { min-width: 120px; }
+.admin-label { font-size: 12px; font-weight: 600; color: var(--sub); display: block; margin-bottom: 5px; }
+.admin-field select, .admin-field input { color: var(--text) !important; }
 
 .admin-msg {
   padding: 10px 12px; border-radius: 8px; font-size: 13px;

@@ -547,6 +547,7 @@ function renderProductPage(p) {
     optionSectionHtml = `<div class="pp-opt-section" id="ppOptSection">
       ${groupsHtml}
       <div class="pp-opt-selected-price hidden" id="ppOptPrice"></div>
+      <div class="pp-opt-evt-summary hidden" id="ppEvtSummary"></div>
     </div>`;
   }
 
@@ -592,6 +593,29 @@ function renderProductPage(p) {
         } else {
           priceEl.classList.add('hidden');
         }
+      }
+
+      // 이벤트 최대할인 요약 (옵션 가격 아래)
+      const evtSummary = $('ppEvtSummary');
+      if (evtSummary && allSelected && basePrice) {
+        const ev = getBestEventPrice(p);
+        if (ev) {
+          const saving = basePrice - ev.price;
+          evtSummary.innerHTML = `
+            <div class="pp-opt-evt-row">
+              <span class="pp-opt-evt-label">⚡ 이벤트 적용 최대할인</span>
+              <span class="pp-opt-evt-disc">-${ev.pct}%&nbsp;&nbsp;-${fmtPrice(saving)}</span>
+            </div>
+            <div class="pp-opt-evt-final">
+              <span class="pp-opt-evt-final-label">최종 가격</span>
+              <span class="pp-opt-evt-final-price">${fmtPrice(ev.price)}</span>
+            </div>`;
+          evtSummary.classList.remove('hidden');
+        } else {
+          evtSummary.classList.add('hidden');
+        }
+      } else if (evtSummary) {
+        evtSummary.classList.add('hidden');
       }
 
       // 이벤트 카드 가격 업데이트
