@@ -421,6 +421,18 @@ function syncOptionsFromDOM() {
   });
 }
 
+function addOptionValue(gi) {
+  syncOptionsFromDOM();
+  const inp = document.querySelector(`.admin-opt-val-new[data-gi="${gi}"]`);
+  const val = inp ? inp.value.trim() : '';
+  if (!val) return;
+  if (currentOptions[gi].values.includes(val)) return;
+  currentOptions[gi].values.push(val);
+  renderOptionGroups();
+  const next = document.querySelector(`.admin-opt-val-new[data-gi="${gi}"]`);
+  if (next) next.focus();
+}
+
 function renderOptionGroups() {
   const c = $('optionGroupsContainer');
   $('addOptionGroupBtn').disabled = currentOptions.length >= 3;
@@ -437,10 +449,19 @@ function renderOptionGroups() {
       </div>
       <div class="admin-option-vals">
         ${g.values.map((v, vi) => `<span class="admin-opt-chip">${esc(v)}<button type="button" class="opt-chip-del" data-gi="${gi}" data-vi="${vi}">✕</button></span>`).join('')}
-        <input type="text" class="admin-input-sm admin-opt-val-new" data-gi="${gi}" placeholder="값 입력" style="width:110px" />
-        <button type="button" class="admin-ghost opt-val-add-btn" data-gi="${gi}">추가</button>
+        ${!g.values.length ? '<span class="admin-option-empty-hint">아직 추가된 값이 없습니다</span>' : ''}
+      </div>
+      <div class="admin-opt-add-row">
+        <input type="text" class="admin-input-sm admin-opt-val-new" data-gi="${gi}" placeholder="예) 초콜렛 스무스" />
+        <button type="button" class="admin-opt-add-confirm" data-gi="${gi}">+ 추가</button>
       </div>
     </div>`).join('');
+  c.querySelectorAll('.admin-opt-add-confirm').forEach((btn) => {
+    btn.addEventListener('click', () => addOptionValue(+btn.dataset.gi));
+  });
+  c.querySelectorAll('.admin-opt-val-new').forEach((inp) => {
+    inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); addOptionValue(+inp.dataset.gi); } });
+  });
   $('skuSection').classList.remove('hidden');
   renderSkuTable();
 }
@@ -748,34 +769,6 @@ async function init() {
       currentSkus = currentSkus.filter((s) => s.combo[gi] !== removed);
       renderOptionGroups();
       return;
-    }
-    const addBtn = e.target.closest('.opt-val-add-btn');
-    if (addBtn) {
-      syncOptionsFromDOM();
-      const gi = +addBtn.dataset.gi;
-      const inp = document.querySelector(`.admin-opt-val-new[data-gi="${gi}"]`);
-      const val = inp ? inp.value.trim() : '';
-      if (val && !currentOptions[gi].values.includes(val)) {
-        currentOptions[gi].values.push(val);
-        renderOptionGroups();
-        const newInp = document.querySelector(`.admin-opt-val-new[data-gi="${gi}"]`);
-        if (newInp) newInp.focus();
-      }
-    }
-  });
-  $('optionGroupsContainer').addEventListener('keydown', (e) => {
-    if (e.key !== 'Enter') return;
-    const inp = e.target.closest('.admin-opt-val-new');
-    if (!inp) return;
-    e.preventDefault();
-    syncOptionsFromDOM();
-    const gi = +inp.dataset.gi;
-    const val = inp.value.trim();
-    if (val && !currentOptions[gi].values.includes(val)) {
-      currentOptions[gi].values.push(val);
-      renderOptionGroups();
-      const newInp = document.querySelectorAll(`.admin-opt-val-new[data-gi="${gi}"]`)[0];
-      if (newInp) newInp.focus();
     }
   });
   $('skuTableContainer').addEventListener('click', (e) => {
