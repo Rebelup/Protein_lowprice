@@ -57,6 +57,7 @@ async function loadProducts() {
     link: p.link || '#',
     calories: p.calories ?? null, servingSize: p.serving_size_g ?? null,
     protein: p.protein_g ?? null, carb: p.carb_g ?? null, fat: p.fat_g ?? null,
+    sodium: p.sodium_mg ?? null,
   }));
 }
 
@@ -324,34 +325,41 @@ function renderProductPage(p) {
   // 영양 정보
   const hasNutri = p.protein !== null || p.carb !== null || p.fat !== null || p.calories !== null;
   const hasMacro = p.protein !== null && p.carb !== null && p.fat !== null;
-  let macroBar = '';
-  if (hasMacro) {
+  const nutriSection = hasNutri ? (() => {
     const prot = p.protein ?? 0, carb = p.carb ?? 0, fat = p.fat ?? 0;
-    const total = prot + carb + fat;
+    const total = hasMacro ? prot + carb + fat : 0;
     const pct = (n) => total ? Math.round(n / total * 100) : 0;
-    const pp = pct(prot), cp = pct(carb), fp = 100 - pp - cp;
-    macroBar = `<div class="macro-bar-wrap">
-      <div class="macro-bar">
-        <div class="macro-seg macro-prot" style="width:${pp}%"></div>
-        <div class="macro-seg macro-carb" style="width:${cp}%"></div>
-        <div class="macro-seg macro-fat" style="width:${fp}%"></div>
-      </div>
-      <div class="macro-labels">
-        <span class="macro-lbl"><span class="macro-dot macro-prot-dot"></span>단백질 ${prot}g <em>${pp}%</em></span>
-        <span class="macro-lbl"><span class="macro-dot macro-carb-dot"></span>탄수화물 ${carb}g <em>${cp}%</em></span>
-        <span class="macro-lbl"><span class="macro-dot macro-fat-dot"></span>지방 ${fat}g <em>${fp}%</em></span>
-      </div>
-    </div>`;
-  }
-  const nutriSection = hasNutri ? sect('영양 정보', `
-    <div class="pp-nutri">
-      <div class="pp-nutri-item"><div class="pp-nutri-val">${p.calories ?? '-'}</div><div class="pp-nutri-unit">kcal</div><div class="pp-nutri-label">칼로리</div></div>
-      <div class="pp-nutri-item"><div class="pp-nutri-val">${p.protein ?? '-'}</div><div class="pp-nutri-unit">g</div><div class="pp-nutri-label">단백질</div></div>
-      <div class="pp-nutri-item"><div class="pp-nutri-val">${p.carb ?? '-'}</div><div class="pp-nutri-unit">g</div><div class="pp-nutri-label">탄수화물</div></div>
-      <div class="pp-nutri-item"><div class="pp-nutri-val">${p.fat ?? '-'}</div><div class="pp-nutri-unit">g</div><div class="pp-nutri-label">지방</div></div>
-    </div>
-    ${macroBar}
-    ${p.servingSize ? `<p class="pp-serving">1회 제공량 ${p.servingSize}g 기준</p>` : ''}`) : '';
+    const maxMacro = hasMacro ? Math.max(prot, carb, fat) : 0;
+    const barW = (n) => maxMacro ? Math.round(n / maxMacro * 100) : 0;
+    const macroRows = hasMacro ? `
+      <div class="nutri-bars">
+        <div class="nutri-bar-row">
+          <span class="nutri-bar-label">단백질</span>
+          <div class="nutri-bar-track"><div class="nutri-bar-fill nb-prot" style="width:${barW(prot)}%"></div></div>
+          <span class="nutri-bar-val">${prot}g <em>${pct(prot)}%</em></span>
+        </div>
+        <div class="nutri-bar-row">
+          <span class="nutri-bar-label">탄수화물</span>
+          <div class="nutri-bar-track"><div class="nutri-bar-fill nb-carb" style="width:${barW(carb)}%"></div></div>
+          <span class="nutri-bar-val">${carb}g <em>${pct(carb)}%</em></span>
+        </div>
+        <div class="nutri-bar-row">
+          <span class="nutri-bar-label">지방</span>
+          <div class="nutri-bar-track"><div class="nutri-bar-fill nb-fat" style="width:${barW(fat)}%"></div></div>
+          <span class="nutri-bar-val">${fat}g <em>${pct(fat)}%</em></span>
+        </div>
+      </div>` : '';
+    const tableRows = [
+      ['열량', p.calories != null ? `${p.calories} kcal` : null],
+      ['단백질', p.protein != null ? `${p.protein} g` : null],
+      ['탄수화물', p.carb != null ? `${p.carb} g` : null],
+      ['지방', p.fat != null ? `${p.fat} g` : null],
+      ['나트륨', p.sodium != null ? `${p.sodium} mg` : null],
+    ].filter(([, v]) => v !== null)
+     .map(([label, val]) => `<tr><td class="nt-label">${label}</td><td class="nt-val">${val}</td></tr>`).join('');
+    const servingNote = p.servingSize ? `<div class="nt-serving">1회 제공량 ${p.servingSize}g 기준</div>` : '';
+    return sect('영양 정보', `${macroRows}<div class="nutri-table-wrap">${servingNote}<table class="nutri-table"><tbody>${tableRows}</tbody></table></div>`);
+  })() : '';
 
   // 관련 이벤트
   const linked = EVENTS.filter((e) => e.productIds.includes(p.id) && e.active !== false);

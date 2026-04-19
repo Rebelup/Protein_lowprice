@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260432" />
-  <link rel="stylesheet" href="admin.css?v=20260432" />
+  <link rel="stylesheet" href="style.css?v=20260433" />
+  <link rel="stylesheet" href="admin.css?v=20260433" />
 </head>
 <body>
   <header class="site-header">
@@ -274,6 +274,13 @@
             </label>
           </div>
 
+          <div class="admin-field-row">
+            <label class="admin-field">
+              <span>나트륨 (mg)</span>
+              <input type="number" id="pSodium" min="0" />
+            </label>
+          </div>
+
           <div class="admin-field">
             <span>관련 이벤트 <small id="linkedEventCount"></small></span>
             <input type="text" id="eventSearch" placeholder="이벤트명/브랜드 검색..." style="margin-bottom:6px" />
@@ -335,6 +342,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260432"></script>
+  <script src="admin.js?v=20260433"></script>
 </body>
 </html>

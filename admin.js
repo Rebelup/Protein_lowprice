@@ -295,6 +295,7 @@ function fillProdForm(p) {
   $('pProtein').value = p?.protein_g ?? '';
   $('pCarb').value = p?.carb_g ?? '';
   $('pFat').value = p?.fat_g ?? '';
+  $('pSodium').value = p?.sodium_mg ?? '';
   [1, 2, 3, 4].forEach((n) => { $(`pCat${n}`).value = p?.[`category${n}`] ?? ''; });
   linkedEvents.clear();
   if (p?.id) EVENTS.filter((e) => (e.product_ids || []).includes(p.id)).forEach((e) => linkedEvents.add(e.id));
@@ -327,6 +328,7 @@ async function saveProd(ev) {
     protein_g: +$('pProtein').value || null,
     carb_g: +$('pCarb').value || null,
     fat_g: +$('pFat').value || null,
+    sodium_mg: +$('pSodium').value || null,
     updated_at: new Date().toISOString(),
   };
   const btn = $('prodSave');
