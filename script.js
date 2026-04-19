@@ -129,12 +129,12 @@ function eventBasePrice(e, p) {
   return e.discountBase === 'original' ? (p.originalPrice || sale) : sale;
 }
 
-function getBestEventPrice(p) {
+function getBestEventPrice(p, overridePrice = null) {
   const eligible = EVENTS.filter((e) =>
     e.productIds.includes(p.id) && e.active !== false && e.discountPct &&
     (eventStatus(e) === 'ongoing' || eventStatus(e) === 'ending')
   );
-  const basePrice = getFirstSkuPrice(p);
+  const basePrice = overridePrice ?? getFirstSkuPrice(p);
   if (!eligible.length || !basePrice) return null;
 
   const combinable = eligible.filter((e) => e.combinable);
@@ -146,7 +146,7 @@ function getBestEventPrice(p) {
   }
 
   const best = eligible.reduce((a, b) => (b.discountPct > a.discountPct ? b : a));
-  const base = eventBasePrice(best, p);
+  const base = best.discountBase === 'original' ? (p.originalPrice || basePrice) : basePrice;
   const evPrice = Math.round(base * (1 - best.discountPct / 100));
   const optionB = { price: evPrice, pct: Math.round((1 - evPrice / basePrice) * 100), eventName: best.name };
 
@@ -174,7 +174,8 @@ function renderProductCard(p) {
           ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
           <span class="prod-sale">${fmtPrice(basePrice)}</span>
           ${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
-        </div>`;
+        </div>
+        <div class="prod-ev-tag prod-ev-tag--none">이벤트 없음</div>`;
     }
   } else {
     priceHtml = `<div class="prod-card-price">
@@ -546,8 +547,7 @@ function renderProductPage(p) {
       </div>`).join('');
     optionSectionHtml = `<div class="pp-opt-section" id="ppOptSection">
       ${groupsHtml}
-      <div class="pp-opt-selected-price hidden" id="ppOptPrice"></div>
-      <div class="pp-opt-evt-summary hidden" id="ppEvtSummary"></div>
+      <div class="pp-opt-card hidden" id="ppOptCard"></div>
     </div>`;
   }
 
@@ -576,46 +576,44 @@ function renderProductPage(p) {
       const skuPrice = sku && sku.price > 0 ? sku.price : null;
       const basePrice = skuPrice || p.salePrice;
 
-      // 옵션 가격 표시
-      const priceEl = $('ppOptPrice');
-      if (priceEl) {
+      // 선택된 옵션 가격 + 이벤트 요약 (통합 카드)
+      const cardEl = $('ppOptCard');
+      if (cardEl) {
         if (allSelected) {
+          let cardHtml = '';
           if (skuPrice) {
             const discPctOpt = sku.origPrice > sku.price ? Math.round((1 - sku.price / sku.origPrice) * 100) : 0;
-            priceEl.innerHTML = `<span class="pp-opt-sel-label">선택된 옵션 가격</span>
-              ${discPctOpt > 0 ? `<span class="pp-opt-orig-price">${fmtPrice(sku.origPrice)}</span>` : ''}
-              <span class="pp-opt-price">${fmtPrice(sku.price)}</span>
-              ${discPctOpt > 0 ? `<span class="pp-opt-save-badge">-${discPctOpt}%</span>` : ''}`;
-          } else {
-            priceEl.innerHTML = `<span class="pp-opt-sel-label">가격 정보 없음</span>`;
-          }
-          priceEl.classList.remove('hidden');
-        } else {
-          priceEl.classList.add('hidden');
-        }
-      }
-
-      // 이벤트 최대할인 요약 (옵션 가격 아래)
-      const evtSummary = $('ppEvtSummary');
-      if (evtSummary && allSelected && basePrice) {
-        const ev = getBestEventPrice(p);
-        if (ev) {
-          const saving = basePrice - ev.price;
-          evtSummary.innerHTML = `
-            <div class="pp-opt-evt-row">
-              <span class="pp-opt-evt-label">⚡ 이벤트 적용 최대할인</span>
-              <span class="pp-opt-evt-disc">-${ev.pct}%&nbsp;&nbsp;-${fmtPrice(saving)}</span>
-            </div>
-            <div class="pp-opt-evt-final">
-              <span class="pp-opt-evt-final-label">최종 가격</span>
-              <span class="pp-opt-evt-final-price">${fmtPrice(ev.price)}</span>
+            cardHtml += `<div class="pp-opt-card-row">
+              <span class="pp-opt-card-label">선택된 옵션 가격</span>
+              <div class="pp-opt-card-price-right">
+                ${discPctOpt > 0 ? `<span class="pp-opt-card-orig">${fmtPrice(sku.origPrice)}</span>` : ''}
+                <span class="pp-opt-card-price">${fmtPrice(sku.price)}</span>
+                ${discPctOpt > 0 ? `<span class="pp-opt-card-badge">-${discPctOpt}%</span>` : ''}
+              </div>
             </div>`;
-          evtSummary.classList.remove('hidden');
+          } else {
+            cardHtml += `<div class="pp-opt-card-row">
+              <span class="pp-opt-card-label">가격 정보 없음</span>
+            </div>`;
+          }
+          const ev = getBestEventPrice(p, basePrice);
+          if (ev) {
+            const saving = basePrice - ev.price;
+            cardHtml += `<div class="pp-opt-card-divider"></div>
+              <div class="pp-opt-evt-row">
+                <span class="pp-opt-evt-label">⚡ 이벤트 적용 최대할인</span>
+                <span class="pp-opt-evt-disc">-${ev.pct}%&nbsp;&nbsp;-${fmtPrice(saving)}</span>
+              </div>
+              <div class="pp-opt-evt-final">
+                <span class="pp-opt-evt-final-label">최종 가격</span>
+                <span class="pp-opt-evt-final-price">${fmtPrice(ev.price)}</span>
+              </div>`;
+          }
+          cardEl.innerHTML = cardHtml;
+          cardEl.classList.remove('hidden');
         } else {
-          evtSummary.classList.add('hidden');
+          cardEl.classList.add('hidden');
         }
-      } else if (evtSummary) {
-        evtSummary.classList.add('hidden');
       }
 
       // 이벤트 카드 가격 업데이트
