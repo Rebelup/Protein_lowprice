@@ -393,19 +393,7 @@ function renderProductPage(p) {
     : p.emoji;
   const sect = (title, body) => `<div class="ep-section"><div class="ep-section-title">${title}</div>${body}</div>`;
   const hasOptions = p.options && p.options.length > 0;
-  const ev = getBestEventPrice(p);
-  const heroPriceHtml = hasOptions ? '' : (ev
-    ? `<div class="pp-hero-price">
-        <span class="pp-pct">-${ev.pct}%</span>
-        <span class="pp-sale">${fmtPrice(ev.price)}</span>
-        <span class="pp-orig">${fmtPrice(p.salePrice)}</span>
-      </div>
-      <div class="pp-ev-price-hint">⚡ 이벤트 적용 시 예상가</div>`
-    : `<div class="pp-hero-price">
-        ${disc > 0 ? `<span class="pp-pct">-${disc}%</span>` : ''}
-        <span class="pp-sale">${fmtPrice(p.salePrice)}</span>
-        ${disc > 0 ? `<span class="pp-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
-      </div>`);
+  const heroPriceHtml = '';
 
   // 영양 정보
   const hasNutri = p.protein !== null || p.carb !== null || p.fat !== null || p.calories !== null;
@@ -537,7 +525,7 @@ function renderProductPage(p) {
 
   // 옵션 선택 UI
   let optionSectionHtml = '';
-  if (p.options && p.options.length) {
+  if (hasOptions) {
     const groupsHtml = p.options.map((g, gi) => `
       <div class="pp-opt-group" data-gi="${gi}">
         <div class="pp-opt-group-name">${esc(g.name)}</div>
@@ -549,6 +537,37 @@ function renderProductPage(p) {
       ${groupsHtml}
       <div class="pp-opt-card hidden" id="ppOptCard"></div>
     </div>`;
+  } else {
+    const basePrice = p.salePrice;
+    const bestEv = getBestEventPrice(p);
+    const discOrig = p.originalPrice > p.salePrice ? Math.round((1 - p.salePrice / p.originalPrice) * 100) : 0;
+    let cardHtml = '';
+    if (p.originalPrice && p.originalPrice > p.salePrice) {
+      cardHtml += `<div class="pp-opt-card-row">
+        <span class="pp-opt-card-label pp-opt-card-label--muted">정가</span>
+        <span class="pp-opt-card-orig">${fmtPrice(p.originalPrice)}</span>
+      </div>`;
+    }
+    cardHtml += `<div class="pp-opt-card-row">
+      <div class="pp-opt-card-label-left">
+        ${discOrig > 0 ? `<span class="pp-opt-card-badge">-${discOrig}%</span>` : ''}
+        <span class="pp-opt-card-label">판매가</span>
+      </div>
+      <span class="pp-opt-card-price">${fmtPrice(basePrice)}</span>
+    </div>`;
+    if (bestEv) {
+      const saving = basePrice - bestEv.price;
+      cardHtml += `<div class="pp-opt-card-divider"></div>
+        <div class="pp-opt-evt-row">
+          <span class="pp-opt-evt-label">⚡ 이벤트 최대할인</span>
+          <span class="pp-opt-evt-disc">-${bestEv.pct}%&nbsp;&nbsp;-${fmtPrice(saving)}</span>
+        </div>
+        <div class="pp-opt-evt-final">
+          <span class="pp-opt-evt-final-label">최종 가격</span>
+          <span class="pp-opt-evt-final-price">${fmtPrice(bestEv.price)}</span>
+        </div>`;
+    }
+    optionSectionHtml = `<div class="pp-opt-card">${cardHtml}</div>`;
   }
 
   $('prodPageBody').innerHTML = `
@@ -584,11 +603,13 @@ function renderProductPage(p) {
           if (skuPrice) {
             const discPctOpt = sku.origPrice > sku.price ? Math.round((1 - sku.price / sku.origPrice) * 100) : 0;
             cardHtml += `<div class="pp-opt-card-row">
-              <span class="pp-opt-card-label">선택된 옵션 가격</span>
+              <div class="pp-opt-card-label-left">
+                ${discPctOpt > 0 ? `<span class="pp-opt-card-badge">-${discPctOpt}%</span>` : ''}
+                <span class="pp-opt-card-label">선택된 옵션 가격</span>
+              </div>
               <div class="pp-opt-card-price-right">
                 ${discPctOpt > 0 ? `<span class="pp-opt-card-orig">${fmtPrice(sku.origPrice)}</span>` : ''}
                 <span class="pp-opt-card-price">${fmtPrice(sku.price)}</span>
-                ${discPctOpt > 0 ? `<span class="pp-opt-card-badge">-${discPctOpt}%</span>` : ''}
               </div>
             </div>`;
           } else {
