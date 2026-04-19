@@ -323,13 +323,25 @@ function renderProductPage(p) {
 
   // 영양 정보
   const hasNutri = p.protein !== null || p.carb !== null || p.fat !== null || p.calories !== null;
-  const nutriSection = hasNutri ? sect('영양 정보', `
-    <div class="pp-nutri">
-      <div class="pp-nutri-item"><div class="pp-nutri-val">${p.calories ?? '-'}</div><div class="pp-nutri-unit">kcal</div><div class="pp-nutri-label">칼로리</div></div>
-      <div class="pp-nutri-item"><div class="pp-nutri-val">${p.protein ?? '-'}</div><div class="pp-nutri-unit">g</div><div class="pp-nutri-label">단백질</div></div>
-      <div class="pp-nutri-item"><div class="pp-nutri-val">${p.carb ?? '-'}</div><div class="pp-nutri-unit">g</div><div class="pp-nutri-label">탄수화물</div></div>
-      <div class="pp-nutri-item"><div class="pp-nutri-val">${p.fat ?? '-'}</div><div class="pp-nutri-unit">g</div><div class="pp-nutri-label">지방</div></div>
+  const macroCarb = +p.carb || 0, macroProt = +p.protein || 0, macroFat = +p.fat || 0;
+  const kcalC = macroCarb * 4, kcalP = macroProt * 4, kcalF = macroFat * 9;
+  const kcalTotal = kcalC + kcalP + kcalF;
+  const pct = (n) => kcalTotal > 0 ? Math.round((n / kcalTotal) * 100) : 0;
+  const pctC = pct(kcalC), pctP = pct(kcalP), pctF = pct(kcalF);
+  const macroBar = kcalTotal > 0 ? `
+    <div class="pp-macro-bar" role="img" aria-label="탄단지 비율: 탄수 ${pctC}%, 단백질 ${pctP}%, 지방 ${pctF}%">
+      ${pctC ? `<div class="pp-macro-seg pp-macro-carb" style="flex:${pctC}">${pctC >= 8 ? pctC + '%' : ''}</div>` : ''}
+      ${pctP ? `<div class="pp-macro-seg pp-macro-protein" style="flex:${pctP}">${pctP >= 8 ? pctP + '%' : ''}</div>` : ''}
+      ${pctF ? `<div class="pp-macro-seg pp-macro-fat" style="flex:${pctF}">${pctF >= 8 ? pctF + '%' : ''}</div>` : ''}
     </div>
+    <div class="pp-macro-legend">
+      <span class="pp-macro-legend-item"><i class="pp-macro-dot pp-macro-carb"></i>탄수 <b>${macroCarb}g</b> · ${pctC}%</span>
+      <span class="pp-macro-legend-item"><i class="pp-macro-dot pp-macro-protein"></i>단백질 <b>${macroProt}g</b> · ${pctP}%</span>
+      <span class="pp-macro-legend-item"><i class="pp-macro-dot pp-macro-fat"></i>지방 <b>${macroFat}g</b> · ${pctF}%</span>
+    </div>` : '';
+  const nutriSection = hasNutri ? sect('영양 정보', `
+    ${p.calories !== null ? `<div class="pp-kcal"><span class="pp-kcal-val">${p.calories}</span><span class="pp-kcal-unit">kcal</span></div>` : ''}
+    ${macroBar}
     ${p.servingSize ? `<p class="pp-serving">1회 제공량 ${p.servingSize}g 기준</p>` : ''}`) : '';
 
   // 관련 이벤트
