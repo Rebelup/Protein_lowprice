@@ -410,19 +410,14 @@ function renderProductPage(p) {
 /* ── SHEET HELPERS ── */
 function openSheet(sheet, overlay) {
   sheet.classList.remove('hidden');
+  if (overlay) overlay.classList.remove('hidden');
   sheet.getBoundingClientRect();
   sheet.classList.add('sheet-open');
-  if (overlay) { overlay.classList.remove('hidden'); overlay.getBoundingClientRect(); }
 }
 function closeSheet(sheet, overlay) {
   sheet.classList.remove('sheet-open');
-  setTimeout(() => {
-    sheet.classList.add('hidden');
-    if (overlay && ![$('sortSheet'), $('filterSheet'), $('prodSortSheet'), $('prodFilterSheet'), $('userSheet')]
-        .some((s) => s !== sheet && s.classList.contains('sheet-open'))) {
-      overlay.classList.add('hidden');
-    }
-  }, 360);
+  if (overlay) overlay.classList.add('hidden'); // CSS fades overlay (see style.css)
+  setTimeout(() => { sheet.classList.add('hidden'); }, 360);
 }
 function dragToClose(sheet, overlay) {
   let startY = 0, dy = 0, startTime = 0, dragging = false;
@@ -559,7 +554,7 @@ function showError(id, msg) { $(id).textContent = msg; $(id).classList.remove('h
 function setLoading(id, loading) {
   const btn = $(id);
   btn.disabled = loading;
-  btn.textContent = loading ? '처리 중...' : (id === 'loginSubmit' ? '로그인' : '가입하기');
+  btn.classList.toggle('btn-loading', loading);
 }
 function updateAuthUI(user) {
   $('authBtn').classList.toggle('hidden', !!user);
@@ -638,8 +633,8 @@ function initListeners() {
   });
 
   overlay.addEventListener('click', () => {
-    [sortSheet, filterSheet, $('userSheet')]
-      .filter((s) => !s.classList.contains('hidden'))
+    [sortSheet, filterSheet, $('prodSortSheet'), $('prodFilterSheet'), $('userSheet')]
+      .filter((s) => s && !s.classList.contains('hidden'))
       .forEach((s) => closeSheet(s, overlay));
   });
 

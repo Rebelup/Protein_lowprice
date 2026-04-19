@@ -206,8 +206,18 @@ body {
 }
 
 /* ── BOTTOM SHEETS ── */
-.sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 200; }
-.login-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 400; }
+.sheet-overlay, .login-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.4);
+  opacity: 1; transition: opacity .3s; pointer-events: auto;
+}
+.sheet-overlay { z-index: 200; }
+.login-overlay { z-index: 400; }
+/* Fade out instead of display:none — override global .hidden for overlays */
+.sheet-overlay.hidden, .login-overlay.hidden {
+  display: block !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
 .sort-sheet, .filter-sheet, .user-sheet, .login-sheet {
   position: fixed; left: 50%; bottom: 0; width: 100%; max-width: 640px;
   background: var(--white); border-radius: 16px 16px 0 0;
@@ -492,12 +502,23 @@ body {
   padding: 10px 12px; border-radius: 8px; font-size: 12.5px; margin-bottom: 12px;
 }
 .login-submit-btn {
-  width: 100%; padding: 13px 0;
+  position: relative; width: 100%; padding: 13px 0;
   background: var(--blue); color: var(--white); border: none;
   border-radius: 10px; font-size: 14px; font-weight: 700; cursor: pointer;
+  transition: background .15s;
 }
 .login-submit-btn:hover { background: #1558C0; }
 .login-submit-btn:disabled { background: var(--muted); cursor: not-allowed; }
+.btn-loading { color: transparent !important; pointer-events: none; }
+.btn-loading::after {
+  content: ''; position: absolute;
+  width: 20px; height: 20px;
+  border: 2.5px solid rgba(255,255,255,.35);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: spin .65s linear infinite;
+  top: calc(50% - 10px); left: calc(50% - 10px);
+}
 .login-switch { text-align: center; font-size: 13px; color: var(--muted); margin-top: 14px; }
 .link-btn {
   background: none; border: none; color: var(--blue);
