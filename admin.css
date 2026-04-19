@@ -226,3 +226,15 @@
 }
 .admin-gate h2 { font-size: 18px; font-weight: 800; margin-bottom: 10px; }
 .admin-gate p { font-size: 13px; color: var(--muted); margin-bottom: 16px; }
+
+.admin-time-row {
+  display: flex; align-items: center; gap: 6px;
+}
+.admin-time-row select {
+  flex: 1; padding: 10px 8px;
+  border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13.5px; background: var(--white); color: var(--text);
+  outline: none; transition: border-color .15s;
+}
+.admin-time-row select:focus { border-color: var(--blue); }
+.admin-time-sep { font-size: 16px; font-weight: 700; color: var(--sub); flex-shrink: 0; }

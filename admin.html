@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260431" />
-  <link rel="stylesheet" href="admin.css?v=20260431" />
+  <link rel="stylesheet" href="style.css?v=20260432" />
+  <link rel="stylesheet" href="admin.css?v=20260432" />
 </head>
 <body>
   <header class="site-header">
@@ -78,20 +78,28 @@
               <span>시작일</span>
               <input type="date" id="fStartDate" />
             </label>
-            <label class="admin-field">
+            <div class="admin-field">
               <span>시작 시각</span>
-              <input type="time" id="fStartTime" step="60" />
-            </label>
+              <div class="admin-time-row">
+                <select id="fStartH"><option value="">시</option></select>
+                <span class="admin-time-sep">:</span>
+                <select id="fStartM"><option value="">분</option></select>
+              </div>
+            </div>
           </div>
           <div class="admin-field-row">
             <label class="admin-field">
               <span>종료일</span>
               <input type="date" id="fEndDate" />
             </label>
-            <label class="admin-field">
+            <div class="admin-field">
               <span>종료 시각</span>
-              <input type="time" id="fEndTime" step="60" />
-            </label>
+              <div class="admin-time-row">
+                <select id="fEndH"><option value="">시</option></select>
+                <span class="admin-time-sep">:</span>
+                <select id="fEndM"><option value="">분</option></select>
+              </div>
+            </div>
           </div>
 
           <label class="admin-field">
@@ -327,6 +335,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260431"></script>
+  <script src="admin.js?v=20260432"></script>
 </body>
 </html>

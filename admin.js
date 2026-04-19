@@ -21,16 +21,31 @@ const isoToDatePart = (v) => {
   const d = new Date(v);
   return isNaN(d) ? '' : `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
 };
-const isoToTimePart = (v) => {
-  if (!v) return '';
-  const d = new Date(v);
-  return isNaN(d) ? '' : `${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
-};
-const partsToISO = (date, time) => {
+const partsToISO = (date, h, m) => {
   if (!date) return null;
-  const d = new Date(`${date}T${time || '00:00'}`);
+  const hh = (h !== '' && h != null) ? +h : 0;
+  const mm = (m !== '' && m != null) ? +m : 0;
+  const d = new Date(`${date}T${pad2(hh)}:${pad2(mm)}`);
   return isNaN(d) ? null : d.toISOString();
 };
+function buildTimeSelects() {
+  ['fStartH', 'fEndH'].forEach((id) => {
+    const sel = $(id);
+    for (let h = 0; h < 24; h++) {
+      const o = document.createElement('option');
+      o.value = h; o.textContent = `${pad2(h)}시`;
+      sel.appendChild(o);
+    }
+  });
+  ['fStartM', 'fEndM'].forEach((id) => {
+    const sel = $(id);
+    for (let m = 0; m < 60; m++) {
+      const o = document.createElement('option');
+      o.value = m; o.textContent = `${pad2(m)}분`;
+      sel.appendChild(o);
+    }
+  });
+}
 const fmtDt = (v) => {
   if (!v) return '';
   const d = new Date(v);
@@ -141,9 +156,11 @@ function fillEventForm(e) {
     $(id).value = e?.[key] ?? (id === 'fDiscount' ? 0 : '');
   });
   $('fStartDate').value = isoToDatePart(e?.start_date);
-  $('fStartTime').value = isoToTimePart(e?.start_date);
   $('fEndDate').value = isoToDatePart(e?.end_date);
-  $('fEndTime').value = isoToTimePart(e?.end_date);
+  if (e?.start_date) { const d = new Date(e.start_date); $('fStartH').value = d.getHours(); $('fStartM').value = d.getMinutes(); }
+  else { $('fStartH').value = ''; $('fStartM').value = ''; }
+  if (e?.end_date) { const d = new Date(e.end_date); $('fEndH').value = d.getHours(); $('fEndM').value = d.getMinutes(); }
+  else { $('fEndH').value = ''; $('fEndM').value = ''; }
   $('fBrand').value = e?.brand ?? '';
   syncBrandLabel();
   $('fActive').value = e?.active === false ? 'false' : 'true';
@@ -198,8 +215,8 @@ function collectEventForm() {
     const v = $(id).value.trim();
     payload[key] = v === '' ? null : (key === 'discount_pct' ? +v : v);
   });
-  payload.start_date = partsToISO($('fStartDate').value, $('fStartTime').value);
-  payload.end_date = partsToISO($('fEndDate').value, $('fEndTime').value);
+  payload.start_date = partsToISO($('fStartDate').value, $('fStartH').value, $('fStartM').value);
+  payload.end_date = partsToISO($('fEndDate').value, $('fEndH').value, $('fEndM').value);
   payload.active = $('fActive').value === 'true';
   payload.conditions = linesToArr($('fConditions').value);
   payload.how_to = linesToArr($('fHowTo').value);
@@ -444,6 +461,7 @@ function attachListHandler(listId, items, selSet, fill, updateFn) {
 
 // ─── INIT ─────────────────────────────────────────────────
 async function init() {
+  buildTimeSelects();
   const mainEl = document.querySelector('main');
   const { data } = await db.auth.getSession();
   mainEl.style.visibility = '';

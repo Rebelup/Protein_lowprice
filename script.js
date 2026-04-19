@@ -323,6 +323,26 @@ function renderProductPage(p) {
 
   // 영양 정보
   const hasNutri = p.protein !== null || p.carb !== null || p.fat !== null || p.calories !== null;
+  const hasMacro = p.protein !== null && p.carb !== null && p.fat !== null;
+  let macroBar = '';
+  if (hasMacro) {
+    const prot = p.protein ?? 0, carb = p.carb ?? 0, fat = p.fat ?? 0;
+    const total = prot + carb + fat;
+    const pct = (n) => total ? Math.round(n / total * 100) : 0;
+    const pp = pct(prot), cp = pct(carb), fp = 100 - pp - cp;
+    macroBar = `<div class="macro-bar-wrap">
+      <div class="macro-bar">
+        <div class="macro-seg macro-prot" style="width:${pp}%"></div>
+        <div class="macro-seg macro-carb" style="width:${cp}%"></div>
+        <div class="macro-seg macro-fat" style="width:${fp}%"></div>
+      </div>
+      <div class="macro-labels">
+        <span class="macro-lbl"><span class="macro-dot macro-prot-dot"></span>단백질 ${prot}g <em>${pp}%</em></span>
+        <span class="macro-lbl"><span class="macro-dot macro-carb-dot"></span>탄수화물 ${carb}g <em>${cp}%</em></span>
+        <span class="macro-lbl"><span class="macro-dot macro-fat-dot"></span>지방 ${fat}g <em>${fp}%</em></span>
+      </div>
+    </div>`;
+  }
   const nutriSection = hasNutri ? sect('영양 정보', `
     <div class="pp-nutri">
       <div class="pp-nutri-item"><div class="pp-nutri-val">${p.calories ?? '-'}</div><div class="pp-nutri-unit">kcal</div><div class="pp-nutri-label">칼로리</div></div>
@@ -330,6 +350,7 @@ function renderProductPage(p) {
       <div class="pp-nutri-item"><div class="pp-nutri-val">${p.carb ?? '-'}</div><div class="pp-nutri-unit">g</div><div class="pp-nutri-label">탄수화물</div></div>
       <div class="pp-nutri-item"><div class="pp-nutri-val">${p.fat ?? '-'}</div><div class="pp-nutri-unit">g</div><div class="pp-nutri-label">지방</div></div>
     </div>
+    ${macroBar}
     ${p.servingSize ? `<p class="pp-serving">1회 제공량 ${p.servingSize}g 기준</p>` : ''}`) : '';
 
   // 관련 이벤트
