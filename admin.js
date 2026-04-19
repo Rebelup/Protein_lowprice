@@ -437,7 +437,8 @@ function renderOptionGroups() {
       </div>
       <div class="admin-option-vals">
         ${g.values.map((v, vi) => `<span class="admin-opt-chip">${esc(v)}<button type="button" class="opt-chip-del" data-gi="${gi}" data-vi="${vi}">✕</button></span>`).join('')}
-        <input type="text" class="admin-input-sm admin-opt-val-new" data-gi="${gi}" placeholder="값 입력 후 Enter" style="width:130px" />
+        <input type="text" class="admin-input-sm admin-opt-val-new" data-gi="${gi}" placeholder="값 입력" style="width:110px" />
+        <button type="button" class="admin-ghost opt-val-add-btn" data-gi="${gi}">추가</button>
       </div>
     </div>`).join('');
   $('skuSection').classList.remove('hidden');
@@ -746,6 +747,20 @@ async function init() {
       currentOptions[gi].values.splice(vi, 1);
       currentSkus = currentSkus.filter((s) => s.combo[gi] !== removed);
       renderOptionGroups();
+      return;
+    }
+    const addBtn = e.target.closest('.opt-val-add-btn');
+    if (addBtn) {
+      syncOptionsFromDOM();
+      const gi = +addBtn.dataset.gi;
+      const inp = document.querySelector(`.admin-opt-val-new[data-gi="${gi}"]`);
+      const val = inp ? inp.value.trim() : '';
+      if (val && !currentOptions[gi].values.includes(val)) {
+        currentOptions[gi].values.push(val);
+        renderOptionGroups();
+        const newInp = document.querySelector(`.admin-opt-val-new[data-gi="${gi}"]`);
+        if (newInp) newInp.focus();
+      }
     }
   });
   $('optionGroupsContainer').addEventListener('keydown', (e) => {
