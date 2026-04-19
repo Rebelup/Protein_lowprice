@@ -296,6 +296,10 @@ function fillProdForm(p) {
   $('pCarb').value = p?.carb_g ?? '';
   $('pFat').value = p?.fat_g ?? '';
   $('pSodium').value = p?.sodium_mg ?? '';
+  $('pSugar').value = p?.sugar_g ?? '';
+  $('pSaturatedFat').value = p?.saturated_fat_g ?? '';
+  $('pTransFat').value = p?.trans_fat_g ?? '';
+  $('pCholesterol').value = p?.cholesterol_mg ?? '';
   [1, 2, 3, 4].forEach((n) => { $(`pCat${n}`).value = p?.[`category${n}`] ?? ''; });
   linkedEvents.clear();
   if (p?.id) EVENTS.filter((e) => (e.product_ids || []).includes(p.id)).forEach((e) => linkedEvents.add(e.id));
@@ -329,6 +333,10 @@ async function saveProd(ev) {
     carb_g: +$('pCarb').value || null,
     fat_g: +$('pFat').value || null,
     sodium_mg: +$('pSodium').value || null,
+    sugar_g: +$('pSugar').value || null,
+    saturated_fat_g: +$('pSaturatedFat').value || null,
+    trans_fat_g: +$('pTransFat').value || null,
+    cholesterol_mg: +$('pCholesterol').value || null,
     updated_at: new Date().toISOString(),
   };
   const btn = $('prodSave');

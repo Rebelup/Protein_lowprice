@@ -58,6 +58,8 @@ async function loadProducts() {
     calories: p.calories ?? null, servingSize: p.serving_size_g ?? null,
     protein: p.protein_g ?? null, carb: p.carb_g ?? null, fat: p.fat_g ?? null,
     sodium: p.sodium_mg ?? null,
+    sugar: p.sugar_g ?? null, saturatedFat: p.saturated_fat_g ?? null,
+    transFat: p.trans_fat_g ?? null, cholesterol: p.cholesterol_mg ?? null,
   }));
 }
 
@@ -310,6 +312,7 @@ function closeProductPage() {
   page.addEventListener('transitionend', () => {
     page.classList.add('hidden');
     $('prodPageBody').textContent = '';
+    $('ppCtaBar').textContent = '';
     document.body.style.overflow = '';
   }, { once: true });
   if (history.state?.prodId) history.back();
@@ -354,10 +357,18 @@ function renderProductPage(p) {
       ['열량', p.calories != null ? `${p.calories} kcal` : null],
       ['단백질', p.protein != null ? `${p.protein} g` : null],
       ['탄수화물', p.carb != null ? `${p.carb} g` : null],
+      ['  당류', p.sugar != null ? `${p.sugar} g` : null],
       ['지방', p.fat != null ? `${p.fat} g` : null],
+      ['  포화지방', p.saturatedFat != null ? `${p.saturatedFat} g` : null],
+      ['  트랜스지방', p.transFat != null ? `${p.transFat} g` : null],
+      ['콜레스테롤', p.cholesterol != null ? `${p.cholesterol} mg` : null],
       ['나트륨', p.sodium != null ? `${p.sodium} mg` : null],
     ].filter(([, v]) => v !== null)
-     .map(([label, val]) => `<tr><td class="nt-label">${label}</td><td class="nt-val">${val}</td></tr>`).join('');
+     .map(([label, val]) => {
+       const indent = label.startsWith('  ');
+       const l = label.trim();
+       return `<tr class="${indent ? 'nt-indent' : ''}"><td class="nt-label">${indent ? `<span class="nt-indent-dot">└</span>${l}` : l}</td><td class="nt-val">${val}</td></tr>`;
+     }).join('');
     const servingNote = p.servingSize ? `<div class="nt-serving">1회 제공량 ${p.servingSize}g 기준</div>` : '';
     nutriSection = `<div id="ppNutriSection">${sect('영양 정보', `${macroRows}<div class="nutri-table-wrap">${servingNote}<table class="nutri-table"><tbody>${tableRows}</tbody></table></div>`)}</div>`;
   }
@@ -397,6 +408,8 @@ function renderProductPage(p) {
     ? `<div class="pp-inner-tabs">${tabs.map((t, i) => `<button class="pp-inner-tab${i === 0 ? ' active' : ''}" data-target="${t.target}">${t.label}</button>`).join('')}</div>`
     : '';
 
+  $('ppCtaBar').innerHTML = `<a class="ep-cta" href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener noreferrer">구매하러 가기 →</a>`;
+
   $('prodPageBody').innerHTML = `
     <div class="pp-hero">
       <div class="pp-hero-thumb">${thumb}</div>
@@ -410,7 +423,6 @@ function renderProductPage(p) {
         </div>
       </div>
     </div>
-    <div class="ep-cta-wrap"><a class="ep-cta" href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener noreferrer">구매하러 가기 →</a></div>
     ${tabBar}
     ${eventsSection}${nutriSection}`;
 
@@ -789,6 +801,7 @@ function initListeners() {
       $('prodPage').addEventListener('transitionend', () => {
         $('prodPage').classList.add('hidden');
         $('prodPageBody').textContent = '';
+        $('ppCtaBar').textContent = '';
         document.body.style.overflow = '';
       }, { once: true });
     }

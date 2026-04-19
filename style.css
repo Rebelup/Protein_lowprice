@@ -451,10 +451,23 @@ body {
   padding: 11px 14px; font-size: 13px; font-weight: 700; color: var(--text);
   text-align: right;
 }
+.nt-indent .nt-label { color: var(--muted); font-size: 12px; padding-left: 22px; }
+.nt-indent .nt-val { color: var(--sub); font-size: 12px; font-weight: 600; }
+.nt-indent-dot { margin-right: 4px; color: var(--border); }
+
+/* ── PRODUCT PAGE LAYOUT (flex so CTA stays at bottom) ── */
+#prodPage { display: flex; flex-direction: column; overflow: hidden; }
+#prodPageBody { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 0; }
+.pp-cta-bar {
+  flex-shrink: 0;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0));
+  background: var(--white); border-top: 1px solid var(--border);
+}
+.pp-cta-bar .ep-cta { margin: 0; }
 
 /* ── PRODUCT PAGE INNER TABS ── */
 .pp-inner-tabs {
-  position: sticky; top: 53px; z-index: 9;
+  position: sticky; top: 0; z-index: 9;
   display: flex; background: var(--white);
   border-bottom: 1px solid var(--border);
 }
@@ -464,7 +477,7 @@ body {
   cursor: pointer; border-bottom: 2px solid transparent; transition: all .15s;
 }
 .pp-inner-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
-#ppEventsSection, #ppNutriSection { scroll-margin-top: 104px; }
+#ppEventsSection, #ppNutriSection { scroll-margin-top: 46px; }
 
 .pp-event-card {
   border: 1px solid var(--border); border-radius: 10px;

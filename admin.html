@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260433" />
-  <link rel="stylesheet" href="admin.css?v=20260433" />
+  <link rel="stylesheet" href="style.css?v=20260442" />
+  <link rel="stylesheet" href="admin.css?v=20260442" />
 </head>
 <body>
   <header class="site-header">
@@ -276,6 +276,28 @@
 
           <div class="admin-field-row">
             <label class="admin-field">
+              <span>당류 (g)</span>
+              <input type="number" id="pSugar" min="0" step="0.1" />
+            </label>
+          </div>
+
+          <div class="admin-field-row">
+            <label class="admin-field">
+              <span>포화지방 (g)</span>
+              <input type="number" id="pSaturatedFat" min="0" step="0.1" />
+            </label>
+            <label class="admin-field">
+              <span>트랜스지방 (g)</span>
+              <input type="number" id="pTransFat" min="0" step="0.1" />
+            </label>
+          </div>
+
+          <div class="admin-field-row">
+            <label class="admin-field">
+              <span>콜레스테롤 (mg)</span>
+              <input type="number" id="pCholesterol" min="0" />
+            </label>
+            <label class="admin-field">
               <span>나트륨 (mg)</span>
               <input type="number" id="pSodium" min="0" />
             </label>
@@ -342,6 +364,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260433"></script>
+  <script src="admin.js?v=20260442"></script>
 </body>
 </html>
