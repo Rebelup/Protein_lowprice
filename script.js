@@ -385,6 +385,24 @@ function renderProductPage(p) {
       const stLabel = { ongoing: '진행중', ending: '종료임박', upcoming: '예정', ended: '종료' }[st] || '';
       const dd = dDayText(e, true);
       const period = `${e.startDate ? fmtDate(e.startDate) : '상시'} ~ ${e.endDate ? fmtDate(e.endDate) : '상시'}`;
+
+      // 이벤트 적용 시 가격
+      let priceHtml = '';
+      if (e.discountPct && p.salePrice) {
+        const eventPrice = Math.round(p.salePrice * (1 - e.discountPct / 100));
+        const savings = p.salePrice - eventPrice;
+        priceHtml = `<div class="pp-ev-price-box">
+          <div class="pp-ev-price-label">이벤트 적용 시 예상 가격</div>
+          <div class="pp-ev-price-row">
+            <span class="pp-ev-orig-price">${fmtPrice(p.salePrice)}</span>
+            <span class="pp-ev-arr">→</span>
+            <span class="pp-ev-event-price">${fmtPrice(eventPrice)}</span>
+            <span class="pp-ev-save-badge">-${e.discountPct}%</span>
+          </div>
+          <div class="pp-ev-save-text">${fmtPrice(savings)} 절약</div>
+        </div>`;
+      }
+
       const conds = e.conditions?.length
         ? `<div class="pp-ev-sub-head">💡 이벤트 조건</div><ul class="pp-ev-cond-list">${e.conditions.map((c) => `<li><span class="pp-ev-check">✓</span><span>${esc(c)}</span></li>`).join('')}</ul>`
         : '';
@@ -394,19 +412,21 @@ function renderProductPage(p) {
       const coupon = e.couponCode
         ? `<div class="ep-coupon" style="margin-top:14px"><code>${esc(e.couponCode)}</code><button class="ep-coupon-copy" data-code="${esc(e.couponCode)}">복사</button></div>${e.couponNote ? `<p class="ep-coupon-note">${esc(e.couponNote)}</p>` : ''}`
         : (e.couponNote ? `<p class="ep-coupon-note" style="margin-top:10px">${esc(e.couponNote)}</p>` : '');
+
       return `<div class="pp-ev-card">
-        <div class="pp-ev-top" style="background:linear-gradient(135deg,${color},${color}bb)">
-          <div class="pp-ev-top-meta">
-            <span class="pp-ev-brand-pill">${esc(e.brandLabel)}</span>
-            <span class="pp-ev-status-pill">${stLabel}${dd ? ' · ' + dd : ''}</span>
+        <div class="pp-ev-accent" style="background:${esc(color)}"></div>
+        <div class="pp-ev-inner">
+          <div class="pp-ev-head">
+            <div class="pp-ev-name">${esc(e.name)}</div>
+            <div class="pp-ev-badges">
+              <span class="pp-ev-brand-tag" style="background:${esc(color)}1a;color:${esc(color)}">${esc(e.brandLabel)}</span>
+              <span class="pp-ev-status-tag">${stLabel}${dd ? ' · ' + dd : ''}</span>
+            </div>
           </div>
-          ${e.discountPct ? `<div class="pp-ev-disc-big">-${e.discountPct}%</div>` : ''}
-          <div class="pp-ev-ev-name">${esc(e.name)}</div>
-        </div>
-        <div class="pp-ev-body">
-          <div class="pp-ev-info-row">
-            <span class="pp-ev-info-label">기간</span>
-            <span class="pp-ev-info-val">${period}</span>
+          ${priceHtml}
+          <div class="pp-ev-detail-row">
+            <span class="pp-ev-detail-label">기간</span>
+            <span class="pp-ev-detail-val">${period}</span>
           </div>
           ${conds}${howTo}${coupon}
           <a class="pp-ev-link-btn" href="${esc(safeUrl(e.link))}" target="_blank" rel="noopener noreferrer">이벤트 페이지로 이동 →</a>
