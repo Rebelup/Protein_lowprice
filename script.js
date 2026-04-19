@@ -223,7 +223,7 @@ function showDbError(msg) {
 }
 
 /* ── EVENT DETAIL PAGE ── */
-function openEventPage(id) {
+function openEventPage(id, replaceUrl = false) {
   const e = EVENTS.find((x) => x.id === id);
   if (!e) return;
   renderEventPage(e);
@@ -232,7 +232,8 @@ function openEventPage(id) {
   page.getBoundingClientRect();
   page.classList.add('page-open');
   document.body.style.overflow = 'hidden';
-  history.pushState({ eventId: id }, '', `?event=${id}`);
+  if (replaceUrl) history.replaceState({ eventId: id }, '', `?event=${id}`);
+  else history.pushState({ eventId: id }, '', `?event=${id}`);
 }
 
 function closeEventPage() {
@@ -294,7 +295,7 @@ function renderEventPage(e) {
 }
 
 /* ── PRODUCT PAGE ── */
-function openProductPage(id) {
+function openProductPage(id, replaceUrl = false) {
   const p = PRODUCTS.find((x) => x.id === id);
   if (!p) return;
   renderProductPage(p);
@@ -303,7 +304,8 @@ function openProductPage(id) {
   page.getBoundingClientRect();
   page.classList.add('page-open');
   document.body.style.overflow = 'hidden';
-  history.pushState({ prodId: id }, '', `?product=${id}`);
+  if (replaceUrl) history.replaceState({ prodId: id }, '', `?product=${id}`);
+  else history.pushState({ prodId: id }, '', `?product=${id}`);
 }
 
 function closeProductPage() {
@@ -400,11 +402,18 @@ function renderProductPage(p) {
     eventsSection = `<div id="ppEventsSection">${sect('관련 이벤트', cards)}</div>`;
   }
 
-  // 탭 바 (두 섹션 모두 있을 때만)
+  // 리뷰 섹션
+  const rvWriteForm = currentUser
+    ? `<div class="rv-write"><div class="rv-stars-select" id="rvStars">${[1,2,3,4,5].map((n) => `<button type="button" class="rv-star-btn" data-v="${n}">★</button>`).join('')}</div><textarea class="rv-textarea" id="rvText" placeholder="이 상품에 대한 리뷰를 남겨주세요..." rows="3"></textarea><button class="rv-submit-btn" id="rvSubmit">리뷰 등록</button></div>`
+    : `<p class="rv-login-prompt"><button class="link-btn" id="rvLoginPrompt">로그인</button>하고 리뷰를 남겨보세요.</p>`;
+  const reviewSection = `<div id="ppReviewSection">${sect('리뷰', `${rvWriteForm}<div id="rvList"><div class="rv-loading">불러오는 중...</div></div>`)}</div>`;
+
+  // 탭 바
   const tabs = [];
   if (eventsSection) tabs.push({ target: 'ppEventsSection', label: '이벤트' });
   if (nutriSection) tabs.push({ target: 'ppNutriSection', label: '영양성분' });
-  const tabBar = tabs.length > 1
+  tabs.push({ target: 'ppReviewSection', label: '리뷰' });
+  const tabBar = tabs.length >= 2
     ? `<div class="pp-inner-tabs">${tabs.map((t, i) => `<button class="pp-inner-tab${i === 0 ? ' active' : ''}" data-target="${t.target}">${t.label}</button>`).join('')}</div>`
     : '';
 
@@ -424,7 +433,7 @@ function renderProductPage(p) {
       </div>
     </div>
     ${tabBar}
-    ${eventsSection}${nutriSection}`;
+    ${eventsSection}${nutriSection}${reviewSection}`;
 
   $('prodPageBody').querySelectorAll('.pp-inner-tab').forEach((tab) => {
     tab.addEventListener('click', () => {
@@ -443,6 +452,146 @@ function renderProductPage(p) {
       });
     });
   });
+
+  // 리뷰 폼 핸들러
+  let rvRating = 0;
+  const rvStars = $('rvStars');
+  if (rvStars) {
+    const btns = [...rvStars.querySelectorAll('.rv-star-btn')];
+    const setActive = (n) => btns.forEach((b, i) => b.classList.toggle('active', i < n));
+    const setHover = (n) => btns.forEach((b, i) => b.classList.toggle('hover', i < n));
+    btns.forEach((btn) => {
+      btn.addEventListener('click', () => { rvRating = +btn.dataset.v; setActive(rvRating); });
+      btn.addEventListener('mouseenter', () => setHover(+btn.dataset.v));
+      btn.addEventListener('mouseleave', () => setHover(0));
+    });
+    $('rvSubmit').addEventListener('click', async () => {
+      if (!rvRating) return showToast('별점을 선택해주세요');
+      const content = $('rvText')?.value.trim();
+      if (!content) return showToast('리뷰 내용을 입력해주세요');
+      const submitBtn = $('rvSubmit');
+      submitBtn.disabled = true;
+      const name = currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || '익명';
+      const { error } = await db.from('reviews').insert({
+        product_id: p.id, user_id: currentUser.id,
+        user_name: name, user_avatar: currentUser.user_metadata?.avatar_url || null,
+        rating: rvRating, content,
+      });
+      submitBtn.disabled = false;
+      if (error) return showToast('오류가 발생했습니다');
+      $('rvText').value = '';
+      rvRating = 0;
+      setActive(0);
+      await loadAndRenderReviews(p.id);
+    });
+  }
+  $('rvLoginPrompt')?.addEventListener('click', openLoginSheet);
+
+  // 리뷰 목록 이벤트 위임 (섹션 div 재사용)
+  const rvSection = $('ppReviewSection');
+  if (rvSection) {
+    rvSection.addEventListener('click', async (e) => {
+      const delBtn = e.target.closest('[data-del]');
+      if (delBtn && currentUser) {
+        if (!confirm('정말 삭제하시겠습니까?')) return;
+        const tbl = delBtn.dataset.del === 'review' ? 'reviews' : 'review_comments';
+        await db.from(tbl).delete().eq('id', +delBtn.dataset.id);
+        await loadAndRenderReviews(p.id);
+        return;
+      }
+      const postBtn = e.target.closest('.cmt-post-btn');
+      if (postBtn) {
+        if (!currentUser) { openLoginSheet(); return; }
+        const rid = +postBtn.dataset.rid;
+        const inp = rvSection.querySelector(`.cmt-input[data-rid="${rid}"]`);
+        const content = inp?.value.trim();
+        if (!content) return;
+        postBtn.disabled = true;
+        const name = currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || '익명';
+        const { error } = await db.from('review_comments').insert({
+          review_id: rid, user_id: currentUser.id,
+          user_name: name, user_avatar: currentUser.user_metadata?.avatar_url || null, content,
+        });
+        postBtn.disabled = false;
+        if (!error) await loadAndRenderReviews(p.id);
+      }
+    });
+    rvSection.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      const inp = e.target.closest('.cmt-input');
+      if (inp) { e.preventDefault(); rvSection.querySelector(`.cmt-post-btn[data-rid="${inp.dataset.rid}"]`)?.click(); }
+    });
+  }
+
+  loadAndRenderReviews(p.id);
+}
+
+/* ── TOAST ── */
+function showToast(msg) {
+  const t = $('toast');
+  if (!t) return;
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+/* ── REVIEWS ── */
+function rvDateStr(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())}`;
+}
+function renderComment(c) {
+  const canDel = currentUser?.id === c.user_id;
+  return `<div class="cmt-item">
+    <div class="cmt-header">
+      <span class="cmt-name">${esc(c.user_name)}</span>
+      <span class="cmt-date">${rvDateStr(c.created_at)}</span>
+      ${canDel ? `<button class="cmt-del" data-del="comment" data-id="${c.id}">삭제</button>` : ''}
+    </div>
+    <div class="cmt-text">${esc(c.content)}</div>
+  </div>`;
+}
+function renderReviewCard(rv) {
+  const canDel = currentUser?.id === rv.user_id;
+  const initial = (rv.user_name || '?').charAt(0).toUpperCase();
+  const avatarInner = rv.user_avatar
+    ? `<img src="${esc(rv.user_avatar)}" alt="" onerror="this.outerHTML='${initial}'">`
+    : initial;
+  const cmts = (rv.review_comments || []).map(renderComment).join('');
+  const cmtInput = currentUser ? `<div class="cmt-input-row">
+    <input class="cmt-input" data-rid="${rv.id}" placeholder="댓글 입력..." />
+    <button class="cmt-post-btn" data-rid="${rv.id}">등록</button>
+  </div>` : '';
+  return `<div class="rv-card">
+    <div class="rv-header">
+      <div class="rv-avatar-small">${avatarInner}</div>
+      <div class="rv-meta">
+        <div class="rv-name">${esc(rv.user_name)}</div>
+        <div class="rv-rating"><span class="rv-stars-filled">${'★'.repeat(rv.rating)}</span><span class="rv-stars-empty">${'★'.repeat(5 - rv.rating)}</span></div>
+        <div class="rv-date">${rvDateStr(rv.created_at)}</div>
+      </div>
+      ${canDel ? `<button class="rv-del-btn" data-del="review" data-id="${rv.id}">삭제</button>` : ''}
+    </div>
+    <div class="rv-content">${esc(rv.content)}</div>
+    ${cmts ? `<div class="cmt-list">${cmts}</div>` : ''}
+    ${cmtInput}
+  </div>`;
+}
+async function loadAndRenderReviews(productId) {
+  const rvList = $('rvList');
+  if (!rvList) return;
+  const { data, error } = await db
+    .from('reviews')
+    .select('*, review_comments(*)')
+    .eq('product_id', productId)
+    .order('created_at', { ascending: false });
+  const list = $('rvList');
+  if (!list) return;
+  if (error || !data?.length) {
+    list.innerHTML = '<div class="rv-empty">아직 리뷰가 없습니다. 첫 번째 리뷰를 남겨보세요!</div>';
+    return;
+  }
+  list.innerHTML = data.map(renderReviewCard).join('');
 }
 
 /* ── SHEET HELPERS ── */
@@ -812,6 +961,12 @@ function initListeners() {
   dragToClose($('userSheet'), $('sheetOverlay'));
   dragToClose($('loginSheet'), $('loginOverlay'));
 
+  $('prodPageShare').addEventListener('click', () => {
+    navigator.clipboard?.writeText(location.href).then(() => {
+      showToast('링크가 복사되었습니다!');
+    }).catch(() => showToast('링크 복사 실패'));
+  });
+
   $('authBtn').addEventListener('click', openLoginSheet);
   $('userBtn').addEventListener('click', openUserSheet);
   $('userSheetClose').addEventListener('click', closeUserSheet);
@@ -860,5 +1015,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     render();
     renderProducts();
     showLoading(false);
+    const urlParams = new URLSearchParams(location.search);
+    const urlProd = urlParams.get('product'), urlEvent = urlParams.get('event');
+    if (urlProd) openProductPage(+urlProd, true);
+    else if (urlEvent) openEventPage(+urlEvent, true);
   } catch (err) { showDbError(err.message); }
 });

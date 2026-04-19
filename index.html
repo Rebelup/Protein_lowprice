@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>프로틴 이벤트 모음</title>
-  <link rel="stylesheet" href="style.css?v=20260442" />
+  <link rel="stylesheet" href="style.css?v=20260445" />
 </head>
 <body>
 
@@ -240,6 +240,9 @@
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"/></svg>
       </button>
       <span class="ep-title">상품 상세</span>
+      <button class="ep-share icon-btn" id="prodPageShare" aria-label="공유">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      </button>
     </div>
     <div class="ep-body" id="prodPageBody"></div>
     <div class="pp-cta-bar" id="ppCtaBar"></div>
@@ -272,6 +275,7 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="script.js?v=20260442"></script>
+  <div class="toast" id="toast"></div>
+  <script src="script.js?v=20260445"></script>
 </body>
 </html>
