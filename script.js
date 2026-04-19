@@ -380,26 +380,40 @@ function renderProductPage(p) {
   let eventsSection = '';
   if (linked.length) {
     const cards = linked.map((e) => {
+      const color = e.color || '#1A69E5';
+      const st = eventStatus(e);
+      const stLabel = { ongoing: '진행중', ending: '종료임박', upcoming: '예정', ended: '종료' }[st] || '';
+      const dd = dDayText(e, true);
+      const period = `${e.startDate ? fmtDate(e.startDate) : '상시'} ~ ${e.endDate ? fmtDate(e.endDate) : '상시'}`;
       const conds = e.conditions?.length
-        ? `<div class="pp-ev-subtitle">💡 이벤트 조건</div><ul class="ep-list">${e.conditions.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>`
+        ? `<div class="pp-ev-sub-head">💡 이벤트 조건</div><ul class="pp-ev-cond-list">${e.conditions.map((c) => `<li><span class="pp-ev-check">✓</span><span>${esc(c)}</span></li>`).join('')}</ul>`
         : '';
       const howTo = e.howTo?.length
-        ? `<div class="pp-ev-subtitle">📋 참여 방법</div><ol class="ep-steps">${e.howTo.map((s, i) => `<li class="ep-step"><span class="ep-step-num" style="background:${esc(e.color || '#1A69E5')}">${i + 1}</span><span class="ep-step-text">${esc(s)}</span></li>`).join('')}</ol>`
+        ? `<div class="pp-ev-sub-head">📋 참여 방법</div><div class="pp-ev-steps">${e.howTo.map((s, i) => `<div class="pp-ev-step-row"><span class="pp-ev-step-num" style="background:${esc(color)}">${i + 1}</span><span class="pp-ev-step-text">${esc(s)}</span></div>`).join('')}</div>`
         : '';
       const coupon = e.couponCode
-        ? `<div class="ep-coupon" style="margin-top:12px"><code>${esc(e.couponCode)}</code><button class="ep-coupon-copy" data-code="${esc(e.couponCode)}">복사</button></div>${e.couponNote ? `<p class="ep-coupon-note">${esc(e.couponNote)}</p>` : ''}`
-        : '';
-      return `<div class="pp-event-card">
-        <div class="pp-event-header">
-          ${e.discountPct ? `<span class="pp-event-pct">-${e.discountPct}%</span>` : ''}
-          <span class="pp-event-name-text">${esc(e.name)}</span>
+        ? `<div class="ep-coupon" style="margin-top:14px"><code>${esc(e.couponCode)}</code><button class="ep-coupon-copy" data-code="${esc(e.couponCode)}">복사</button></div>${e.couponNote ? `<p class="ep-coupon-note">${esc(e.couponNote)}</p>` : ''}`
+        : (e.couponNote ? `<p class="ep-coupon-note" style="margin-top:10px">${esc(e.couponNote)}</p>` : '');
+      return `<div class="pp-ev-card">
+        <div class="pp-ev-top" style="background:linear-gradient(135deg,${color},${color}bb)">
+          <div class="pp-ev-top-meta">
+            <span class="pp-ev-brand-pill">${esc(e.brandLabel)}</span>
+            <span class="pp-ev-status-pill">${stLabel}${dd ? ' · ' + dd : ''}</span>
+          </div>
+          ${e.discountPct ? `<div class="pp-ev-disc-big">-${e.discountPct}%</div>` : ''}
+          <div class="pp-ev-ev-name">${esc(e.name)}</div>
         </div>
-        <div class="pp-event-meta">${esc(e.brandLabel)} · ${e.endDate ? `~${fmtDate(e.endDate)}` : '상시'}</div>
-        ${conds}${howTo}${coupon}
-        <a class="pp-event-cta" href="${esc(safeUrl(e.link))}" target="_blank" rel="noopener noreferrer">이벤트 페이지로 이동 →</a>
+        <div class="pp-ev-body">
+          <div class="pp-ev-info-row">
+            <span class="pp-ev-info-label">기간</span>
+            <span class="pp-ev-info-val">${period}</span>
+          </div>
+          ${conds}${howTo}${coupon}
+          <a class="pp-ev-link-btn" href="${esc(safeUrl(e.link))}" target="_blank" rel="noopener noreferrer">이벤트 페이지로 이동 →</a>
+        </div>
       </div>`;
     }).join('');
-    eventsSection = `<div id="ppEventsSection">${sect('관련 이벤트', cards)}</div>`;
+    eventsSection = `<div id="ppEventsSection" class="ep-section"><div class="ep-section-title">관련 이벤트</div>${cards}</div>`;
   }
 
   // 리뷰 섹션

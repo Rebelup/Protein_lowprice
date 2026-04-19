@@ -467,6 +467,59 @@ body {
 }
 .pp-cta-bar .ep-cta { margin: 0; }
 
+/* ── EVENT CARDS IN PRODUCT PAGE ── */
+.pp-ev-card {
+  border-radius: 16px; overflow: hidden;
+  box-shadow: 0 3px 16px rgba(0,0,0,.10);
+  margin-bottom: 14px; background: var(--white);
+}
+.pp-ev-card:last-child { margin-bottom: 0; }
+.pp-ev-top { padding: 18px 18px 22px; color: #fff; }
+.pp-ev-top-meta {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 12px;
+}
+.pp-ev-brand-pill, .pp-ev-status-pill {
+  font-size: 11px; font-weight: 700;
+  background: rgba(255,255,255,.22); padding: 3px 10px;
+  border-radius: 99px; backdrop-filter: blur(4px);
+}
+.pp-ev-disc-big {
+  font-size: 38px; font-weight: 900; letter-spacing: -1px;
+  line-height: 1; margin-bottom: 6px;
+}
+.pp-ev-ev-name { font-size: 15px; font-weight: 700; line-height: 1.35; opacity: .95; }
+.pp-ev-body { padding: 4px 18px 18px; }
+.pp-ev-info-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 0; border-bottom: 1px solid var(--border); font-size: 13px;
+}
+.pp-ev-info-label { color: var(--muted); font-weight: 500; }
+.pp-ev-info-val { color: var(--text); font-weight: 600; text-align: right; }
+.pp-ev-sub-head { font-size: 12.5px; font-weight: 700; color: var(--sub); margin: 14px 0 8px; }
+.pp-ev-cond-list { list-style: none; padding: 0; display: flex; flex-direction: column; gap: 7px; }
+.pp-ev-cond-list li {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 13px; color: var(--text); line-height: 1.5;
+}
+.pp-ev-check { color: var(--blue); font-weight: 800; flex-shrink: 0; }
+.pp-ev-steps { display: flex; flex-direction: column; gap: 10px; }
+.pp-ev-step-row { display: flex; align-items: flex-start; gap: 12px; }
+.pp-ev-step-num {
+  width: 22px; height: 22px; border-radius: 50%; background: var(--blue);
+  color: #fff; font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; margin-top: 1px;
+}
+.pp-ev-step-text { font-size: 13px; color: var(--text); line-height: 1.55; }
+.pp-ev-link-btn {
+  display: block; width: 100%; padding: 13px 0; text-align: center;
+  background: #1A2240; color: #fff; border-radius: 10px;
+  font-size: 14px; font-weight: 700; text-decoration: none;
+  margin-top: 16px; transition: opacity .15s;
+}
+.pp-ev-link-btn:hover { opacity: .88; }
+
 /* ── PRODUCT PAGE INNER TABS ── */
 .pp-inner-tabs {
   position: sticky; top: 0; z-index: 9;
@@ -480,26 +533,6 @@ body {
 }
 .pp-inner-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
 #ppEventsSection, #ppNutriSection, #ppReviewSection { scroll-margin-top: 46px; }
-
-.pp-event-card {
-  border: 1px solid var(--border); border-radius: 10px;
-  padding: 16px; margin-bottom: 10px; background: var(--white);
-}
-.pp-event-card:last-child { margin-bottom: 0; }
-.pp-event-header { display: flex; align-items: baseline; gap: 6px; margin-bottom: 4px; }
-.pp-event-pct { font-size: 15px; font-weight: 800; color: var(--red); flex-shrink: 0; }
-.pp-event-name-text { font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.35; }
-.pp-event-meta { font-size: 12px; color: var(--muted); margin-bottom: 8px; }
-.pp-ev-subtitle {
-  font-size: 12.5px; font-weight: 700; color: var(--sub);
-  margin: 12px 0 6px;
-}
-.pp-event-cta {
-  display: block; width: 100%; padding: 10px 0; text-align: center;
-  background: var(--blue); color: var(--white); border-radius: 8px;
-  font-size: 13.5px; font-weight: 700; text-decoration: none;
-  margin-top: 12px;
-}
 
 
 .login-sheet { padding: 0 22px 30px; }
