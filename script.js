@@ -214,7 +214,9 @@ function renderProdCat2Chips() {
 }
 
 function renderProducts() {
+  const sq = state.search.toLowerCase();
   let items = PRODUCTS.filter((p) => {
+    if (sq && !([p.name, p.brand, p.store, p.shortDesc, p.category1, p.category2].filter(Boolean).join(' ')).toLowerCase().includes(sq)) return false;
     if (prodState.cat1 && p.category1 !== prodState.cat1) return false;
     if (prodState.cat2 && p.category2 !== prodState.cat2) return false;
     if (prodState.brands.size > 0 && prodState.brands.size < ALL_BRANDS.length && !prodState.brands.has(p.brand)) return false;
@@ -281,6 +283,7 @@ function render() {
   const grid = $('eventsGrid'), empty = $('emptyState');
   if (!items.length) { grid.innerHTML = ''; empty.classList.remove('hidden'); }
   else { grid.innerHTML = items.map(renderCard).join(''); empty.classList.add('hidden'); }
+  renderProducts();
 }
 
 function showLoading(v) { $('loadingOverlay').classList.toggle('hidden', !v); }
@@ -346,7 +349,32 @@ function renderEventPage(e) {
     </div>
     ${sect('📅 기간', `<div class="ep-info-box">${e.startDate ? fmtDate(e.startDate) : '상시'} ~ ${e.endDate ? fmtDate(e.endDate) : '상시'}</div>`)}
     ${typeChips}${conds}${howTo}${coupon}
-    <div class="ep-cta-wrap"><a class="ep-cta" href="${safeLink}" target="_blank" rel="noopener noreferrer" id="epCtaBtn">이벤트 페이지로 이동 →</a></div>`;
+    ${(() => {
+      const linked = PRODUCTS.filter((p) => (e.productIds || []).includes(p.id));
+      if (!linked.length) return '';
+      const cards = linked.map((p) => {
+        const basePrice = getFirstSkuPrice(p);
+        const disc = p.originalPrice > basePrice ? Math.round((1 - basePrice / p.originalPrice) * 100) : 0;
+        const ev2 = getBestEventPrice(p);
+        const thumb = p.thumbnail
+          ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
+          : p.emoji;
+        const priceHtml = ev2
+          ? `<div class="prod-card-price"><span class="prod-pct">-${ev2.pct}%</span><span class="prod-sale">${fmtPrice(ev2.price)}</span><span class="prod-orig">${fmtPrice(basePrice)}</span></div><div class="prod-ev-tag">⚡ 이벤트 적용가</div>`
+          : `<div class="prod-card-price">${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}<span class="prod-sale">${fmtPrice(basePrice)}</span>${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}</div>`;
+        return `<article class="prod-card ep-rel-prod-card" data-pid="${p.id}">
+          <div class="prod-card-thumb">${thumb}</div>
+          <div class="prod-card-body">
+            <div class="prod-card-name">${esc(p.name)}</div>
+            <div class="prod-card-brand">${esc(p.store)}</div>
+            ${priceHtml}
+          </div>
+        </article>`;
+      }).join('');
+      return sect('🛍️ 관련 상품', `<div class="ep-rel-prod-grid">${cards}</div>`);
+    })()}`;
+
+  $('epCtaBar').innerHTML = `<a class="ep-cta" href="${safeLink}" target="_blank" rel="noopener noreferrer" id="epCtaBtn">이벤트 페이지로 이동 →</a>`;
 
   const copyBtn = $('eventPageBody').querySelector('.ep-coupon-copy');
   copyBtn?.addEventListener('click', () => {
@@ -358,6 +386,10 @@ function renderEventPage(e) {
 
   $('epCtaBtn')?.addEventListener('click', (ev) => {
     if (!currentUser) { ev.preventDefault(); pendingLink = ev.currentTarget.getAttribute('href'); openLoginSheet(); }
+  });
+
+  $('eventPageBody').querySelectorAll('.ep-rel-prod-card[data-pid]').forEach((card) => {
+    card.addEventListener('click', () => openProductPage(+card.dataset.pid));
   });
 }
 
@@ -1113,10 +1145,41 @@ function initListeners() {
   const overlay = $('sheetOverlay');
   const sortSheet = $('sortSheet'), filterSheet = $('filterSheet');
 
-  const doSearch = () => { state.search = searchInput.value.trim(); render(); };
-  searchInput.addEventListener('input', debounce(doSearch, 250));
-  searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doSearch(); });
+  const suggestEl = $('searchSuggest');
+
+  const hideSuggest = () => suggestEl.classList.add('hidden');
+
+  const showSuggest = (q) => {
+    if (!q) { hideSuggest(); return; }
+    const lq = q.toLowerCase();
+    const hits = [];
+    const seen = new Set();
+    const add = (text) => { if (text && text.toLowerCase().includes(lq) && !seen.has(text)) { seen.add(text); hits.push(text); } };
+    EVENTS.forEach((e) => { add(e.name); add(e.brandLabel); });
+    PRODUCTS.forEach((p) => { add(p.name); add(p.store); add(p.brand); });
+    const top = hits.slice(0, 6);
+    if (!top.length) { hideSuggest(); return; }
+    suggestEl.innerHTML = top.map((t) => `<div class="search-suggest-item">${esc(t)}</div>`).join('');
+    suggestEl.classList.remove('hidden');
+  };
+
+  const doSearch = () => {
+    hideSuggest();
+    state.search = searchInput.value.trim();
+    render();
+  };
+
+  searchInput.addEventListener('input', debounce(() => showSuggest(searchInput.value.trim()), 150));
+  searchInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); doSearch(); searchInput.blur(); } });
+  searchInput.addEventListener('blur', () => setTimeout(hideSuggest, 150));
   $('searchBtn').addEventListener('click', doSearch);
+
+  suggestEl.addEventListener('click', (e) => {
+    const item = e.target.closest('.search-suggest-item');
+    if (!item) return;
+    searchInput.value = item.textContent;
+    doSearch();
+  });
 
   $('eventsGrid').addEventListener('click', (e) => {
     const card = e.target.closest('.evt-card');
