@@ -330,8 +330,8 @@
 .opt-chip-del:hover { opacity: 1; }
 .opt-chip-move {
   background: none; border: none; cursor: pointer;
-  font-size: 10px; color: var(--blue); padding: 0; line-height: 1;
-  opacity: .6;
+  font-size: 14px; color: var(--blue); padding: 2px 4px; line-height: 1;
+  opacity: .7;
 }
 .opt-chip-move:hover { opacity: 1; }
 .admin-sku-wrap { overflow-x: auto; }
