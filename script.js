@@ -389,7 +389,11 @@ function renderEventPage(e) {
   });
 
   $('eventPageBody').querySelectorAll('.ep-rel-prod-card[data-pid]').forEach((card) => {
-    card.addEventListener('click', () => openProductPage(+card.dataset.pid));
+    card.addEventListener('click', () => {
+      const pid = +card.dataset.pid;
+      closeEventPage();
+      setTimeout(() => openProductPage(pid), 300);
+    });
   });
 }
 
