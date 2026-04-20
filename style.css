@@ -507,7 +507,7 @@ body {
 .nt-indent-dot { margin-right: 4px; color: var(--border); }
 
 /* ── PRODUCT PAGE LAYOUT (flex so CTA stays at bottom) ── */
-#prodPage { display: flex; flex-direction: column; overflow: hidden; }
+#prodPage { display: flex; flex-direction: column; overflow: hidden; z-index: 360; }
 #prodPageBody { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch; padding-bottom: 0; }
 .pp-cta-bar {
   flex-shrink: 0;
