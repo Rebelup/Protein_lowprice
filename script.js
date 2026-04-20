@@ -29,6 +29,12 @@ const fmtDate = (d) => {
   const hm = dt.getHours() || dt.getMinutes() ? ` ${pad2(dt.getHours())}:${pad2(dt.getMinutes())}` : '';
   return base + hm;
 };
+const fmtPeriod = (s, e) => {
+  if (!s && !e) return '상시';
+  if (!s) return `~ ${fmtDate(e)}`;
+  if (!e) return `${fmtDate(s)} ~`;
+  return `${fmtDate(s)} ~ ${fmtDate(e)}`;
+};
 
 const STATUS_LABEL = { ongoing: '진행중', ending: '종료임박', upcoming: '예정', ended: '종료' };
 function eventStatus(e) {
@@ -258,9 +264,7 @@ function switchTab(tab) {
 /* ── RENDER ── */
 function renderCard(e) {
   const st = eventStatus(e);
-  const period = (e.startDate || e.endDate)
-    ? `${fmtDate(e.startDate) || '상시'} ~ ${fmtDate(e.endDate) || '상시'}`
-    : '상시 진행';
+  const period = fmtPeriod(e.startDate, e.endDate);
   const dd = dDayText(e, true);
   const ddLabel = st === 'ended' ? '종료' : (st === 'upcoming' ? STATUS_LABEL.upcoming : dd);
   const thumb = e.thumbnail
@@ -351,7 +355,7 @@ function renderEventPage(e) {
         ${dd ? `<span class="ep-hero-dday">${dd}</span>` : ''}
       </div>
     </div>
-    ${sect('📅 기간', `<div class="ep-info-box">${e.startDate ? fmtDate(e.startDate) : '상시'} ~ ${e.endDate ? fmtDate(e.endDate) : '상시'}</div>`)}
+    ${sect('📅 기간', `<div class="ep-info-box">${fmtPeriod(e.startDate, e.endDate)}</div>`)}
     ${typeChips}${conds}${howTo}${coupon}
     ${(() => {
       const linked = PRODUCTS.filter((p) => (e.productIds || []).includes(p.id));
@@ -434,7 +438,6 @@ function renderProductPage(p) {
     : p.emoji;
   const sect = (title, body) => `<div class="ep-section"><div class="ep-section-title">${title}</div>${body}</div>`;
   const hasOptions = p.options && p.options.length > 0;
-  const heroPriceHtml = '';
 
   // 영양 정보
   const hasNutri = p.protein !== null || p.carb !== null || p.fat !== null || p.calories !== null;
@@ -493,7 +496,7 @@ function renderProductPage(p) {
       const st = eventStatus(e);
       const stLabel = { ongoing: '진행중', ending: '종료임박', upcoming: '예정', ended: '종료' }[st] || '';
       const dd = dDayText(e, true);
-      const period = `${e.startDate ? fmtDate(e.startDate) : '상시'} ~ ${e.endDate ? fmtDate(e.endDate) : '상시'}`;
+      const period = fmtPeriod(e.startDate, e.endDate);
 
       // 이벤트 적용 시 가격
       let priceHtml = '';
@@ -626,7 +629,6 @@ function renderProductPage(p) {
       <div class="pp-hero-info">
         <div class="pp-hero-brand">${esc(p.store || p.brand)}</div>
         <div class="pp-hero-name">${esc(p.name)}</div>
-        ${heroPriceHtml}
       </div>
     </div>
     ${shortDescHtml}
@@ -642,7 +644,6 @@ function renderProductPage(p) {
       : p.options.map((g) => g.values[0] || null);
 
     const updatePrices = () => {
-      // 상위 옵션 선택값 기준으로 하위 옵션 값 필터링 (상위는 항상 모두 표시)
       p.options.forEach((g, gi) => {
         const btns = $('prodPageBody').querySelectorAll(`.pp-opt-btn[data-gi="${gi}"]`);
         btns.forEach((btn) => {
@@ -662,7 +663,6 @@ function renderProductPage(p) {
       const skuPrice = sku && sku.price > 0 ? sku.price : null;
       const basePrice = skuPrice || p.salePrice;
 
-      // 선택된 옵션 가격 + 이벤트 요약 (통합 카드)
       const cardEl = $('ppOptCard');
       if (cardEl) {
         if (allSelected) {
@@ -707,7 +707,6 @@ function renderProductPage(p) {
         }
       }
 
-      // 이벤트 카드 가격 업데이트
       $('prodPageBody').querySelectorAll('.pp-ev-price-box[data-discount-pct]').forEach((box) => {
         const discPct = +box.dataset.discountPct;
         const discBase = box.dataset.discountBase;
@@ -720,7 +719,6 @@ function renderProductPage(p) {
       });
     };
 
-    // 자동 선택된 옵션 active 클래스
     p.options.forEach((g, gi) => {
       const v = selectedVals[gi];
       if (!v) return;
@@ -742,7 +740,6 @@ function renderProductPage(p) {
         btn.classList.add('active');
         selectedVals[gi] = val;
       }
-      // 상위 변경 시 하위 옵션이 더 이상 유효하지 않으면 첫 유효 값으로 재선택
       for (let i = gi + 1; i < p.options.length; i++) {
         const cur = selectedVals[i];
         const stillValid = cur && p.optionSkus.some((s) =>
@@ -928,13 +925,10 @@ async function loadAndRenderReviews(productId) {
     .select('*, review_comments(*)')
     .eq('product_id', productId)
     .order('created_at', { ascending: false });
-  const list = $('rvList');
-  if (!list) return;
-  if (error || !data?.length) {
-    list.innerHTML = '<div class="rv-empty">아직 리뷰가 없습니다. 첫 번째 리뷰를 남겨보세요!</div>';
-    return;
-  }
-  list.innerHTML = data.map(renderReviewCard).join('');
+  if (!$('rvList')) return;
+  rvList.innerHTML = (error || !data?.length)
+    ? '<div class="rv-empty">아직 리뷰가 없습니다. 첫 번째 리뷰를 남겨보세요!</div>'
+    : data.map(renderReviewCard).join('');
 }
 
 /* ── SHEET HELPERS ── */
@@ -1388,7 +1382,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     renderProdCat1Chips();
     renderProdCat2Chips();
     render();
-    renderProducts();
     showLoading(false);
     const urlParams = new URLSearchParams(location.search);
     const urlProd = urlParams.get('product'), urlEvent = urlParams.get('event');

@@ -150,6 +150,14 @@ const EVENT_FIELDS = [
   ['fLink', 'link'], ['fCouponCode', 'coupon_code'], ['fCouponNote', 'coupon_note'],
 ];
 
+function toggleOngoing(on) {
+  $('fDateFields').classList.toggle('hidden', on);
+  if (on) {
+    ['fStartDate', 'fEndDate'].forEach((id) => $(id).value = '');
+    ['fStartH', 'fStartM', 'fEndH', 'fEndM'].forEach((id) => $(id).value = '');
+  }
+}
+
 function fillEventForm(e) {
   editingId = e?.id ?? null;
   $('fId').value = e?.id ?? '';
@@ -157,12 +165,17 @@ function fillEventForm(e) {
     if (id === 'fBrand' || id === 'fBrandLabel') return;
     $(id).value = e?.[key] ?? (id === 'fDiscount' ? 0 : '');
   });
-  $('fStartDate').value = isoToDatePart(e?.start_date);
-  $('fEndDate').value = isoToDatePart(e?.end_date);
-  if (e?.start_date) { const d = new Date(e.start_date); $('fStartH').value = d.getHours(); $('fStartM').value = d.getMinutes(); }
-  else { $('fStartH').value = ''; $('fStartM').value = ''; }
-  if (e?.end_date) { const d = new Date(e.end_date); $('fEndH').value = d.getHours(); $('fEndM').value = d.getMinutes(); }
-  else { $('fEndH').value = ''; $('fEndM').value = ''; }
+  const ongoing = !e?.start_date && !e?.end_date;
+  $('fOngoing').checked = ongoing;
+  toggleOngoing(ongoing);
+  if (!ongoing) {
+    $('fStartDate').value = isoToDatePart(e?.start_date);
+    $('fEndDate').value = isoToDatePart(e?.end_date);
+    if (e?.start_date) { const d = new Date(e.start_date); $('fStartH').value = d.getHours(); $('fStartM').value = d.getMinutes(); }
+    else { $('fStartH').value = ''; $('fStartM').value = ''; }
+    if (e?.end_date) { const d = new Date(e.end_date); $('fEndH').value = d.getHours(); $('fEndM').value = d.getMinutes(); }
+    else { $('fEndH').value = ''; $('fEndM').value = ''; }
+  }
   $('fBrand').value = e?.brand ?? '';
   syncBrandLabel();
   $('fActive').value = e?.active === false ? 'false' : 'true';
@@ -210,7 +223,7 @@ const renderEventPicker = (q) => renderPicker(q, {
   boxId: 'eventPicker', countId: 'linkedEventCount',
   items: EVENTS, linked: linkedEvents, attr: 'data-eid',
   searchText: (e) => e.name + ' ' + (e.brand_label || e.brand),
-  rowMeta: (e) => `${esc(e.brand_label || e.brand)} · ${esc([fmtDt(e.start_date), fmtDt(e.end_date)].filter(Boolean).join(' ~ ') || '상시')}`,
+  rowMeta: (e) => `${esc(e.brand_label || e.brand)} · ${esc(e.start_date || e.end_date ? [fmtDt(e.start_date), fmtDt(e.end_date)].filter(Boolean).join(' ~ ') : '상시')}`,
   emptyMsg: '이벤트가 없습니다.', fallback: '🏷️',
 });
 
@@ -220,8 +233,8 @@ function collectEventForm() {
     const v = $(id).value.trim();
     payload[key] = v === '' ? null : (key === 'discount_pct' ? +v : v);
   });
-  payload.start_date = partsToISO($('fStartDate').value, $('fStartH').value, $('fStartM').value);
-  payload.end_date = partsToISO($('fEndDate').value, $('fEndH').value, $('fEndM').value);
+  payload.start_date = $('fOngoing').checked ? null : partsToISO($('fStartDate').value, $('fStartH').value, $('fStartM').value);
+  payload.end_date = $('fOngoing').checked ? null : partsToISO($('fEndDate').value, $('fEndH').value, $('fEndM').value);
   payload.active = $('fActive').value === 'true';
   payload.combinable = $('fCombinable').checked;
   payload.discount_base = document.querySelector('input[name="discountBase"]:checked')?.value || 'sale';
@@ -382,7 +395,6 @@ async function saveProd(ev) {
   btn.disabled = false; btn.textContent = '저장';
   if (saveError) return showMsg('prodMsg', saveError.message, true);
 
-  // Sync reverse event links: update product_ids on each affected event
   if (prodId) {
     const evMap = new Map(EVENTS.map((e) => [e.id, e]));
     const prevLinked = new Set(EVENTS.filter((e) => (e.product_ids || []).includes(prodId)).map((e) => e.id));
@@ -742,6 +754,7 @@ async function init() {
   $('adminForm').addEventListener('submit', saveEvent);
   $('adminReset').addEventListener('click', () => fillEventForm(null));
   $('adminDelete').addEventListener('click', deleteEvent);
+  $('fOngoing').addEventListener('change', () => toggleOngoing($('fOngoing').checked));
   $('fBrand').addEventListener('change', syncBrandLabel);
   $('prodSearch').addEventListener('input', (e) => renderProdPicker(e.target.value));
   $('prodPicker').addEventListener('change', (e) => {

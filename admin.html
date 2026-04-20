@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260469" />
-  <link rel="stylesheet" href="admin.css?v=20260469" />
+  <link rel="stylesheet" href="style.css?v=20260472" />
+  <link rel="stylesheet" href="admin.css?v=20260472" />
 </head>
 <body>
   <header class="site-header">
@@ -92,6 +92,14 @@
             </div>
           </div>
 
+          <div class="admin-field-row" style="align-items:center">
+            <label class="admin-field admin-field--check" style="margin-bottom:0">
+              <span>상시 이벤트</span>
+              <input type="checkbox" id="fOngoing" />
+            </label>
+          </div>
+
+          <div id="fDateFields">
           <div class="admin-field-row">
             <label class="admin-field">
               <span>시작일</span>
@@ -119,6 +127,7 @@
                 <select id="fEndM"><option value="">분</option></select>
               </div>
             </div>
+          </div>
           </div>
 
           <label class="admin-field">
@@ -454,6 +463,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260469"></script>
+  <script src="admin.js?v=20260472"></script>
 </body>
 </html>
