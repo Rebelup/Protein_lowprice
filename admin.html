@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260460" />
-  <link rel="stylesheet" href="admin.css?v=20260460" />
+  <link rel="stylesheet" href="style.css?v=20260465" />
+  <link rel="stylesheet" href="admin.css?v=20260465" />
 </head>
 <body>
   <header class="site-header">
@@ -251,6 +251,11 @@
             <input type="url" id="pThumbnail" placeholder="https://..." />
           </label>
 
+          <label class="admin-field">
+            <span>짧은 설명</span>
+            <textarea id="pShortDesc" rows="3" placeholder="상품에 대한 짧은 설명을 입력하세요..." style="resize:vertical"></textarea>
+          </label>
+
           <div class="admin-field-row">
             <label class="admin-field">
               <span>정가 (원)</span>
@@ -443,6 +448,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260460"></script>
+  <script src="admin.js?v=20260465"></script>
 </body>
 </html>

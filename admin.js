@@ -294,6 +294,7 @@ function fillProdForm(p) {
   $('pStore').value = p?.store ?? '';
   $('pEmoji').value = p?.emoji ?? '';
   $('pThumbnail').value = p?.thumbnail ?? '';
+  $('pShortDesc').value = p?.short_desc ?? '';
   $('pOrigPrice').value = p?.original_price ?? '';
   $('pSalePrice').value = p?.sale_price ?? '';
   $('pLink').value = p?.link ?? '';
@@ -334,6 +335,7 @@ async function saveProd(ev) {
     category3: $('pCat3').value || null,
     category4: $('pCat4').value || null,
     thumbnail: $('pThumbnail').value.trim() || null,
+    short_desc: $('pShortDesc').value.trim() || null,
     original_price: +$('pOrigPrice').value || 0,
     sale_price: +$('pSalePrice').value || 0,
     link: $('pLink').value.trim() || null,
@@ -452,7 +454,12 @@ function renderOptionGroups() {
         <button type="button" class="admin-ghost option-group-del" data-gi="${gi}">삭제</button>
       </div>
       <div class="admin-option-vals">
-        ${g.values.map((v, vi) => `<span class="admin-opt-chip">${esc(v)}<button type="button" class="opt-chip-del" data-gi="${gi}" data-vi="${vi}">✕</button></span>`).join('')}
+        ${g.values.map((v, vi) => `<span class="admin-opt-chip" data-gi="${gi}" data-vi="${vi}">
+          ${vi > 0 ? `<button type="button" class="opt-chip-move opt-chip-up" data-gi="${gi}" data-vi="${vi}">↑</button>` : ''}
+          ${vi < g.values.length - 1 ? `<button type="button" class="opt-chip-move opt-chip-down" data-gi="${gi}" data-vi="${vi}">↓</button>` : ''}
+          <span class="opt-chip-label">${esc(v)}</span>
+          <button type="button" class="opt-chip-del" data-gi="${gi}" data-vi="${vi}">✕</button>
+        </span>`).join('')}
         ${!g.values.length ? '<span class="admin-option-empty-hint">아직 추가된 값이 없습니다</span>' : ''}
       </div>
       <div class="admin-opt-add-row">
@@ -793,6 +800,28 @@ async function init() {
       currentOptions[gi].values.splice(vi, 1);
       currentSkus = currentSkus.filter((s) => s.combo[gi] !== removed);
       renderOptionGroups();
+      return;
+    }
+    const chipUp = e.target.closest('.opt-chip-up');
+    if (chipUp) {
+      syncOptionsFromDOM();
+      const gi = +chipUp.dataset.gi, vi = +chipUp.dataset.vi;
+      if (vi > 0) {
+        const vals = currentOptions[gi].values;
+        [vals[vi], vals[vi - 1]] = [vals[vi - 1], vals[vi]];
+        renderOptionGroups();
+      }
+      return;
+    }
+    const chipDown = e.target.closest('.opt-chip-down');
+    if (chipDown) {
+      syncOptionsFromDOM();
+      const gi = +chipDown.dataset.gi, vi = +chipDown.dataset.vi;
+      const vals = currentOptions[gi].values;
+      if (vi < vals.length - 1) {
+        [vals[vi], vals[vi + 1]] = [vals[vi + 1], vals[vi]];
+        renderOptionGroups();
+      }
       return;
     }
   });

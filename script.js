@@ -60,6 +60,7 @@ async function loadProducts() {
     sodium: p.sodium_mg ?? null,
     sugar: p.sugar_g ?? null, saturatedFat: p.saturated_fat_g ?? null,
     transFat: p.trans_fat_g ?? null, cholesterol: p.cholesterol_mg ?? null,
+    shortDesc: p.short_desc || '',
     options: p.options || [],
     optionSkus: (p.option_skus || []).map((s) => ({ combo: s.combo || [], price: s.price || 0, origPrice: s.orig_price || 0 })),
   }));
@@ -549,11 +550,11 @@ function renderProductPage(p) {
       </div>`;
     }
     cardHtml += `<div class="pp-opt-card-row">
-      <div class="pp-opt-card-label-left">
+      <span class="pp-opt-card-label">판매가</span>
+      <div class="pp-opt-card-price-right">
         ${discOrig > 0 ? `<span class="pp-opt-card-badge">-${discOrig}%</span>` : ''}
-        <span class="pp-opt-card-label">판매가</span>
+        <span class="pp-opt-card-price">${fmtPrice(basePrice)}</span>
       </div>
-      <span class="pp-opt-card-price">${fmtPrice(basePrice)}</span>
     </div>`;
     if (bestEv) {
       const saving = basePrice - bestEv.price;
@@ -570,6 +571,15 @@ function renderProductPage(p) {
     optionSectionHtml = `<div class="pp-opt-section"><div class="pp-opt-card pp-opt-card--standalone">${cardHtml}</div></div>`;
   }
 
+  const SHORT_DESC_MAX = 100;
+  const shortDescHtml = p.shortDesc ? (() => {
+    const needsToggle = p.shortDesc.length > SHORT_DESC_MAX;
+    return `<div class="pp-short-desc-wrap">
+      <p class="pp-short-desc${needsToggle ? ' pp-short-desc--collapsed' : ''}" id="ppShortDesc">${esc(p.shortDesc)}</p>
+      ${needsToggle ? `<button type="button" class="pp-short-desc-toggle" id="ppShortDescToggle">더보기</button>` : ''}
+    </div>`;
+  })() : '';
+
   $('prodPageBody').innerHTML = `
     <div class="pp-hero">
       <div class="pp-hero-thumb">${thumb}</div>
@@ -579,6 +589,7 @@ function renderProductPage(p) {
         ${heroPriceHtml}
       </div>
     </div>
+    ${shortDescHtml}
     ${optionSectionHtml}
     ${tabBar}
     ${eventsSection}${nutriSection}${reviewSection}`;
@@ -609,11 +620,11 @@ function renderProductPage(p) {
               </div>`;
             }
             cardHtml += `<div class="pp-opt-card-row">
-              <div class="pp-opt-card-label-left">
+              <span class="pp-opt-card-label">판매가</span>
+              <div class="pp-opt-card-price-right">
                 ${discPctOpt > 0 ? `<span class="pp-opt-card-badge">-${discPctOpt}%</span>` : ''}
-                <span class="pp-opt-card-label">판매가</span>
+                <span class="pp-opt-card-price">${fmtPrice(sku.price)}</span>
               </div>
-              <span class="pp-opt-card-price">${fmtPrice(sku.price)}</span>
             </div>`;
           } else {
             cardHtml += `<div class="pp-opt-card-row">
@@ -675,6 +686,15 @@ function renderProductPage(p) {
         selectedVals[gi] = val;
       }
       updatePrices();
+    });
+  }
+
+  const toggleBtn = $('ppShortDescToggle');
+  if (toggleBtn) {
+    toggleBtn.addEventListener('click', () => {
+      const desc = $('ppShortDesc');
+      const collapsed = desc.classList.toggle('pp-short-desc--collapsed');
+      toggleBtn.textContent = collapsed ? '더보기' : '간략히';
     });
   }
 
