@@ -602,14 +602,14 @@ function renderProductPage(p) {
       : p.options.map((g) => g.values[0] || null);
 
     const updatePrices = () => {
-      // 유효한 SKU가 없는 옵션 값 버튼 숨김
+      // 상위 옵션 선택값 기준으로 하위 옵션 값 필터링 (상위는 항상 모두 표시)
       p.options.forEach((g, gi) => {
         const btns = $('prodPageBody').querySelectorAll(`.pp-opt-btn[data-gi="${gi}"]`);
         btns.forEach((btn) => {
-          const testVals = [...selectedVals];
-          testVals[gi] = btn.dataset.val;
           const hasValid = p.optionSkus.some((s) =>
-            s.price > 0 && testVals.every((tv, i) => tv === null || s.combo[i] === tv)
+            s.price > 0 &&
+            s.combo[gi] === btn.dataset.val &&
+            selectedVals.every((tv, i) => i >= gi || tv === null || s.combo[i] === tv)
           );
           btn.style.display = hasValid ? '' : 'none';
         });
@@ -701,6 +701,29 @@ function renderProductPage(p) {
       } else {
         btn.classList.add('active');
         selectedVals[gi] = val;
+      }
+      // 상위 변경 시 하위 옵션이 더 이상 유효하지 않으면 첫 유효 값으로 재선택
+      for (let i = gi + 1; i < p.options.length; i++) {
+        const cur = selectedVals[i];
+        const stillValid = cur && p.optionSkus.some((s) =>
+          s.price > 0 && s.combo[i] === cur &&
+          selectedVals.every((tv, j) => j >= i || tv === null || s.combo[j] === tv)
+        );
+        if (!stillValid) {
+          const firstValid = p.options[i].values.find((v) =>
+            p.optionSkus.some((s) =>
+              s.price > 0 && s.combo[i] === v &&
+              selectedVals.every((tv, j) => j >= i || tv === null || s.combo[j] === tv)
+            )
+          );
+          selectedVals[i] = firstValid || null;
+          const subGroup = $('prodPageBody').querySelector(`.pp-opt-group[data-gi="${i}"]`);
+          subGroup.querySelectorAll('.pp-opt-btn').forEach((b) => b.classList.remove('active'));
+          if (firstValid) {
+            const newBtn = subGroup.querySelector(`.pp-opt-btn[data-val="${esc(firstValid)}"]`);
+            if (newBtn) newBtn.classList.add('active');
+          }
+        }
       }
       updatePrices();
     });

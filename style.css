@@ -590,7 +590,7 @@ body {
 
 /* ── PRODUCT PAGE OPTIONS ── */
 .pp-opt-section {
-  padding: 14px 16px; border-bottom: 1px solid var(--border);
+  padding: 16px 18px 18px; background: var(--white); margin-bottom: 8px;
 }
 .pp-opt-group { margin-bottom: 14px; }
 .pp-opt-group:last-of-type { margin-bottom: 0; }
