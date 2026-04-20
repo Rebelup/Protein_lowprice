@@ -596,9 +596,25 @@ function renderProductPage(p) {
 
   // 옵션 선택 핸들러
   if (p.options && p.options.length) {
-    const selectedVals = p.options.map((g) => g.values[0] || null);
+    const firstValidSku = p.optionSkus.find((s) => s.price > 0);
+    const selectedVals = firstValidSku
+      ? p.options.map((g, gi) => firstValidSku.combo[gi] || g.values[0] || null)
+      : p.options.map((g) => g.values[0] || null);
 
     const updatePrices = () => {
+      // 유효한 SKU가 없는 옵션 값 버튼 숨김
+      p.options.forEach((g, gi) => {
+        const btns = $('prodPageBody').querySelectorAll(`.pp-opt-btn[data-gi="${gi}"]`);
+        btns.forEach((btn) => {
+          const testVals = [...selectedVals];
+          testVals[gi] = btn.dataset.val;
+          const hasValid = p.optionSkus.some((s) =>
+            s.price > 0 && testVals.every((tv, i) => tv === null || s.combo[i] === tv)
+          );
+          btn.style.display = hasValid ? '' : 'none';
+        });
+      });
+
       const allSelected = selectedVals.every((v) => v !== null);
       const sku = allSelected
         ? p.optionSkus.find((s) => s.combo.length === selectedVals.length && s.combo.every((v, i) => v === selectedVals[i]))
@@ -664,11 +680,12 @@ function renderProductPage(p) {
       });
     };
 
-    // 첫 번째 옵션 자동 선택 표시
+    // 자동 선택된 옵션 active 클래스
     p.options.forEach((g, gi) => {
-      if (!g.values[0]) return;
-      const btns = $('prodPageBody').querySelectorAll(`.pp-opt-btn[data-gi="${gi}"]`);
-      if (btns[0]) btns[0].classList.add('active');
+      const v = selectedVals[gi];
+      if (!v) return;
+      const btn = $('prodPageBody').querySelector(`.pp-opt-btn[data-gi="${gi}"][data-val="${esc(v)}"]`);
+      if (btn) btn.classList.add('active');
     });
     updatePrices();
 
