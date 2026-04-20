@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260472" />
-  <link rel="stylesheet" href="admin.css?v=20260472" />
+  <link rel="stylesheet" href="style.css?v=20260473" />
+  <link rel="stylesheet" href="admin.css?v=20260473" />
 </head>
 <body>
   <header class="site-header">
@@ -184,6 +184,7 @@
           <span class="admin-selected" id="bulkSelected">0개 선택</span>
           <button type="button" class="admin-danger" id="bulkDelete" disabled>선택 삭제</button>
         </div>
+        <input type="text" id="adminListSearch" class="admin-list-search" placeholder="이벤트 검색..." />
         <div class="admin-list" id="adminList"></div>
       </section>
     </div>
@@ -463,6 +464,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260472"></script>
+  <script src="admin.js?v=20260473"></script>
 </body>
 </html>

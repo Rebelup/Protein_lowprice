@@ -104,12 +104,27 @@ async function loadEvents() {
   renderEventList();
 }
 
+function getEventListFiltered() {
+  const q = ($('adminListSearch')?.value || '').trim().toLowerCase();
+  return q ? EVENTS.filter((e) => (e.name + ' ' + (e.brand_label || e.brand)).toLowerCase().includes(q)) : EVENTS;
+}
+
+function getProdListFiltered() {
+  const q = ($('prodListSearch')?.value || '').trim().toLowerCase();
+  return q ? PRODUCTS.filter((p) => (p.name + ' ' + p.brand).toLowerCase().includes(q)) : PRODUCTS;
+}
+
 function renderEventList() {
   const box = $('adminList');
   $('adminCount').textContent = EVENTS.length;
   for (const id of [...selected]) if (!EVENTS.find((e) => e.id === id)) selected.delete(id);
-  if (!EVENTS.length) { box.innerHTML = '<div class="admin-row-empty">등록된 이벤트가 없습니다.</div>'; updateBulk('bulk', selected, EVENTS.length); return; }
-  box.innerHTML = EVENTS.map((e) => {
+  const filtered = getEventListFiltered();
+  if (!filtered.length) {
+    box.innerHTML = `<div class="admin-row-empty">${EVENTS.length ? '검색 결과가 없습니다.' : '등록된 이벤트가 없습니다.'}</div>`;
+    updateBulk('bulk', selected, filtered);
+    return;
+  }
+  box.innerHTML = filtered.map((e) => {
     const period = [fmtDt(e.start_date), fmtDt(e.end_date)].filter(Boolean).join(' ~ ') || '상시';
     return `<div class="admin-row ${e.id === editingId ? 'active' : ''}" data-id="${e.id}">
       <input type="checkbox" class="admin-row-check" data-id="${e.id}" ${selected.has(e.id) ? 'checked' : ''} />
@@ -120,15 +135,16 @@ function renderEventList() {
       </div>
     </div>`;
   }).join('');
-  updateBulk('bulk', selected, EVENTS.length);
+  updateBulk('bulk', selected, filtered);
 }
 
-function updateBulk(prefix, set, total) {
+function updateBulk(prefix, set, filtered) {
   $(`${prefix}Selected`).textContent = `${set.size}개 선택`;
   $(`${prefix}Delete`).disabled = set.size === 0;
   const all = $(`${prefix}CheckAll`) || $(`${prefix}All`);
-  all.checked = total > 0 && set.size === total;
-  all.indeterminate = set.size > 0 && set.size < total;
+  const selInFiltered = filtered.reduce((n, x) => n + (set.has(x.id) ? 1 : 0), 0);
+  all.checked = filtered.length > 0 && selInFiltered === filtered.length;
+  all.indeterminate = selInFiltered > 0 && selInFiltered < filtered.length;
 }
 
 async function doBulkDelete(table, set, btnId, onDone) {
@@ -273,18 +289,19 @@ async function deleteEvent() {
 async function loadProducts() {
   const { data } = await db.from('products').select('*').order('id', { ascending: false });
   PRODUCTS = data || [];
-  renderProdList('');
+  renderProdList();
 }
 
-function renderProdList(q) {
+function renderProdList() {
   const box = $('prodList');
-  const qLow = q.toLowerCase();
-  const filtered = qLow
-    ? PRODUCTS.filter((p) => (p.name + ' ' + p.brand).toLowerCase().includes(qLow))
-    : PRODUCTS;
   $('prodCount').textContent = PRODUCTS.length;
   for (const id of [...prodSelected]) if (!PRODUCTS.find((p) => p.id === id)) prodSelected.delete(id);
-  if (!filtered.length) { box.innerHTML = '<div class="admin-row-empty">상품이 없습니다.</div>'; updateBulk('prodBulk', prodSelected, PRODUCTS.length); return; }
+  const filtered = getProdListFiltered();
+  if (!filtered.length) {
+    box.innerHTML = `<div class="admin-row-empty">${PRODUCTS.length ? '검색 결과가 없습니다.' : '상품이 없습니다.'}</div>`;
+    updateBulk('prodBulk', prodSelected, filtered);
+    return;
+  }
   box.innerHTML = filtered.map((p) => {
     const d = discPct(p);
     return `<div class="admin-row ${p.id === prodEditingId ? 'active' : ''}" data-id="${p.id}">
@@ -296,7 +313,7 @@ function renderProdList(q) {
       </div>
     </div>`;
   }).join('');
-  updateBulk('prodBulk', prodSelected, PRODUCTS.length);
+  updateBulk('prodBulk', prodSelected, filtered);
 }
 
 function setCatExtraFromValues() {
@@ -344,7 +361,7 @@ function fillProdForm(p) {
   renderEventPicker('');
   $('prodFormTitle').textContent = p ? `상품 #${p.id} 수정` : '새 상품 등록';
   $('prodDelete').classList.toggle('hidden', !p);
-  renderProdList($('prodListSearch').value);
+  renderProdList();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -766,10 +783,12 @@ async function init() {
   });
 
   // Event list
-  attachListHandler('adminList', () => EVENTS, selected, fillEventForm, () => updateBulk('bulk', selected, EVENTS.length));
+  attachListHandler('adminList', () => EVENTS, selected, fillEventForm, () => updateBulk('bulk', selected, getEventListFiltered()));
+  $('adminListSearch').addEventListener('input', renderEventList);
   $('bulkCheckAll').addEventListener('change', (e) => {
-    selected.clear();
-    if (e.target.checked) EVENTS.forEach((ev) => selected.add(ev.id));
+    const filtered = getEventListFiltered();
+    if (e.target.checked) filtered.forEach((ev) => selected.add(ev.id));
+    else filtered.forEach((ev) => selected.delete(ev.id));
     renderEventList();
   });
   $('bulkDelete').addEventListener('click', () => doBulkDelete('events', selected, 'bulkDelete', (ids) => {
@@ -883,12 +902,13 @@ async function init() {
   $('genCombosBtn').addEventListener('click', generateAllCombinations);
 
   // Product list
-  $('prodListSearch').addEventListener('input', (e) => renderProdList(e.target.value));
-  attachListHandler('prodList', () => PRODUCTS, prodSelected, fillProdForm, () => updateBulk('prodBulk', prodSelected, PRODUCTS.length));
+  $('prodListSearch').addEventListener('input', renderProdList);
+  attachListHandler('prodList', () => PRODUCTS, prodSelected, fillProdForm, () => updateBulk('prodBulk', prodSelected, getProdListFiltered()));
   $('prodBulkAll').addEventListener('change', (e) => {
-    prodSelected.clear();
-    if (e.target.checked) PRODUCTS.forEach((p) => prodSelected.add(p.id));
-    renderProdList($('prodListSearch').value);
+    const filtered = getProdListFiltered();
+    if (e.target.checked) filtered.forEach((p) => prodSelected.add(p.id));
+    else filtered.forEach((p) => prodSelected.delete(p.id));
+    renderProdList();
   });
   $('prodBulkDelete').addEventListener('click', () => doBulkDelete('products', prodSelected, 'prodBulkDelete', (ids) => {
     if (ids.includes(prodEditingId)) fillProdForm(null);
