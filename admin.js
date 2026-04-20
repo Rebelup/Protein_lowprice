@@ -286,6 +286,18 @@ function renderProdList(q) {
   updateBulk('prodBulk', prodSelected, PRODUCTS.length);
 }
 
+function setCatExtraFromValues() {
+  $('pCat3Wrap').classList.toggle('hidden', !$('pCat3').value);
+  $('pCat4Wrap').classList.toggle('hidden', !$('pCat4').value);
+  updateCatExtraVisibility();
+}
+function updateCatExtraVisibility() {
+  const cat3Shown = !$('pCat3Wrap').classList.contains('hidden');
+  const cat4Shown = !$('pCat4Wrap').classList.contains('hidden');
+  $('catExtraBtnWrap').classList.toggle('hidden', cat3Shown && cat4Shown);
+  $('showCat3Btn').textContent = cat3Shown ? '+ 카테고리 4 추가' : '+ 세부 카테고리 추가';
+}
+
 function fillProdForm(p) {
   prodEditingId = p?.id ?? null;
   $('pId').value = p?.id ?? '';
@@ -309,6 +321,7 @@ function fillProdForm(p) {
   $('pTransFat').value = p?.trans_fat_g ?? '';
   $('pCholesterol').value = p?.cholesterol_mg ?? '';
   [1, 2, 3, 4].forEach((n) => { $(`pCat${n}`).value = p?.[`category${n}`] ?? ''; });
+  setCatExtraFromValues();
   currentOptions = JSON.parse(JSON.stringify(p?.options || []));
   currentSkus = (p?.option_skus || []).map((s) => ({ combo: [...(s.combo || [])], price: s.price || 0, origPrice: s.orig_price || 0 }));
   renderOptionGroups();
@@ -765,6 +778,23 @@ async function init() {
   $('prodReset').addEventListener('click', () => fillProdForm(null));
   $('prodDelete').addEventListener('click', deleteProd);
   [1, 2, 3, 4].forEach((n) => $(`addCat${n}Btn`).addEventListener('click', () => openOptionModal(`cat${n}`)));
+  $('showCat3Btn').addEventListener('click', () => {
+    if ($('pCat3Wrap').classList.contains('hidden')) $('pCat3Wrap').classList.remove('hidden');
+    else $('pCat4Wrap').classList.remove('hidden');
+    updateCatExtraVisibility();
+  });
+  $('removeCat3Btn').addEventListener('click', () => {
+    $('pCat3').value = '';
+    $('pCat3Wrap').classList.add('hidden');
+    $('pCat4').value = '';
+    $('pCat4Wrap').classList.add('hidden');
+    updateCatExtraVisibility();
+  });
+  $('removeCat4Btn').addEventListener('click', () => {
+    $('pCat4').value = '';
+    $('pCat4Wrap').classList.add('hidden');
+    updateCatExtraVisibility();
+  });
   $('eventSearch').addEventListener('input', (e) => renderEventPicker(e.target.value));
   $('eventPicker').addEventListener('change', (e) => {
     const cb = e.target.closest('[data-eid]');

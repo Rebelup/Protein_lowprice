@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260466" />
-  <link rel="stylesheet" href="admin.css?v=20260466" />
+  <link rel="stylesheet" href="style.css?v=20260469" />
+  <link rel="stylesheet" href="admin.css?v=20260469" />
 </head>
 <body>
   <header class="site-header">
@@ -230,20 +230,26 @@
             </div>
           </div>
 
-          <div class="admin-field">
+          <div class="admin-field hidden" id="pCat3Wrap">
             <span>카테고리 3</span>
             <div class="admin-field-inline">
               <select id="pCat3"><option value="">선택 안함</option></select>
               <button type="button" class="admin-ghost" id="addCat3Btn">+ 새 추가</button>
+              <button type="button" class="admin-ghost admin-ghost--danger" id="removeCat3Btn">삭제</button>
             </div>
           </div>
 
-          <div class="admin-field">
+          <div class="admin-field hidden" id="pCat4Wrap">
             <span>카테고리 4</span>
             <div class="admin-field-inline">
               <select id="pCat4"><option value="">선택 안함</option></select>
               <button type="button" class="admin-ghost" id="addCat4Btn">+ 새 추가</button>
+              <button type="button" class="admin-ghost admin-ghost--danger" id="removeCat4Btn">삭제</button>
             </div>
+          </div>
+
+          <div class="admin-field" id="catExtraBtnWrap">
+            <button type="button" class="admin-ghost" id="showCat3Btn">+ 세부 카테고리 추가</button>
           </div>
 
           <label class="admin-field">
@@ -448,6 +454,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260466"></script>
+  <script src="admin.js?v=20260469"></script>
 </body>
 </html>
