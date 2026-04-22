@@ -413,23 +413,62 @@
           <button class="admin-ghost" id="runCrawlNowBtn">지금 실행</button>
         </div>
         <form id="targetForm" class="admin-form" autocomplete="off" style="margin-bottom:14px">
+          <input type="hidden" id="tId" />
+
           <div class="admin-field-row">
-            <label class="admin-field">
-              <span>브랜드</span>
-              <input type="text" id="tBrand" placeholder="예: bsn" />
-            </label>
+            <div class="admin-field">
+              <span>브랜드 <em>*</em></span>
+              <select id="tBrand" required>
+                <option value="">브랜드 선택</option>
+              </select>
+            </div>
             <label class="admin-field">
               <span>표시명</span>
               <input type="text" id="tLabel" placeholder="예: BSN 공식몰" />
             </label>
           </div>
+
           <label class="admin-field">
             <span>모니터링 URL <em>*</em></span>
             <input type="url" id="tUrl" placeholder="https://..." required />
+            <small class="admin-hint">상품 목록 페이지 URL을 입력하세요. 상세 페이지·옵션·카테고리까지 자동 수집합니다.</small>
           </label>
+
+          <div class="admin-field">
+            <span>자동 카테고리 (크롤링된 상품에 적용)</span>
+            <div class="admin-cat-grid">
+              <select id="tCat1"><option value="">카테고리1 없음</option></select>
+              <select id="tCat2"><option value="">카테고리2 없음</option></select>
+              <select id="tCat3"><option value="">카테고리3 없음</option></select>
+              <select id="tCat4"><option value="">카테고리4 없음</option></select>
+            </div>
+          </div>
+
+          <div class="admin-field">
+            <span>크롤링 스케줄 (한국시간)</span>
+            <div class="admin-schedule-row">
+              <div class="admin-time-row">
+                <select id="tScheduleH"><option value="">시</option></select>
+                <span class="admin-time-sep">:</span>
+                <select id="tScheduleM"><option value="">분</option></select>
+              </div>
+              <div class="admin-weekday-row">
+                <label class="admin-weekday"><input type="checkbox" class="t-weekday" value="mon" /><span>월</span></label>
+                <label class="admin-weekday"><input type="checkbox" class="t-weekday" value="tue" /><span>화</span></label>
+                <label class="admin-weekday"><input type="checkbox" class="t-weekday" value="wed" /><span>수</span></label>
+                <label class="admin-weekday"><input type="checkbox" class="t-weekday" value="thu" /><span>목</span></label>
+                <label class="admin-weekday"><input type="checkbox" class="t-weekday" value="fri" /><span>금</span></label>
+                <label class="admin-weekday"><input type="checkbox" class="t-weekday" value="sat" /><span>토</span></label>
+                <label class="admin-weekday"><input type="checkbox" class="t-weekday" value="sun" /><span>일</span></label>
+              </div>
+            </div>
+            <small class="admin-hint">예: 월·화·수 오후 6시 → 월/화/수 체크 + 18시 00분. 시간을 비우면 자동 실행이 꺼집니다.</small>
+          </div>
+
           <div id="targetMsg" class="admin-msg hidden"></div>
           <div class="admin-actions">
-            <button type="submit" class="admin-primary">URL 추가</button>
+            <button type="submit" class="admin-primary" id="targetSave">URL 추가</button>
+            <button type="button" class="admin-ghost hidden" id="targetCancel">취소</button>
           </div>
         </form>
         <div id="targetList" class="admin-list"></div>

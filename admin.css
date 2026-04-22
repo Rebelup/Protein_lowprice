@@ -265,11 +265,67 @@
   font-size: 12px; color: var(--sub); line-height: 1.5;
   background: var(--bg); border-radius: 6px; padding: 8px 10px;
 }
-.target-url { color: var(--blue); text-decoration: none; font-size: 11.5px; }
+.target-url {
+  display: inline-block; color: var(--blue); text-decoration: none; font-size: 11.5px;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  vertical-align: bottom;
+}
 .target-url:hover { text-decoration: underline; }
 .target-toggle-btn.target-inactive { color: var(--muted); }
 .target-del-btn { color: var(--red) !important; border-color: transparent !important; }
 .target-del-btn:hover { border-color: var(--red) !important; background: #FFF5F5 !important; }
+.target-edit-btn:hover { color: var(--blue); }
+
+.admin-row .admin-row-body { min-width: 0; overflow: hidden; }
+.admin-row .admin-row-meta {
+  display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center;
+  overflow: hidden;
+}
+.admin-row-meta .target-url-wrap {
+  min-width: 0; max-width: 280px; overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap;
+}
+
+.admin-hint {
+  font-size: 11.5px; color: var(--muted); margin-top: 2px; line-height: 1.4;
+}
+.admin-cat-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+}
+.admin-cat-grid select {
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: 8px;
+  font-size: 13.5px; background: var(--white); color: var(--text); outline: none;
+}
+.admin-cat-grid select:focus { border-color: var(--blue); }
+
+.admin-schedule-row {
+  display: flex; flex-direction: column; gap: 10px;
+}
+.admin-schedule-row .admin-time-row { max-width: 220px; }
+.admin-weekday-row {
+  display: flex; flex-wrap: wrap; gap: 6px;
+}
+.admin-weekday {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 40px; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: 99px; background: var(--white);
+  font-size: 12.5px; color: var(--sub); cursor: pointer; user-select: none;
+  transition: all .12s;
+}
+.admin-weekday input { display: none; }
+.admin-weekday:has(input:checked) {
+  border-color: var(--blue); color: var(--blue);
+  background: var(--blue-light); font-weight: 700;
+}
+.admin-weekday span { line-height: 1; }
+
+.target-schedule-chip {
+  display: inline-block; font-size: 11px; padding: 2px 8px; border-radius: 99px;
+  background: var(--blue-light); color: var(--blue); font-weight: 600;
+}
+.target-schedule-chip.target-schedule--off {
+  background: var(--bg); color: var(--muted); font-weight: 500;
+}
 
 .admin-field--check {
   flex: 0 0 auto; flex-direction: row !important;

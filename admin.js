@@ -70,8 +70,9 @@ async function loadOptions() {
   const rows = data || [];
   BRANDS = rows.filter((r) => r.type === 'brand');
   CATS = [1, 2, 3, 4].map((n) => rows.filter((r) => r.type === `cat${n}`));
-  renderBrandSelect('fBrand'); renderBrandSelect('pBrand');
+  renderBrandSelect('fBrand'); renderBrandSelect('pBrand'); renderBrandSelect('tBrand');
   [1, 2, 3, 4].forEach(renderCatSelect);
+  [1, 2, 3, 4].forEach(renderTargetCatSelect);
 }
 
 function renderCatSelect(n) {
@@ -84,11 +85,58 @@ function renderCatSelect(n) {
 }
 
 function renderBrandSelect(id) {
-  const sel = $(id), cur = sel.value;
+  const sel = $(id);
+  if (!sel) return;
+  const cur = sel.value;
   sel.innerHTML = '<option value="">브랜드 선택</option>'
     + BRANDS.map((b) => `<option value="${esc(b.value)}" data-label="${esc(b.label)}">${esc(b.label)}</option>`).join('');
   if (cur && BRANDS.find((b) => b.value === cur)) sel.value = cur;
   if (id === 'fBrand') syncBrandLabel();
+}
+
+function renderTargetCatSelect(n) {
+  const sel = $(`tCat${n}`);
+  if (!sel) return;
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">카테고리${n} 없음</option>`
+    + CATS[n - 1].map((c) => `<option value="${esc(c.value)}">${esc(c.label)}</option>`).join('');
+  if (cur && CATS[n - 1].find((c) => c.value === cur)) sel.value = cur;
+}
+
+function buildTargetTimeSelects() {
+  const hSel = $('tScheduleH');
+  if (hSel && hSel.options.length <= 1) {
+    for (let h = 0; h < 24; h++) {
+      const o = document.createElement('option');
+      o.value = h; o.textContent = `${pad2(h)}시`;
+      hSel.appendChild(o);
+    }
+  }
+  const mSel = $('tScheduleM');
+  if (mSel && mSel.options.length <= 1) {
+    for (const m of [0, 10, 15, 20, 30, 40, 45, 50]) {
+      const o = document.createElement('option');
+      o.value = m; o.textContent = `${pad2(m)}분`;
+      mSel.appendChild(o);
+    }
+  }
+}
+
+const WEEKDAY_LABELS = { mon: '월', tue: '화', wed: '수', thu: '목', fri: '금', sat: '토', sun: '일' };
+const WEEKDAY_ORDER = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+function truncateUrl(u, max = 48) {
+  if (!u) return '';
+  const s = String(u);
+  if (s.length <= max) return s;
+  return s.slice(0, max - 1) + '…';
+}
+function formatSchedule(t) {
+  const days = Array.isArray(t.schedule_days) ? t.schedule_days : [];
+  const hasTime = t.schedule_hour != null && t.schedule_hour !== '';
+  if (!hasTime || !days.length) return '자동 실행 꺼짐';
+  const sorted = WEEKDAY_ORDER.filter((d) => days.includes(d)).map((d) => WEEKDAY_LABELS[d]);
+  const time = `${pad2(t.schedule_hour)}:${pad2(t.schedule_minute ?? 0)}`;
+  return `매주 ${sorted.join('·')} ${time} (KST)`;
 }
 
 function syncBrandLabel() {
@@ -622,9 +670,16 @@ function switchAdminTab(tab) {
 
 // ─── CRAWL ALERTS ──────────────────────────────────────────
 let ALERTS = [], TARGETS = [];
+let editingTargetId = null;
 
 async function loadAlerts() {
-  const { data } = await db.from('crawl_alerts').select('*').order('created_at', { ascending: false }).limit(100);
+  const { data, error } = await db.from('crawl_alerts').select('*').order('created_at', { ascending: false }).limit(100);
+  if (error) {
+    console.error('[loadAlerts]', error);
+    $('alertList').innerHTML = `<div class="admin-row-empty">알림을 불러오지 못했습니다: ${esc(error.message)}</div>`;
+    ALERTS = [];
+    return;
+  }
   ALERTS = data || [];
   renderAlerts();
 }
@@ -652,7 +707,7 @@ function renderAlerts() {
         <span class="alert-date">${fmtDt(a.created_at)}</span>
         ${!a.seen ? `<button class="admin-ghost alert-seen-btn" data-id="${a.id}">확인</button>` : '<span class="alert-done">✓</span>'}
       </div>
-      ${a.url ? `<a class="alert-url" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(a.url)}</a>` : ''}
+      ${a.url ? `<a class="alert-url" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(truncateUrl(a.url, 60))}</a>` : ''}
       ${a.snippet ? `<div class="alert-snippet">${esc(a.snippet)}</div>` : ''}
     </div>`).join('');
 }
@@ -672,7 +727,13 @@ async function markAllSeen() {
 }
 
 async function loadCrawlTargets() {
-  const { data } = await db.from('crawl_targets').select('*').order('id');
+  const { data, error } = await db.from('crawl_targets').select('*').order('id');
+  if (error) {
+    console.error('[loadCrawlTargets]', error);
+    $('targetList').innerHTML = `<div class="admin-row-empty">모니터링 대상을 불러오지 못했습니다: ${esc(error.message)}</div>`;
+    TARGETS = [];
+    return;
+  }
   TARGETS = data || [];
   renderCrawlTargets();
 }
@@ -680,47 +741,130 @@ async function loadCrawlTargets() {
 function renderCrawlTargets() {
   const box = $('targetList');
   if (!TARGETS.length) { box.innerHTML = '<div class="admin-row-empty">모니터링 대상이 없습니다. URL을 추가해 주세요.</div>'; return; }
-  box.innerHTML = TARGETS.map((t) => `
-    <div class="admin-row">
+  box.innerHTML = TARGETS.map((t) => {
+    const brandLabel = BRANDS.find((b) => b.value === t.brand)?.label || t.brand || '';
+    const scheduleText = formatSchedule(t);
+    const scheduleClass = (t.schedule_hour != null && t.schedule_hour !== '' && (t.schedule_days || []).length) ? '' : 'target-schedule--off';
+    return `
+    <div class="admin-row" data-id="${t.id}">
       <div class="admin-row-body">
-        <div class="admin-row-name">${esc(t.label || t.brand || t.url)}</div>
+        <div class="admin-row-name">${esc(t.label || brandLabel || t.url)}</div>
         <div class="admin-row-meta">
-          <a class="target-url" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer">${esc(t.url)}</a>
-          ${t.last_checked_at ? ` · 마지막: ${fmtDt(t.last_checked_at)}` : ' · 미확인'}
+          <span class="target-url-wrap"><a class="target-url" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer" title="${esc(t.url)}">${esc(truncateUrl(t.url, 40))}</a></span>
+          <span class="target-schedule-chip ${scheduleClass}">${esc(scheduleText)}</span>
+          ${t.last_checked_at ? `<span>· 마지막: ${fmtDt(t.last_checked_at)}</span>` : '<span>· 미확인</span>'}
         </div>
       </div>
+      <button class="admin-ghost target-edit-btn" data-id="${t.id}">수정</button>
       <button class="admin-ghost target-toggle-btn ${t.active ? '' : 'target-inactive'}" data-id="${t.id}" data-active="${t.active}">${t.active ? '활성' : '비활성'}</button>
       <button class="admin-ghost target-del-btn" data-id="${t.id}">삭제</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+}
+
+function getSelectedWeekdays() {
+  return [...document.querySelectorAll('.t-weekday:checked')].map((c) => c.value);
+}
+function setSelectedWeekdays(days) {
+  const set = new Set(days || []);
+  document.querySelectorAll('.t-weekday').forEach((c) => { c.checked = set.has(c.value); });
+}
+
+function resetTargetForm() {
+  editingTargetId = null;
+  $('tId').value = '';
+  $('tBrand').value = ''; $('tLabel').value = ''; $('tUrl').value = '';
+  ['tCat1', 'tCat2', 'tCat3', 'tCat4'].forEach((id) => { $(id).value = ''; });
+  $('tScheduleH').value = ''; $('tScheduleM').value = '';
+  setSelectedWeekdays([]);
+  $('targetSave').textContent = 'URL 추가';
+  $('targetCancel').classList.add('hidden');
+}
+
+function fillTargetForm(t) {
+  editingTargetId = t.id;
+  $('tId').value = t.id;
+  $('tBrand').value = t.brand || '';
+  $('tLabel').value = t.label || '';
+  $('tUrl').value = t.url || '';
+  [1, 2, 3, 4].forEach((n) => { $(`tCat${n}`).value = t[`category${n}`] || ''; });
+  $('tScheduleH').value = t.schedule_hour != null ? t.schedule_hour : '';
+  $('tScheduleM').value = t.schedule_minute != null ? t.schedule_minute : '';
+  setSelectedWeekdays(t.schedule_days || []);
+  $('targetSave').textContent = '수정 저장';
+  $('targetCancel').classList.remove('hidden');
+  document.querySelector('#adminAlertsTab .admin-panel:last-child')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 async function saveCrawlTarget(ev) {
   ev.preventDefault();
-  const brand = $('tBrand').value.trim(), label = $('tLabel').value.trim(), url = $('tUrl').value.trim();
+  const brand = $('tBrand').value;
+  const label = $('tLabel').value.trim();
+  const url = $('tUrl').value.trim();
+  if (!brand) return showMsg('targetMsg', '브랜드를 선택해 주세요.', true);
   if (!url) return showMsg('targetMsg', 'URL을 입력해 주세요.', true);
-  const btn = ev.submitter; btn.disabled = true;
-  const { error } = await db.from('crawl_targets').insert({ brand, label, url });
+
+  const brandLabel = BRANDS.find((b) => b.value === brand)?.label || brand;
+  const hVal = $('tScheduleH').value;
+  const mVal = $('tScheduleM').value;
+  const days = getSelectedWeekdays();
+
+  const payload = {
+    brand,
+    label: label || brandLabel,
+    url,
+    category1: $('tCat1').value || null,
+    category2: $('tCat2').value || null,
+    category3: $('tCat3').value || null,
+    category4: $('tCat4').value || null,
+    schedule_hour: hVal === '' ? null : +hVal,
+    schedule_minute: mVal === '' ? 0 : +mVal,
+    schedule_days: days,
+  };
+
+  const btn = $('targetSave');
+  btn.disabled = true;
+  const id = $('tId').value;
+  const { error } = id
+    ? await db.from('crawl_targets').update(payload).eq('id', +id)
+    : await db.from('crawl_targets').insert(payload);
   btn.disabled = false;
   if (error) return showMsg('targetMsg', error.message, true);
-  $('tBrand').value = ''; $('tLabel').value = ''; $('tUrl').value = '';
-  showMsg('targetMsg', '추가되었습니다.');
+  showMsg('targetMsg', id ? '수정되었습니다.' : '추가되었습니다.');
+  resetTargetForm();
   await loadCrawlTargets();
 }
 
 async function runCrawlNow() {
   const btn = $('runCrawlNowBtn');
   btn.disabled = true; btn.textContent = '실행 중...';
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 120000);
   try {
-    const res = await fetch(`${SUPABASE_URL}/functions/v1/crawl-events`, {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/crawl-run`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json' },
+      headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
+      body: JSON.stringify({ force: true }),
+      signal: controller.signal,
     });
-    const data = await res.json();
-    showMsg('targetMsg', `완료: ${data.checked}개 확인, ${data.alerts}개 변경 발견`);
+    clearTimeout(timeout);
+    const text = await res.text();
+    let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
+    if (!res.ok || data?.ok === false) {
+      throw new Error(data?.error || `HTTP ${res.status}`);
+    }
+    const checked = data.checked ?? 0;
+    const products = data.products ?? 0;
+    const alerts = data.alerts ?? 0;
+    showMsg('targetMsg', `완료: ${checked}개 대상 확인, 상품 ${products}개 수집, 변경 ${alerts}건`);
     await loadAlerts();
     await loadCrawlTargets();
+    await loadProducts();
   } catch (e) {
-    showMsg('targetMsg', '실행 실패: ' + e.message, true);
+    clearTimeout(timeout);
+    const msg = e?.name === 'AbortError' ? '시간 초과' : (e?.message || String(e));
+    console.error('[runCrawlNow]', e);
+    showMsg('targetMsg', '실행 실패: ' + msg, true);
   }
   btn.disabled = false; btn.textContent = '지금 실행';
 }
@@ -922,12 +1066,27 @@ async function init() {
     if (btn) await markSeen(+btn.dataset.id);
   });
   $('markAllSeenBtn').addEventListener('click', markAllSeen);
+  buildTargetTimeSelects();
   $('targetForm').addEventListener('submit', saveCrawlTarget);
+  $('targetCancel').addEventListener('click', () => { resetTargetForm(); showMsg('targetMsg', '취소되었습니다.'); });
   $('targetList').addEventListener('click', async (e) => {
+    const edit = e.target.closest('.target-edit-btn');
+    if (edit) { const t = TARGETS.find((x) => x.id === +edit.dataset.id); if (t) fillTargetForm(t); return; }
     const del = e.target.closest('.target-del-btn');
-    if (del) { if (!confirm('삭제하시겠습니까?')) return; await db.from('crawl_targets').delete().eq('id', +del.dataset.id); await loadCrawlTargets(); return; }
+    if (del) {
+      if (!confirm('삭제하시겠습니까?')) return;
+      const { error } = await db.from('crawl_targets').delete().eq('id', +del.dataset.id);
+      if (error) return showMsg('targetMsg', error.message, true);
+      if (editingTargetId === +del.dataset.id) resetTargetForm();
+      await loadCrawlTargets();
+      return;
+    }
     const tog = e.target.closest('.target-toggle-btn');
-    if (tog) { await db.from('crawl_targets').update({ active: tog.dataset.active !== 'true' }).eq('id', +tog.dataset.id); await loadCrawlTargets(); }
+    if (tog) {
+      const { error } = await db.from('crawl_targets').update({ active: tog.dataset.active !== 'true' }).eq('id', +tog.dataset.id);
+      if (error) return showMsg('targetMsg', error.message, true);
+      await loadCrawlTargets();
+    }
   });
   $('runCrawlNowBtn').addEventListener('click', runCrawlNow);
 
