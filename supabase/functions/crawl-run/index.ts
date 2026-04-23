@@ -249,12 +249,19 @@ function parseDetail(html: string, url: string): Prod | null {
   // Dedupe per combo, keep cheapest
   const byCombo = new Map<string, Sku>();
   for (const s of rawSkus) {
-    const combo = finalKeys.map((k) => s.add[k] ?? '').filter(Boolean);
+    const combo = finalKeys.map((k) => s.add[k] ?? '');
     const key = combo.join('\x00');
     const ex = byCombo.get(key);
     if (!ex || s.price < ex.price) byCombo.set(key, { combo, price: s.price, orig_price: s.orig });
   }
-  const skus = [...byCombo.values()];
+  // Fill missing dim values with a synthetic price label so every SKU is
+  // addressable in the UI even when the site omits the tag (e.g. myprotein
+  // flavours with only some weight variants tagged)
+  const skus = [...byCombo.values()].map((s) => ({
+    combo: s.combo.map((v, i) => v || (finalKeys[i] === 'weight' ? `₩${s.price.toLocaleString('ko-KR')}` : '')).filter(Boolean),
+    price: s.price,
+    orig_price: s.orig_price,
+  }));
 
   // Only keep option values that actually appear in a SKU combo
   const used: Record<string, Set<string>> = {};

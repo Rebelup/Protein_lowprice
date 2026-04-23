@@ -161,8 +161,10 @@ function getBestEventPrice(p, overridePrice = null) {
 }
 
 function renderProductCard(p) {
-  const basePrice = getFirstSkuPrice(p);
-  const disc = p.originalPrice > basePrice ? Math.round((1 - basePrice / p.originalPrice) * 100) : 0;
+  const cheapest = getCheapestSku(p);
+  const basePrice = cheapest ? cheapest.price : p.salePrice;
+  const baseOrig = cheapest ? (cheapest.origPrice || cheapest.price) : p.originalPrice;
+  const disc = baseOrig > basePrice ? Math.max(1, Math.ceil((1 - basePrice / baseOrig) * 100)) : 0;
   const thumb = p.thumbnail
     ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
     : p.emoji;
@@ -180,7 +182,7 @@ function renderProductCard(p) {
       priceHtml = `<div class="prod-card-price">
           ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
           <span class="prod-sale">${fmtPrice(basePrice)}</span>
-          ${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
+          ${disc > 0 ? `<span class="prod-orig">${fmtPrice(baseOrig)}</span>` : ''}
         </div>
         <div class="prod-ev-tag prod-ev-tag--none">이벤트 없음</div>`;
     }
@@ -188,7 +190,7 @@ function renderProductCard(p) {
     priceHtml = `<div class="prod-card-price">
         ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
         <span class="prod-sale">${fmtPrice(basePrice)}</span>
-        ${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}
+        ${disc > 0 ? `<span class="prod-orig">${fmtPrice(baseOrig)}</span>` : ''}
       </div>`;
   }
   return `<article class="prod-card" data-pid="${p.id}">
@@ -605,7 +607,7 @@ function renderProductPage(p) {
   } else {
     const basePrice = p.salePrice;
     const bestEv = getBestEventPrice(p);
-    const discOrig = p.originalPrice > p.salePrice ? Math.round((1 - p.salePrice / p.originalPrice) * 100) : 0;
+    const discOrig = p.originalPrice > p.salePrice ? Math.max(1, Math.ceil((1 - p.salePrice / p.originalPrice) * 100)) : 0;
     let cardHtml = '';
     if (p.originalPrice && p.originalPrice > p.salePrice) {
       cardHtml += `<div class="pp-opt-card-row">
@@ -692,7 +694,7 @@ function renderProductPage(p) {
         if (allSelected) {
           let cardHtml = '';
           if (skuPrice) {
-            const discPctOpt = sku.origPrice > sku.price ? Math.round((1 - sku.price / sku.origPrice) * 100) : 0;
+            const discPctOpt = sku.origPrice > sku.price ? Math.max(1, Math.ceil((1 - sku.price / sku.origPrice) * 100)) : 0;
             if (sku.origPrice && sku.origPrice > sku.price) {
               cardHtml += `<div class="pp-opt-card-row">
                 <span class="pp-opt-card-label pp-opt-card-label--muted">정가</span>
