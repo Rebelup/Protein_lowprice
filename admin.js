@@ -701,15 +701,23 @@ function renderAlerts() {
     return '';
   };
   box.innerHTML = ALERTS.map((a) => `
-    <div class="alert-row ${a.seen ? 'alert-row--seen' : ''}">
+    <div class="alert-row ${a.seen ? 'alert-row--seen' : ''}" data-id="${a.id}">
       <div class="alert-row-head">
         <span class="alert-type-badge ${typeClass(a.label)}">${esc(a.label || a.brand || '알림')}</span>
         <span class="alert-date">${fmtDt(a.created_at)}</span>
         ${!a.seen ? `<button class="admin-ghost alert-seen-btn" data-id="${a.id}">확인</button>` : '<span class="alert-done">✓</span>'}
+        <button class="alert-close-btn" data-id="${a.id}" title="삭제" aria-label="알림 삭제">✕</button>
       </div>
       ${a.url ? `<a class="alert-url" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">${esc(truncateUrl(a.url, 60))}</a>` : ''}
       ${a.snippet ? `<div class="alert-snippet">${esc(a.snippet)}</div>` : ''}
     </div>`).join('');
+}
+
+async function deleteAlert(id) {
+  const { error } = await db.from('crawl_alerts').delete().eq('id', id);
+  if (error) { console.error('[deleteAlert]', error); return; }
+  ALERTS = ALERTS.filter((a) => a.id !== id);
+  renderAlerts();
 }
 
 async function markSeen(id) {
@@ -1182,6 +1190,8 @@ async function init() {
 
   // Alerts tab
   $('alertList').addEventListener('click', async (e) => {
+    const del = e.target.closest('.alert-close-btn');
+    if (del) { await deleteAlert(+del.dataset.id); return; }
     const btn = e.target.closest('.alert-seen-btn');
     if (btn) await markSeen(+btn.dataset.id);
   });
