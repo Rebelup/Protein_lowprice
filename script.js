@@ -316,11 +316,11 @@ function hideEventPage() {
   const page = $('eventPage');
   if (page.classList.contains('hidden')) return;
   page.classList.remove('page-open');
-  page.addEventListener('transitionend', () => {
+  setTimeout(() => {
     page.classList.add('hidden');
     $('eventPageBody').textContent = '';
     if ($('prodPage').classList.contains('hidden')) document.body.style.overflow = '';
-  }, { once: true });
+  }, 360);
 }
 function closeEventPage() {
   hideEventPage();
@@ -421,12 +421,12 @@ function hideProductPage() {
   const page = $('prodPage');
   if (page.classList.contains('hidden')) return;
   page.classList.remove('page-open');
-  page.addEventListener('transitionend', () => {
+  setTimeout(() => {
     page.classList.add('hidden');
     $('prodPageBody').textContent = '';
     $('ppCtaBar').textContent = '';
     if ($('eventPage').classList.contains('hidden')) document.body.style.overflow = '';
-  }, { once: true });
+  }, 360);
 }
 function closeProductPage() {
   hideProductPage();

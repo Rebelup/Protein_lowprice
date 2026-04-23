@@ -223,11 +223,35 @@ function parseDetail(html: string, url: string): Prod | null {
   const short = desc ? desc.slice(0, 300) : null;
   const { price: topP, orig: topO } = pickPrice(group.offers);
 
+  // Extract per-sku HTML "choices" (myprotein etc.) — these carry real weight
+  // values like "500g - 16servings" that JSON-LD additionalProperty sometimes
+  // omits.
+  const htmlChoices = new Map<string, Record<string, string>>();
+  const choicesRe = /"sku":(\d+)[^{}]{0,800}"choices":(\[[^\]]+\])/g;
+  for (const m of html.matchAll(choicesRe)) {
+    try {
+      const parsed = JSON.parse(m[2]);
+      if (!Array.isArray(parsed)) continue;
+      const obj: Record<string, string> = {};
+      for (const c of parsed) {
+        const key = String(c?.optionKey ?? '').trim().toLowerCase();
+        const val = String(c?.title ?? '').trim();
+        if (key && val) obj[key === 'amount' ? 'weight' : key] = val;
+      }
+      if (Object.keys(obj).length) htmlChoices.set(m[1], obj);
+    } catch { /* skip */ }
+  }
+  // Strip trailing "- Nservings" etc. so the value is just the size
+  const cleanSize = (s: string) => s.split(/\s+-\s+/)[0].trim();
+
   const orderedKeys: string[] = [];
   const rawSkus: Array<{ add: Record<string, string>; price: number; orig: number }> = [];
   const source = variants.length ? variants : [group];
   for (const v of source) {
     const add = readAdd(v as Rec);
+    const vSku = String((v as Rec).sku ?? '');
+    const extra = vSku ? htmlChoices.get(vSku) : undefined;
+    if (extra) for (const [k, val] of Object.entries(extra)) add[k] = k === 'weight' ? cleanSize(val) : val;
     for (const k of Object.keys(add)) if (!orderedKeys.includes(k)) orderedKeys.push(k);
     const { price, orig } = pickPrice((v as Rec).offers);
     if (price > 0) rawSkus.push({ add, price, orig });
