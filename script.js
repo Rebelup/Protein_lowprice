@@ -120,14 +120,14 @@ function getFiltered() {
 /* ── PRODUCTS ── */
 const fmtPrice = (n) => n ? '₩' + n.toLocaleString('ko-KR') : '';
 
+function getCheapestSku(p) {
+  if (!p.optionSkus?.length) return null;
+  return p.optionSkus.filter((s) => s.price > 0).sort((a, b) => a.price - b.price)[0] ?? null;
+}
+
 function getFirstSkuPrice(p) {
-  if (p.options?.length && p.optionSkus?.length) {
-    const firstVals = p.options.map((g) => g.values[0] || '');
-    const sku = p.optionSkus.find((s) => s.combo.length === firstVals.length && s.combo.every((v, i) => v === firstVals[i]));
-    if (sku && sku.price > 0) return sku.price;
-    const fallback = p.optionSkus.find((s) => s.price > 0);
-    if (fallback) return fallback.price;
-  }
+  const cheapest = getCheapestSku(p);
+  if (cheapest) return cheapest.price;
   return p.salePrice;
 }
 
@@ -488,7 +488,7 @@ function renderProductPage(p) {
   }
 
   // 관련 이벤트
-  const linked = EVENTS.filter((e) => e.productIds.includes(p.id) && e.active !== false);
+  const linked = EVENTS.filter((e) => e.productIds.includes(p.id) && e.active !== false && eventStatus(e) !== 'ended');
   let eventsSection = '';
   if (linked.length) {
     const cards = linked.map((e) => {
@@ -567,7 +567,17 @@ function renderProductPage(p) {
 
   $('ppCtaBar').innerHTML = `<a class="ep-cta" href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener noreferrer">구매하러 가기 →</a>`;
 
-  // 옵션 선택 UI
+  // 옵션 선택 UI — 기본은 "가장 싼 SKU" 기준. 그 combo의 값이 각 그룹에서 맨 앞에 오도록 정렬.
+  const cheapestSku = getCheapestSku(p);
+  if (cheapestSku && p.options?.length) {
+    p.options.forEach((g, gi) => {
+      const preferred = cheapestSku.combo[gi];
+      if (preferred && g.values.includes(preferred)) {
+        g.values = [preferred, ...g.values.filter((v) => v !== preferred)];
+      }
+    });
+  }
+
   let optionSectionHtml = '';
   const FIRST_OPT_PREVIEW = 6;
   if (hasOptions) {
@@ -649,17 +659,11 @@ function renderProductPage(p) {
 
   // 옵션 선택 핸들러
   if (p.options && p.options.length) {
-    // 자동 선택: 각 옵션의 첫 번째 값을 고르고, 해당 조합 또는 그 조합과 같은 첫 번째 dim으로 시작하는
-    // 가장 저렴한 SKU의 나머지 dim 값을 채워 넣는다.
+    // 자동 선택: 가장 저렴한 SKU의 combo를 기본값으로. 모자란 dim은 해당 옵션의 첫 값.
     const selectedVals = p.options.map((g) => g.values[0] || null);
-    if (selectedVals[0] != null && p.optionSkus.length) {
-      const matched = p.optionSkus
-        .filter((s) => s.price > 0 && s.combo[0] === selectedVals[0])
-        .sort((a, b) => a.price - b.price)[0];
-      if (matched) {
-        for (let i = 0; i < selectedVals.length; i++) {
-          if (matched.combo[i]) selectedVals[i] = matched.combo[i];
-        }
+    if (cheapestSku) {
+      for (let i = 0; i < selectedVals.length; i++) {
+        if (cheapestSku.combo[i]) selectedVals[i] = cheapestSku.combo[i];
       }
     }
 
@@ -751,11 +755,18 @@ function renderProductPage(p) {
       const moreBtn = e.target.closest('.pp-opt-more');
       if (moreBtn) {
         const giM = +moreBtn.dataset.gi;
-        const btns = $('prodPageBody').querySelector(`.pp-opt-group[data-gi="${giM}"] .pp-opt-btns`);
-        if (btns) {
-          btns.querySelectorAll('.pp-opt-btn--hidden').forEach((b) => b.classList.remove('pp-opt-btn--hidden'));
-          btns.dataset.collapsed = 'false';
-          moreBtn.remove();
+        const container = $('prodPageBody').querySelector(`.pp-opt-group[data-gi="${giM}"] .pp-opt-btns`);
+        if (!container) return;
+        const collapsed = container.dataset.collapsed === 'true';
+        const allBtns = container.querySelectorAll('.pp-opt-btn');
+        if (collapsed) {
+          allBtns.forEach((b) => b.classList.remove('pp-opt-btn--hidden'));
+          container.dataset.collapsed = 'false';
+          moreBtn.textContent = '간략히';
+        } else {
+          allBtns.forEach((b, idx) => { if (idx >= FIRST_OPT_PREVIEW) b.classList.add('pp-opt-btn--hidden'); });
+          container.dataset.collapsed = 'true';
+          moreBtn.textContent = `더보기 (+${allBtns.length - FIRST_OPT_PREVIEW})`;
         }
         return;
       }

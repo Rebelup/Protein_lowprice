@@ -237,17 +237,30 @@ function parseDetailPage(html: string, url: string): ScrapedProduct | null {
   });
 
   // SKU 중복 제거: (combo, price) 키. combo는 값만 남기고 길이는 가변.
-  const skus: ScrapedSku[] = [];
-  const seen = new Set<string>();
+  // 동일 combo(차원 생략 포함)에서 가장 싼 가격만 유지.
+  // myprotein처럼 같은 flavour에 weight 태그 누락으로 여러 가격이 겹쳐오는 경우 정리됨.
+  const byCombo = new Map<string, ScrapedSku>();
   for (const s of rawSkus) {
     const combo = finalKeys.map((k) => s.add[k] ?? '').filter(Boolean);
-    const key = combo.join('\x00') + '|' + s.price;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    skus.push({ combo, price: s.price, orig_price: s.orig });
+    const key = combo.join('\x00');
+    const ex = byCombo.get(key);
+    if (!ex || s.price < ex.price) {
+      byCombo.set(key, { combo, price: s.price, orig_price: s.orig });
+    }
   }
+  const skus: ScrapedSku[] = [...byCombo.values()];
 
-  const options: ScrapedOption[] = finalKeys.map((k) => ({ name: k, values: [...optionMap.get(k)!] }));
+  // 실제 SKU combo에 등장한 값만 option.values 에 유지 (빈 값 제거)
+  const usedVals: Record<string, Set<string>> = {};
+  finalKeys.forEach((k) => { usedVals[k] = new Set(); });
+  for (const s of skus) {
+    for (let i = 0; i < finalKeys.length; i++) {
+      if (s.combo[i]) usedVals[finalKeys[i]].add(s.combo[i]);
+    }
+  }
+  const options: ScrapedOption[] = finalKeys
+    .map((k) => ({ name: k, values: [...usedVals[k]] }))
+    .filter((o) => o.values.length > 0);
 
   // 대표 가격
   let sale = topP;

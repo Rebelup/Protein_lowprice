@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260485" />
-  <link rel="stylesheet" href="admin.css?v=20260485" />
+  <link rel="stylesheet" href="style.css?v=20260486" />
+  <link rel="stylesheet" href="admin.css?v=20260486" />
 </head>
 <body>
   <header class="site-header">
@@ -402,7 +402,10 @@
       <section class="admin-panel">
         <div class="admin-panel-head">
           <h2>크롤링 알림</h2>
-          <button class="admin-ghost" id="markAllSeenBtn">모두 확인 완료</button>
+          <div style="display:flex;gap:6px">
+            <button class="admin-ghost" id="markAllSeenBtn">모두 확인 완료</button>
+            <button class="admin-ghost admin-ghost--danger" id="deleteAllAlertsBtn">모두 삭제</button>
+          </div>
         </div>
         <div id="alertList"><div class="admin-row-empty">알림이 없습니다.</div></div>
       </section>
@@ -521,6 +524,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260485"></script>
+  <script src="admin.js?v=20260486"></script>
 </body>
 </html>

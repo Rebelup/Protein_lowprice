@@ -734,6 +734,16 @@ async function markAllSeen() {
   renderAlerts();
 }
 
+async function deleteAllAlerts() {
+  if (!ALERTS.length) return;
+  if (!confirm(`알림 ${ALERTS.length}개를 모두 삭제하시겠습니까?`)) return;
+  const ids = ALERTS.map((a) => a.id);
+  const { error } = await db.from('crawl_alerts').delete().in('id', ids);
+  if (error) { showMsg('targetMsg', '알림 삭제 실패: ' + error.message, true); return; }
+  ALERTS = [];
+  renderAlerts();
+}
+
 async function loadCrawlTargets() {
   const { data, error } = await db.from('crawl_targets').select('*').order('id');
   if (error) {
@@ -765,7 +775,7 @@ function renderCrawlTargets() {
           ${t.last_checked_at ? `<span>· 마지막: ${fmtDt(t.last_checked_at)}</span>` : '<span>· 미확인</span>'}
         </div>
       </div>
-      <button class="admin-ghost target-edit-btn" data-id="${t.id}">수정</button>
+      <button class="admin-ghost target-edit-btn" data-id="${t.id}">정보</button>
       <button class="admin-ghost target-toggle-btn ${t.active ? '' : 'target-inactive'}" data-id="${t.id}" data-active="${t.active}">${t.active ? '활성' : '비활성'}</button>
       <button class="admin-ghost target-del-btn" data-id="${t.id}">삭제</button>
     </div>`;
@@ -1201,6 +1211,7 @@ async function init() {
     if (btn) await markSeen(+btn.dataset.id);
   });
   $('markAllSeenBtn').addEventListener('click', markAllSeen);
+  $('deleteAllAlertsBtn').addEventListener('click', deleteAllAlerts);
   buildTargetTimeSelects();
   $('targetForm').addEventListener('submit', saveCrawlTarget);
   $('targetCancel').addEventListener('click', () => { resetTargetForm(); showMsg('targetMsg', '취소되었습니다.'); });
