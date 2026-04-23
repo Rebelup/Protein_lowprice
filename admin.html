@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260482" />
-  <link rel="stylesheet" href="admin.css?v=20260482" />
+  <link rel="stylesheet" href="style.css?v=20260483" />
+  <link rel="stylesheet" href="admin.css?v=20260483" />
 </head>
 <body>
   <header class="site-header">
@@ -473,6 +473,18 @@
         </form>
         <div id="targetList" class="admin-list"></div>
       </section>
+
+      <section class="admin-panel hidden" id="crawlResultPanel">
+        <div class="admin-panel-head">
+          <h2>크롤링 결과 <span class="admin-count" id="crawlResultCount">0</span></h2>
+          <div style="display:flex;gap:6px">
+            <button type="button" class="admin-ghost" id="crawlResultToggle">자세히</button>
+            <button type="button" class="admin-ghost" id="crawlResultClose">닫기</button>
+          </div>
+        </div>
+        <div id="crawlResultMeta" class="admin-hint" style="margin-bottom:10px"></div>
+        <div id="crawlResultList" class="crawl-result-grid"></div>
+      </section>
     </div>
 
   </main>
@@ -503,6 +515,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260482"></script>
+  <script src="admin.js?v=20260483"></script>
 </body>
 </html>

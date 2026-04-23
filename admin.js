@@ -835,6 +835,125 @@ async function saveCrawlTarget(ev) {
   await loadCrawlTargets();
 }
 
+let crawlResultDetailed = false;
+let lastCrawlResults = null;
+
+const NUTRI_LABELS = [
+  ['calories', '칼로리', 'kcal'],
+  ['serving_size_g', '1회 제공량', 'g'],
+  ['protein_g', '단백질', 'g'],
+  ['carb_g', '탄수화물', 'g'],
+  ['fat_g', '지방', 'g'],
+  ['sugar_g', '당류', 'g'],
+  ['saturated_fat_g', '포화지방', 'g'],
+  ['trans_fat_g', '트랜스지방', 'g'],
+  ['cholesterol_mg', '콜레스테롤', 'mg'],
+  ['sodium_mg', '나트륨', 'mg'],
+];
+
+function categoryLabelOf(n, value) {
+  if (!value) return '';
+  return CATS[n - 1].find((c) => c.value === value)?.label || value;
+}
+
+function renderCrawlResults(data) {
+  lastCrawlResults = data;
+  const panel = $('crawlResultPanel');
+  const list = $('crawlResultList');
+  const meta = $('crawlResultMeta');
+  const count = $('crawlResultCount');
+
+  if (!data || !Array.isArray(data.results) || !data.results.length) {
+    panel.classList.add('hidden');
+    return;
+  }
+  const totalProducts = data.products ?? data.results.reduce((n, r) => n + (r.products?.length || 0), 0);
+  count.textContent = totalProducts;
+  meta.textContent = `${data.checked ?? data.results.length}개 대상 · 상품 ${totalProducts}개 · 변경 ${data.alerts ?? 0}건`;
+
+  list.innerHTML = data.results.map((r) => {
+    const catChain = [1, 2, 3, 4].map((n) => categoryLabelOf(n, r[`category${n}`])).filter(Boolean).join(' > ') || '카테고리 없음';
+    const header = `
+      <div class="crawl-result-target-header ${r.error ? 'crawl-result-target-header--error' : ''}">
+        ${esc(r.label || r.brand)} · ${esc(catChain)}
+        ${r.error ? ` · ❌ ${esc(r.error)}` : ` · 상품 ${r.products?.length || 0}개 · 변경 ${r.alerts || 0}건`}
+      </div>`;
+    const cards = (r.products || []).map((p) => renderCrawlCard(p)).join('');
+    return header + cards;
+  }).join('');
+
+  panel.classList.remove('hidden');
+  applyCrawlDetailMode();
+}
+
+function renderCrawlCard(p) {
+  const discount = (p.original_price && p.original_price > p.sale_price)
+    ? Math.round((1 - p.sale_price / p.original_price) * 100) : 0;
+  const statusClass = p.status === 'new' ? 'crawl-card--new' : (p.status === 'updated' ? 'crawl-card--updated' : '');
+  const statusLabel = p.status === 'new' ? '신규' : (p.status === 'updated' ? '변동' : '동일');
+  const opts = (p.options || []).map((o) => `
+    <div class="crawl-card-section">
+      <div class="crawl-card-section-title">${esc(o.name)} (${o.values.length})</div>
+      <div class="crawl-card-opts">${o.values.map((v) => `<span class="crawl-card-opt-chip">${esc(v)}</span>`).join('')}</div>
+    </div>`).join('');
+
+  const nutri = p.nutrition || {};
+  const nutriItems = NUTRI_LABELS.filter(([k]) => nutri[k] != null && nutri[k] !== '')
+    .map(([k, label, unit]) => `<div class="crawl-card-nutri-item"><span class="crawl-card-nutri-label">${label}</span><span class="crawl-card-nutri-value">${nutri[k]}${unit}</span></div>`).join('');
+  const nutriBlock = nutriItems
+    ? `<div class="crawl-card-section"><div class="crawl-card-section-title">영양성분</div><div class="crawl-card-nutri-grid">${nutriItems}</div></div>`
+    : `<div class="crawl-card-section"><div class="crawl-card-section-title">영양성분</div><div class="admin-option-empty-hint">페이지에서 찾지 못함</div></div>`;
+
+  const skus = p.option_skus || [];
+  const skusBlock = skus.length ? `
+    <div class="crawl-card-section">
+      <div class="crawl-card-section-title">SKU 조합 (${skus.length}개)</div>
+      <div class="crawl-card-sku-wrap"><table class="crawl-card-sku-table">
+        <thead><tr><th>옵션</th><th>판매가</th><th>정가</th></tr></thead>
+        <tbody>${skus.slice(0, 40).map((s) => `
+          <tr><td>${esc((s.combo || []).join(' / ') || '-')}</td><td>${fmtPrice(s.price)}</td><td>${s.orig_price && s.orig_price > s.price ? fmtPrice(s.orig_price) : '-'}</td></tr>
+        `).join('')}${skus.length > 40 ? `<tr><td colspan="3" style="text-align:center;color:var(--muted)">... 외 ${skus.length - 40}개</td></tr>` : ''}</tbody>
+      </table></div>
+    </div>` : '';
+
+  const breadcrumbs = (p.breadcrumbs || []).filter(Boolean);
+  const bc = breadcrumbs.length ? `<div class="crawl-card-breadcrumbs">${esc(breadcrumbs.join(' > '))}</div>` : '';
+
+  return `
+    <div class="crawl-card ${statusClass}">
+      <div class="crawl-card-thumb">${thumbHtml(p.thumbnail, '💊')}</div>
+      <div class="crawl-card-body">
+        <div class="crawl-card-head">
+          <div class="crawl-card-name">${esc(p.name)}</div>
+          <span class="crawl-card-status crawl-card-status--${p.status || 'unchanged'}">${statusLabel}</span>
+        </div>
+        ${bc}
+        <div class="crawl-card-price">
+          ${fmtPrice(p.sale_price)}
+          ${discount ? `<span class="crawl-card-price-orig">${fmtPrice(p.original_price)}</span><span class="crawl-card-price-discount">-${discount}%</span>` : ''}
+        </div>
+        <div class="crawl-card-meta">
+          ${(p.options || []).length ? `<span>옵션 ${p.options.reduce((n, o) => n + (o.values?.length || 0), 0)}개</span>` : ''}
+          ${skus.length ? `<span>SKU ${skus.length}조합</span>` : ''}
+        </div>
+        ${p.short_desc ? `<div class="crawl-card-desc">${esc(p.short_desc)}</div>` : ''}
+        <a class="crawl-card-link" href="${esc(p.link)}" target="_blank" rel="noopener noreferrer">${esc(p.link)}</a>
+        <div class="crawl-card-details">
+          ${opts}
+          ${nutriBlock}
+          ${skusBlock}
+        </div>
+      </div>
+    </div>`;
+}
+
+function applyCrawlDetailMode() {
+  const list = $('crawlResultList');
+  list.querySelectorAll('.crawl-card').forEach((c) => c.classList.toggle('detailed', crawlResultDetailed));
+  list.querySelectorAll('.crawl-card-desc').forEach((d) => d.classList.toggle('expanded', crawlResultDetailed));
+  $('crawlResultToggle').textContent = crawlResultDetailed ? '간결히' : '자세히';
+}
+
 async function runCrawlNow() {
   const btn = $('runCrawlNowBtn');
   btn.disabled = true; btn.textContent = '실행 중...';
@@ -857,6 +976,7 @@ async function runCrawlNow() {
     const products = data.products ?? 0;
     const alerts = data.alerts ?? 0;
     showMsg('targetMsg', `완료: ${checked}개 대상 확인, 상품 ${products}개 수집, 변경 ${alerts}건`);
+    renderCrawlResults(data);
     await loadAlerts();
     await loadCrawlTargets();
     await loadProducts();
@@ -1089,6 +1209,8 @@ async function init() {
     }
   });
   $('runCrawlNowBtn').addEventListener('click', runCrawlNow);
+  $('crawlResultToggle').addEventListener('click', () => { crawlResultDetailed = !crawlResultDetailed; applyCrawlDetailMode(); });
+  $('crawlResultClose').addEventListener('click', () => { $('crawlResultPanel').classList.add('hidden'); });
 
   await Promise.all([loadOptions(), loadEvents(), loadProducts()]);
   renderProdPicker('');
