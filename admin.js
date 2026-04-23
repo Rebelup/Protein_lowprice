@@ -753,10 +753,12 @@ function renderCrawlTargets() {
     const brandLabel = BRANDS.find((b) => b.value === t.brand)?.label || t.brand || '';
     const scheduleText = formatSchedule(t);
     const scheduleClass = (t.schedule_hour != null && t.schedule_hour !== '' && (t.schedule_days || []).length) ? '' : 'target-schedule--off';
+    const displayName = t.admin_title || t.label || brandLabel || t.url;
+    const subtitle = t.admin_title && t.label ? ` · ${esc(t.label)}` : '';
     return `
     <div class="admin-row" data-id="${t.id}">
       <div class="admin-row-body">
-        <div class="admin-row-name">${esc(t.label || brandLabel || t.url)}</div>
+        <div class="admin-row-name">${esc(displayName)}${subtitle}</div>
         <div class="admin-row-meta">
           <span class="target-url-wrap"><a class="target-url" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer" title="${esc(t.url)}">${esc(truncateUrl(t.url, 40))}</a></span>
           <span class="target-schedule-chip ${scheduleClass}">${esc(scheduleText)}</span>
@@ -781,6 +783,7 @@ function setSelectedWeekdays(days) {
 function resetTargetForm() {
   editingTargetId = null;
   $('tId').value = '';
+  $('tAdminTitle').value = '';
   $('tBrand').value = ''; $('tLabel').value = ''; $('tUrl').value = '';
   ['tCat1', 'tCat2', 'tCat3', 'tCat4'].forEach((id) => { $(id).value = ''; });
   $('tScheduleH').value = ''; $('tScheduleM').value = '';
@@ -792,6 +795,7 @@ function resetTargetForm() {
 function fillTargetForm(t) {
   editingTargetId = t.id;
   $('tId').value = t.id;
+  $('tAdminTitle').value = t.admin_title || '';
   $('tBrand').value = t.brand || '';
   $('tLabel').value = t.label || '';
   $('tUrl').value = t.url || '';
@@ -820,6 +824,7 @@ async function saveCrawlTarget(ev) {
   const payload = {
     brand,
     label: label || brandLabel,
+    admin_title: $('tAdminTitle').value.trim() || null,
     url,
     category1: $('tCat1').value || null,
     category2: $('tCat2').value || null,

@@ -133,23 +133,47 @@ function readAdditional(p: Record<string, unknown>): Record<string, string> {
   return out;
 }
 
-// ─── 영양성분 추출 (한국어 라벨 기반) ─────────────────────
-const NUTRI_RE: Array<[RegExp, keyof Nutrition, number]> = [
-  [/1회\s*제공량[^0-9]*(\d+(?:\.\d+)?)\s*g/i, 'serving_size_g', 1],
-  [/(?:열량|칼로리)[^0-9]*(\d+(?:\.\d+)?)\s*(?:kcal|㎉)/i, 'calories', 1],
-  [/단백질[을은]?\s*(\d+(?:\.\d+)?)\s*g/i, 'protein_g', 1],
-  [/탄수화물[을은]?\s*(\d+(?:\.\d+)?)\s*g/i, 'carb_g', 1],
-  [/지방[을은]?\s*(\d+(?:\.\d+)?)\s*g/i, 'fat_g', 1],
-  [/당류[을은]?\s*(\d+(?:\.\d+)?)\s*g/i, 'sugar_g', 1],
-  [/포화지방[산]?\s*(\d+(?:\.\d+)?)\s*g/i, 'saturated_fat_g', 1],
-  [/트랜스지방[산]?\s*(\d+(?:\.\d+)?)\s*g/i, 'trans_fat_g', 1],
-  [/콜레스테롤\s*(\d+(?:\.\d+)?)\s*mg/i, 'cholesterol_mg', 1],
-  [/나트륨\s*(\d+(?:\.\d+)?)\s*mg/i, 'sodium_mg', 1],
+// ─── 영양성분 추출 (1회 제공량 기준만) ────────────────────
+const NUTRI_RE: Array<[RegExp, keyof Nutrition]> = [
+  [/(?:열량|칼로리)[^0-9]{0,15}(\d+(?:\.\d+)?)\s*(?:kcal|㎉)/i, 'calories'],
+  [/단백질[을은]?[^0-9]{0,10}(\d+(?:\.\d+)?)\s*g/i, 'protein_g'],
+  [/탄수화물[을은]?[^0-9]{0,10}(\d+(?:\.\d+)?)\s*g/i, 'carb_g'],
+  [/(?<!포화|트랜스)지방[을은]?[^0-9]{0,10}(\d+(?:\.\d+)?)\s*g/i, 'fat_g'],
+  [/당류[을은]?[^0-9]{0,10}(\d+(?:\.\d+)?)\s*g/i, 'sugar_g'],
+  [/포화지방[산]?[^0-9]{0,10}(\d+(?:\.\d+)?)\s*g/i, 'saturated_fat_g'],
+  [/트랜스지방[산]?[^0-9]{0,10}(\d+(?:\.\d+)?)\s*g/i, 'trans_fat_g'],
+  [/콜레스테롤[^0-9]{0,10}(\d+(?:\.\d+)?)\s*mg/i, 'cholesterol_mg'],
+  [/나트륨[^0-9]{0,10}(\d+(?:\.\d+)?)\s*mg/i, 'sodium_mg'],
 ];
+
+// 1회 제공량 구간을 찾아 그 문맥 내에서만 영양성분 추출.
+// 다른 기준 (100g당/1봉지당/일일권장량) 구간은 제외.
 function extractNutrition(text: string): Nutrition {
   const out: Nutrition = {};
+  if (!text) return out;
+
+  // 1회 제공량 값 먼저 추출
+  const svRe = /1회\s*제공량[^0-9]*?(\d+(?:\.\d+)?)\s*(?:g|ml|그램)/i;
+  const sv = text.match(svRe);
+  if (sv) out.serving_size_g = parseFloat(sv[1]);
+
+  // 1회 제공량 문맥 잘라내기: "1회 제공량" 이후 ~2000자, 단 "100g당/일일권장량/일일기준치" 앞까지.
+  let ctx = '';
+  if (sv) {
+    const startIdx = (sv.index ?? 0);
+    const slice = text.slice(startIdx, startIdx + 2500);
+    const endRe = /(?:100\s*g\s*당|1일\s*영양성분\s*기준치|일일권장량|일일기준치|Nutritional\s*Information\s*per\s*100)/i;
+    const endM = slice.match(endRe);
+    ctx = endM ? slice.slice(0, endM.index ?? slice.length) : slice;
+  } else {
+    // 1회 제공량이 안 보이면 안전하게 "영양성분" 섹션만 사용
+    const nutSec = text.match(/영양\s*정보[\s\S]{0,2000}|영양\s*성분[\s\S]{0,2000}/i);
+    ctx = nutSec ? nutSec[0] : '';
+  }
+  if (!ctx) return out;
+
   for (const [re, key] of NUTRI_RE) {
-    const m = text.match(re);
+    const m = ctx.match(re);
     if (m) (out as Record<string, number>)[key] = parseFloat(m[1]);
   }
   return out;
@@ -187,24 +211,43 @@ function parseDetailPage(html: string, url: string): ScrapedProduct | null {
 
   const { price: topP, orig: topO } = pickPrice(group.offers);
 
-  // 옵션 & SKU 조합
+  // 옵션 & SKU 조합 (각 variant에서 추출)
   const optionMap = new Map<string, Set<string>>();
-  const skus: ScrapedSku[] = [];
+  const orderedKeys: string[] = [];
+  const rawSkus: Array<{ add: Record<string, string>; price: number; orig: number }> = [];
   const source = variants.length ? variants : [group];
   for (const v of source) {
     const add = readAdditional(v as Record<string, unknown>);
-    const keys = Object.keys(add).filter((k) => add[k]);
-    for (const k of keys) {
-      if (!optionMap.has(k)) optionMap.set(k, new Set());
+    for (const k of Object.keys(add)) {
+      if (!add[k]) continue;
+      if (!optionMap.has(k)) { optionMap.set(k, new Set()); orderedKeys.push(k); }
       optionMap.get(k)!.add(add[k]);
     }
     const { price, orig } = pickPrice((v as Record<string, unknown>).offers);
-    if (price > 0) {
-      const combo = keys.map((k) => add[k]);
-      skus.push({ combo, price, orig_price: orig });
-    }
+    if (price > 0) rawSkus.push({ add, price, orig });
   }
-  const options: ScrapedOption[] = [...optionMap.entries()].map(([name, set]) => ({ name, values: [...set] }));
+
+  // 차원 정규화: 일부 variant에 없는 dim은 coverage를 보고 제거
+  //   coverage < 30% 인 옵션 그룹은 노이즈로 판단해 드랍 (e.g. myprotein weight 30/106)
+  // 차원 유지: 10% 이상 나오는 dim은 옵션으로 유지. 부족한 SKU는 그 dim을 공란으로 두고 combo 길이를 줄여 저장.
+  const skuCount = rawSkus.length;
+  const finalKeys = orderedKeys.filter((k) => {
+    const covered = rawSkus.filter((s) => s.add[k]).length;
+    return skuCount === 0 || covered / skuCount >= 0.10;
+  });
+
+  // SKU 중복 제거: (combo, price) 키. combo는 값만 남기고 길이는 가변.
+  const skus: ScrapedSku[] = [];
+  const seen = new Set<string>();
+  for (const s of rawSkus) {
+    const combo = finalKeys.map((k) => s.add[k] ?? '').filter(Boolean);
+    const key = combo.join('\x00') + '|' + s.price;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    skus.push({ combo, price: s.price, orig_price: s.orig });
+  }
+
+  const options: ScrapedOption[] = finalKeys.map((k) => ({ name: k, values: [...optionMap.get(k)!] }));
 
   // 대표 가격
   let sale = topP;

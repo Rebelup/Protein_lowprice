@@ -569,14 +569,25 @@ function renderProductPage(p) {
 
   // 옵션 선택 UI
   let optionSectionHtml = '';
+  const FIRST_OPT_PREVIEW = 6;
   if (hasOptions) {
-    const groupsHtml = p.options.map((g, gi) => `
+    const groupsHtml = p.options.map((g, gi) => {
+      const values = g.values || [];
+      const count = values.length;
+      const collapsible = gi === 0 && count > FIRST_OPT_PREVIEW;
+      const btnsHtml = values.map((v, vi) => {
+        const hidden = collapsible && vi >= FIRST_OPT_PREVIEW ? ' pp-opt-btn--hidden' : '';
+        return `<button type="button" class="pp-opt-btn${hidden}" data-gi="${gi}" data-val="${esc(v)}">${esc(v)}</button>`;
+      }).join('');
+      return `
       <div class="pp-opt-group" data-gi="${gi}">
-        <div class="pp-opt-group-name">${esc(g.name)}</div>
-        <div class="pp-opt-btns">
-          ${(g.values || []).map((v) => `<button type="button" class="pp-opt-btn" data-gi="${gi}" data-val="${esc(v)}">${esc(v)}</button>`).join('')}
+        <div class="pp-opt-group-name">${esc(g.name)} <span class="pp-opt-count">(${count})</span></div>
+        <div class="pp-opt-btns" data-collapsed="${collapsible ? 'true' : 'false'}">
+          ${btnsHtml}
+          ${collapsible ? `<button type="button" class="pp-opt-more" data-gi="${gi}">더보기 (+${count - FIRST_OPT_PREVIEW})</button>` : ''}
         </div>
-      </div>`).join('');
+      </div>`;
+    }).join('');
     optionSectionHtml = `<div class="pp-opt-section" id="ppOptSection">
       ${groupsHtml}
       <div class="pp-opt-card hidden" id="ppOptCard"></div>
@@ -638,10 +649,19 @@ function renderProductPage(p) {
 
   // 옵션 선택 핸들러
   if (p.options && p.options.length) {
-    const firstValidSku = p.optionSkus.find((s) => s.price > 0);
-    const selectedVals = firstValidSku
-      ? p.options.map((g, gi) => firstValidSku.combo[gi] || g.values[0] || null)
-      : p.options.map((g) => g.values[0] || null);
+    // 자동 선택: 각 옵션의 첫 번째 값을 고르고, 해당 조합 또는 그 조합과 같은 첫 번째 dim으로 시작하는
+    // 가장 저렴한 SKU의 나머지 dim 값을 채워 넣는다.
+    const selectedVals = p.options.map((g) => g.values[0] || null);
+    if (selectedVals[0] != null && p.optionSkus.length) {
+      const matched = p.optionSkus
+        .filter((s) => s.price > 0 && s.combo[0] === selectedVals[0])
+        .sort((a, b) => a.price - b.price)[0];
+      if (matched) {
+        for (let i = 0; i < selectedVals.length; i++) {
+          if (matched.combo[i]) selectedVals[i] = matched.combo[i];
+        }
+      }
+    }
 
     const updatePrices = () => {
       p.options.forEach((g, gi) => {
@@ -728,6 +748,17 @@ function renderProductPage(p) {
     updatePrices();
 
     $('prodPageBody').addEventListener('click', (e) => {
+      const moreBtn = e.target.closest('.pp-opt-more');
+      if (moreBtn) {
+        const giM = +moreBtn.dataset.gi;
+        const btns = $('prodPageBody').querySelector(`.pp-opt-group[data-gi="${giM}"] .pp-opt-btns`);
+        if (btns) {
+          btns.querySelectorAll('.pp-opt-btn--hidden').forEach((b) => b.classList.remove('pp-opt-btn--hidden'));
+          btns.dataset.collapsed = 'false';
+          moreBtn.remove();
+        }
+        return;
+      }
       const btn = e.target.closest('.pp-opt-btn');
       if (!btn) return;
       const gi = +btn.dataset.gi;

@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260484" />
-  <link rel="stylesheet" href="admin.css?v=20260484" />
+  <link rel="stylesheet" href="style.css?v=20260485" />
+  <link rel="stylesheet" href="admin.css?v=20260485" />
 </head>
 <body>
   <header class="site-header">
@@ -415,6 +415,12 @@
         <form id="targetForm" class="admin-form" autocomplete="off" style="margin-bottom:14px">
           <input type="hidden" id="tId" />
 
+          <label class="admin-field">
+            <span>관리용 제목</span>
+            <input type="text" id="tAdminTitle" placeholder="예: 마이프로틴 임팩트 웨이 (관리자 분류용)" />
+            <small class="admin-hint">관리자 목록에서만 쓰는 제목입니다. 상품 DB에는 반영되지 않습니다.</small>
+          </label>
+
           <div class="admin-field-row">
             <div class="admin-field">
               <span>브랜드 <em>*</em></span>
@@ -423,7 +429,7 @@
               </select>
             </div>
             <label class="admin-field">
-              <span>표시명</span>
+              <span>스토어명 (상품에 저장)</span>
               <input type="text" id="tLabel" placeholder="예: BSN 공식몰" />
             </label>
           </div>
@@ -515,6 +521,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260484"></script>
+  <script src="admin.js?v=20260485"></script>
 </body>
 </html>

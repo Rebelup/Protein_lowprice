@@ -623,6 +623,18 @@ body {
 }
 .pp-opt-btn:hover { border-color: var(--blue); color: var(--blue); }
 .pp-opt-btn.active { border-color: var(--blue); background: var(--blue); color: #fff; }
+.pp-opt-btn--hidden { display: none !important; }
+.pp-opt-count {
+  font-size: 11px; font-weight: 600; color: var(--muted);
+  letter-spacing: 0; text-transform: none; margin-left: 4px; opacity: .75;
+}
+.pp-opt-more {
+  padding: 6px 14px; border-radius: 99px;
+  border: 1.5px dashed var(--border); background: var(--bg);
+  font-size: 12.5px; font-weight: 600; color: var(--muted);
+  cursor: pointer; transition: all .15s;
+}
+.pp-opt-more:hover { border-color: var(--blue); color: var(--blue); background: var(--blue-light); }
 .pp-opt-card {
   margin-top: 14px; padding: 14px 16px;
   background: #FFF8E1; border-radius: 10px; border: 1px solid #FFE082;
