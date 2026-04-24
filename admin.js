@@ -697,8 +697,10 @@ function stackedLabel(x, y, text) {
 }
 function renderLineChart(el, bins, valueFn, labelFn, unit = '', onSelect = null) {
   const n = bins.length;
-  const W = 640, H = 240;
-  const padL = 14, padR = 14, padT = 14, padB = 52;
+  // Canvas is 900×300 (3:1) — wide enough to breathe, short enough that the
+  // whole thing fits on screen without scrolling.
+  const W = 900, H = 300;
+  const padL = 24, padR = 18, padT = 16, padB = 64;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
   const max = Math.max(1, ...bins.map(valueFn));
@@ -716,7 +718,7 @@ function renderLineChart(el, bins, valueFn, labelFn, unit = '', onSelect = null)
   const hitW = step || innerW;
   const hits = pts.map(([x], i) => `<rect class="chart-hit" data-idx="${i}" x="${(x - hitW / 2).toFixed(1)}" y="${padT}" width="${hitW.toFixed(1)}" height="${innerH}"></rect>`).join('');
   const labels = pts.map(([x], i) => stackedLabel(x, padT + innerH + 14, labelFn(bins[i]))).join('');
-  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart-svg">
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="chart-svg" role="img">
     <path class="chart-area" d="${area}" />
     <path class="chart-line" d="${line}" />
     ${dots}
@@ -734,20 +736,24 @@ function renderLineChart(el, bins, valueFn, labelFn, unit = '', onSelect = null)
   }
 }
 
+let STATS_RANGE = 7;
 async function loadStats() {
   $('statNow').textContent = $('adminOnlineCount').textContent || '0';
   const now = new Date();
   const sixtyAgo = new Date(now.getTime() - 60 * 60_000);
   const dayStart = kstDayStartUtc(0);
   const weekStart = kstDayStartUtc(6);
-  const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 3600_000);
+  // Fetch window covers the chosen range plus the 14-day retention baseline.
+  const rangeStart = STATS_RANGE === 1
+    ? new Date(now.getTime() - 24 * 3600_000)
+    : kstDayStartUtc(STATS_RANGE - 1);
+  const fetchFrom = new Date(Math.min(+rangeStart, now.getTime() - 14 * 24 * 3600_000));
   const exclude = `email.neq.${ADMIN_EMAIL},email.is.null`;
 
-  // 14-day window covers weekly charts + retention (prev 7d vs last 7d).
   const { data: rows = [], error } = await db
     .from('site_visits')
     .select('identity, email, visited_at, event_type, product_id')
-    .gte('visited_at', twoWeeksAgo.toISOString())
+    .gte('visited_at', fetchFrom.toISOString())
     .or(exclude)
     .order('visited_at', { ascending: false });
   if (error) { $('statsUpdated').textContent = `오류: ${error.message}`; return; }
@@ -762,55 +768,49 @@ async function loadStats() {
   $('statBuyToday').textContent = buys.filter((r) => new Date(r.visited_at) >= dayStart).length;
   $('statBuyWeek').textContent = buys.length;
 
-  // 24-hour bars: bucket by hour
-  const hourBins = [];
-  for (let i = 23; i >= 0; i--) {
-    const t = new Date(now.getTime() - i * 3600_000);
-    hourBins.push({ key: kstHourKey(t), label: String(new Date(t.getTime() + KST_OFFSET_MS).getUTCHours()), set: new Set() });
+  // Visitor chart — the bucket size adapts to the chosen range. Range 1 uses
+  // hourly buckets for the last 24h; larger ranges use daily buckets.
+  const rangeRows = rows.filter((r) => new Date(r.visited_at) >= rangeStart);
+  const rangeVisits = rangeRows.filter((r) => r.event_type === 'visit' || r.event_type === 'product_view');
+  const bins = [];
+  if (STATS_RANGE === 1) {
+    for (let i = 23; i >= 0; i--) {
+      const t = new Date(now.getTime() - i * 3600_000);
+      bins.push({ key: kstHourKey(t), label: String(new Date(t.getTime() + KST_OFFSET_MS).getUTCHours()) + '시', set: new Set() });
+    }
+    const m = new Map(bins.map((b) => [b.key, b]));
+    for (const v of rangeVisits) {
+      const b = m.get(kstHourKey(new Date(v.visited_at)));
+      if (b) b.set.add(v.identity);
+    }
+    $('chartVisitorsTitle').innerHTML = '시간대별 방문자 <small>(최근 24시간 · KST)</small>';
+  } else {
+    for (let i = STATS_RANGE - 1; i >= 0; i--) {
+      const start = kstDayStartUtc(i);
+      bins.push({ key: kstDayKey(start), label: kstDayKey(start), set: new Set() });
+    }
+    const m = new Map(bins.map((b) => [b.key, b]));
+    for (const v of rangeVisits) {
+      const b = m.get(kstDayKey(new Date(v.visited_at)));
+      if (b) b.set.add(v.identity);
+    }
+    $('chartVisitorsTitle').innerHTML = `일별 방문자 <small>(최근 ${STATS_RANGE}일 · KST)</small>`;
   }
-  const hourMap = new Map(hourBins.map((b) => [b.key, b]));
-  for (const v of visits) {
-    const d = new Date(v.visited_at);
-    if (now - d > 24 * 3600_000) continue;
-    const b = hourMap.get(kstHourKey(d));
-    if (b) b.set.add(v.identity);
-  }
-  renderLineChart($('chart24h'), hourBins, (b) => b.set.size, (b) => `${b.label}시`, '명', (b) => {
-    const count = b.set.size;
+  renderLineChart($('chartVisitors'), bins, (b) => b.set.size, (b) => b.label, '명', (b) => {
     const emails = [...b.set].filter((id) => id.includes('@')).slice(0, 10);
     const anon = [...b.set].length - emails.length;
-    $('chart24hDetail').innerHTML = `
-      <div class="chart-detail-row"><strong>${b.label}시</strong><span>${count}명 방문</span></div>
-      ${emails.length ? `<div class="chart-detail-sub">${emails.map(esc).join(', ')}${anon ? ` · 익명 ${anon}명` : ''}</div>` : (anon ? `<div class="chart-detail-sub">익명 ${anon}명</div>` : '')}
-    `;
-  });
-
-  // 7-day bars: bucket by day
-  const dayBins = [];
-  for (let i = 6; i >= 0; i--) {
-    const start = kstDayStartUtc(i);
-    dayBins.push({ key: kstDayKey(start), label: kstDayKey(start), set: new Set() });
-  }
-  const dayMap = new Map(dayBins.map((b) => [b.key, b]));
-  for (const v of visits) {
-    const b = dayMap.get(kstDayKey(new Date(v.visited_at)));
-    if (b) b.set.add(v.identity);
-  }
-  renderLineChart($('chart7d'), dayBins, (b) => b.set.size, (b) => b.label, '명', (b) => {
-    const emails = [...b.set].filter((id) => id.includes('@')).slice(0, 10);
-    const anon = [...b.set].length - emails.length;
-    $('chart7dDetail').innerHTML = `
+    $('chartVisitorsDetail').innerHTML = `
       <div class="chart-detail-row"><strong>${b.label}</strong><span>${b.set.size}명 방문</span></div>
       ${emails.length ? `<div class="chart-detail-sub">${emails.map(esc).join(', ')}${anon ? ` · 익명 ${anon}명` : ''}</div>` : (anon ? `<div class="chart-detail-sub">익명 ${anon}명</div>` : '')}
     `;
   });
 
-  // Approximate sessions for the 7-day window — group per identity, split on
+  // Approximate sessions for the selected range — group per identity, split on
   // 30-minute gaps, then keep (startTime, durationSeconds) for each session.
   const sessions = [];
   {
     const byId = new Map();
-    for (const r of weekRows) {
+    for (const r of rangeRows) {
       if (!byId.has(r.identity)) byId.set(r.identity, []);
       byId.get(r.identity).push(+new Date(r.visited_at));
     }
@@ -843,6 +843,8 @@ async function loadStats() {
       const kstHour = new Date(s.start + KST_OFFSET_MS).getUTCHours();
       buckets[kstHour].sum += s.dur; buckets[kstHour].n += 1;
     }
+    const rangeLbl = STATS_RANGE === 1 ? '최근 24시간' : `최근 ${STATS_RANGE}일`;
+    $('chartSessionTitle').innerHTML = `시간대별 평균 접속 시간 <small>(${rangeLbl} · KST · 초)</small>`;
     renderLineChart(
       $('chartSession'),
       buckets,
@@ -1343,6 +1345,13 @@ async function init() {
 
   document.querySelectorAll('.admin-tab').forEach((b) => b.addEventListener('click', () => switchAdminTab(b.dataset.tab)));
   $('statsRefresh')?.addEventListener('click', loadStats);
+  document.querySelectorAll('.stats-range-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      STATS_RANGE = +btn.dataset.range;
+      document.querySelectorAll('.stats-range-btn').forEach((b) => b.classList.toggle('active', b === btn));
+      loadStats();
+    });
+  });
 
   // Event form
   $('adminForm').addEventListener('submit', saveEvent);

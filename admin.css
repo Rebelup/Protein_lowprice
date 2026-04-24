@@ -42,8 +42,19 @@
 }
 .line-chart .chart-svg {
   display: block; width: 100%; height: auto; overflow: visible;
-  min-height: 220px;
 }
+
+.stats-range-toggle {
+  display: inline-flex; border: 1px solid var(--border); border-radius: 99px;
+  overflow: hidden; margin-right: 6px;
+}
+.stats-range-btn {
+  background: var(--white); border: none; padding: 6px 14px;
+  font-size: 12.5px; font-weight: 600; color: var(--sub); cursor: pointer;
+  border-right: 1px solid var(--border);
+}
+.stats-range-btn:last-child { border-right: none; }
+.stats-range-btn.active { background: var(--blue); color: var(--white); }
 .line-chart .chart-area { fill: var(--blue); opacity: .12; }
 .line-chart .chart-line { fill: none; stroke: var(--blue); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
 .line-chart .chart-dot { fill: var(--blue); cursor: pointer; transition: r .15s; }
