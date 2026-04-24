@@ -35,16 +35,34 @@
 .chart-block { margin-top: 20px; }
 .chart-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--text); }
 .chart-title small { font-weight: 500; color: var(--muted); margin-left: 4px; }
+.chart-block { margin-top: 26px; }
+.chart-title { font-size: 14px; }
 .line-chart {
-  background: var(--bg); border-radius: 8px; padding: 6px 4px;
+  background: var(--bg); border-radius: 10px; padding: 10px 8px;
 }
 .line-chart .chart-svg {
   display: block; width: 100%; height: auto; overflow: visible;
+  min-height: 220px;
 }
 .line-chart .chart-area { fill: var(--blue); opacity: .12; }
-.line-chart .chart-line { fill: none; stroke: var(--blue); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-.line-chart .chart-dot { fill: var(--blue); }
-.line-chart .chart-xlbl { font-size: 9px; fill: var(--muted); }
+.line-chart .chart-line { fill: none; stroke: var(--blue); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.line-chart .chart-dot { fill: var(--blue); cursor: pointer; transition: r .15s; }
+.line-chart .chart-dot:hover, .line-chart .chart-dot--active { fill: var(--red); r: 6; }
+.line-chart .chart-hit { fill: transparent; cursor: pointer; }
+.line-chart .chart-hit:hover + * { opacity: .5; }
+.line-chart .chart-xlbl { font-size: 10px; fill: var(--muted); }
+
+.chart-detail {
+  margin-top: 10px; padding: 10px 14px; border-radius: 8px;
+  background: var(--white); border: 1px solid var(--border);
+  font-size: 13px; color: var(--sub); min-height: 42px;
+}
+.chart-detail-row {
+  display: flex; justify-content: space-between; align-items: baseline; gap: 10px;
+  font-size: 14px; color: var(--text);
+}
+.chart-detail-row strong { font-weight: 800; color: var(--blue); }
+.chart-detail-sub { margin-top: 4px; font-size: 12px; color: var(--muted); word-break: break-all; }
 
 .visitor-list { list-style: none; padding: 0; margin: 0; max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
 .visitor-row {

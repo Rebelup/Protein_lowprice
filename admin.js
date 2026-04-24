@@ -695,10 +695,10 @@ function stackedLabel(x, y, text) {
     chars.map((c, i) => `<tspan x="${x.toFixed(1)}" dy="${i === 0 ? 0 : 1.1}em">${esc(c)}</tspan>`).join('')
   }</text>`;
 }
-function renderLineChart(el, bins, valueFn, labelFn, unit = '') {
+function renderLineChart(el, bins, valueFn, labelFn, unit = '', onSelect = null) {
   const n = bins.length;
-  const W = 480, H = 170;
-  const padL = 10, padR = 10, padT = 10, padB = 46;
+  const W = 640, H = 240;
+  const padL = 14, padR = 14, padT = 14, padB = 52;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
   const max = Math.max(1, ...bins.map(valueFn));
@@ -710,15 +710,28 @@ function renderLineChart(el, bins, valueFn, labelFn, unit = '') {
   const line = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
   const area = `${line} L${(padL + innerW).toFixed(1)},${(padT + innerH).toFixed(1)} L${padL.toFixed(1)},${(padT + innerH).toFixed(1)} Z`;
   const dots = pts.map(([x, y, v], i) => v
-    ? `<circle class="chart-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.8"><title>${labelFn(bins[i])}: ${v}${unit}</title></circle>`
+    ? `<circle class="chart-dot" data-idx="${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4"><title>${labelFn(bins[i])}: ${v}${unit}</title></circle>`
     : '').join('');
+  // Invisible wide hitboxes on every column make tapping on small/zero points easy on mobile.
+  const hitW = step || innerW;
+  const hits = pts.map(([x], i) => `<rect class="chart-hit" data-idx="${i}" x="${(x - hitW / 2).toFixed(1)}" y="${padT}" width="${hitW.toFixed(1)}" height="${innerH}"></rect>`).join('');
   const labels = pts.map(([x], i) => stackedLabel(x, padT + innerH + 14, labelFn(bins[i]))).join('');
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart-svg">
     <path class="chart-area" d="${area}" />
     <path class="chart-line" d="${line}" />
     ${dots}
     ${labels}
+    ${hits}
   </svg>`;
+  if (onSelect) {
+    el.querySelectorAll('[data-idx]').forEach((node) => {
+      node.addEventListener('click', () => {
+        const i = +node.dataset.idx;
+        el.querySelectorAll('.chart-dot').forEach((d) => d.classList.toggle('chart-dot--active', +d.dataset.idx === i));
+        onSelect(bins[i], valueFn(bins[i]), i);
+      });
+    });
+  }
 }
 
 async function loadStats() {
@@ -762,7 +775,15 @@ async function loadStats() {
     const b = hourMap.get(kstHourKey(d));
     if (b) b.set.add(v.identity);
   }
-  renderLineChart($('chart24h'), hourBins, (b) => b.set.size, (b) => `${b.label}시`, '명');
+  renderLineChart($('chart24h'), hourBins, (b) => b.set.size, (b) => `${b.label}시`, '명', (b) => {
+    const count = b.set.size;
+    const emails = [...b.set].filter((id) => id.includes('@')).slice(0, 10);
+    const anon = [...b.set].length - emails.length;
+    $('chart24hDetail').innerHTML = `
+      <div class="chart-detail-row"><strong>${b.label}시</strong><span>${count}명 방문</span></div>
+      ${emails.length ? `<div class="chart-detail-sub">${emails.map(esc).join(', ')}${anon ? ` · 익명 ${anon}명` : ''}</div>` : (anon ? `<div class="chart-detail-sub">익명 ${anon}명</div>` : '')}
+    `;
+  });
 
   // 7-day bars: bucket by day
   const dayBins = [];
@@ -775,7 +796,14 @@ async function loadStats() {
     const b = dayMap.get(kstDayKey(new Date(v.visited_at)));
     if (b) b.set.add(v.identity);
   }
-  renderLineChart($('chart7d'), dayBins, (b) => b.set.size, (b) => b.label, '명');
+  renderLineChart($('chart7d'), dayBins, (b) => b.set.size, (b) => b.label, '명', (b) => {
+    const emails = [...b.set].filter((id) => id.includes('@')).slice(0, 10);
+    const anon = [...b.set].length - emails.length;
+    $('chart7dDetail').innerHTML = `
+      <div class="chart-detail-row"><strong>${b.label}</strong><span>${b.set.size}명 방문</span></div>
+      ${emails.length ? `<div class="chart-detail-sub">${emails.map(esc).join(', ')}${anon ? ` · 익명 ${anon}명` : ''}</div>` : (anon ? `<div class="chart-detail-sub">익명 ${anon}명</div>` : '')}
+    `;
+  });
 
   // Approximate sessions for the 7-day window — group per identity, split on
   // 30-minute gaps, then keep (startTime, durationSeconds) for each session.
@@ -821,6 +849,14 @@ async function loadStats() {
       (b) => b.n ? Math.round(b.sum / b.n) : 0,
       (b) => `${b.hour}시`,
       '초',
+      (b) => {
+        const avg = b.n ? Math.round(b.sum / b.n) : 0;
+        const mm = Math.floor(avg / 60), ss = avg % 60;
+        $('chartSessionDetail').innerHTML = `
+          <div class="chart-detail-row"><strong>${b.hour}시</strong><span>평균 ${mm ? `${mm}분 ${ss}초` : `${ss}초`}</span></div>
+          <div class="chart-detail-sub">세션 ${b.n}건 · 총 ${Math.round(b.sum)}초</div>
+        `;
+      },
     );
   }
 

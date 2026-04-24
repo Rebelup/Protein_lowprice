@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260503" />
-  <link rel="stylesheet" href="admin.css?v=20260503" />
+  <link rel="stylesheet" href="style.css?v=20260504" />
+  <link rel="stylesheet" href="admin.css?v=20260504" />
 </head>
 <body>
   <header class="site-header">
@@ -548,14 +548,17 @@
         <div class="chart-block">
           <div class="chart-title">시간대별 방문자 <small>(최근 24시간 · KST)</small></div>
           <div class="line-chart" id="chart24h"></div>
+          <div class="chart-detail" id="chart24hDetail">막대를 누르면 해당 시간 상세를 보여줍니다.</div>
         </div>
         <div class="chart-block">
           <div class="chart-title">일별 방문자 <small>(최근 7일 · KST)</small></div>
           <div class="line-chart line-chart--wide" id="chart7d"></div>
+          <div class="chart-detail" id="chart7dDetail">막대를 누르면 해당 날짜 상세를 보여줍니다.</div>
         </div>
         <div class="chart-block">
           <div class="chart-title">시간대별 평균 접속 시간 <small>(최근 7일 · KST · 초)</small></div>
           <div class="line-chart" id="chartSession"></div>
+          <div class="chart-detail" id="chartSessionDetail">막대를 누르면 해당 시간대 상세를 보여줍니다.</div>
         </div>
         <div class="chart-block">
           <div class="chart-title">리텐션 <small>(최근 7일 · 이전 7일에도 방문한 비율)</small></div>
@@ -610,6 +613,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260503"></script>
+  <script src="admin.js?v=20260504"></script>
 </body>
 </html>
