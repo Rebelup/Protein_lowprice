@@ -667,7 +667,28 @@ function switchAdminTab(tab) {
   $('adminEventsTab').classList.toggle('hidden', tab !== 'events');
   $('adminProductsTab').classList.toggle('hidden', tab !== 'products');
   $('adminAlertsTab').classList.toggle('hidden', tab !== 'alerts');
+  $('adminStatsTab').classList.toggle('hidden', tab !== 'stats');
   if (tab === 'alerts') { loadAlerts(); loadCrawlTargets(); }
+  if (tab === 'stats') loadStats();
+}
+
+async function loadStats() {
+  $('statNow').textContent = $('adminOnlineCount').textContent || '0';
+  const now = new Date();
+  const sixtyAgo = new Date(now.getTime() - 60 * 60_000).toISOString();
+  // Today in KST: build local-day start in KST (UTC+9), convert to UTC ISO.
+  const kstOff = 9 * 60 * 60_000;
+  const kstNow = new Date(now.getTime() + kstOff);
+  const kstMidUtc = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate());
+  const todayStart = new Date(kstMidUtc - kstOff).toISOString();
+  const [r60, rDay] = await Promise.all([
+    db.from('site_visits').select('identity', { count: 'exact', head: false }).gte('visited_at', sixtyAgo).or(`email.neq.${ADMIN_EMAIL},email.is.null`),
+    db.from('site_visits').select('identity', { count: 'exact', head: false }).gte('visited_at', todayStart).or(`email.neq.${ADMIN_EMAIL},email.is.null`),
+  ]);
+  const distinct = (rows) => new Set((rows.data || []).map((r) => r.identity)).size;
+  $('stat60m').textContent = distinct(r60);
+  $('statToday').textContent = distinct(rDay);
+  $('statsUpdated').textContent = `갱신: ${now.toLocaleTimeString('ko-KR')}`;
 }
 
 // ─── CRAWL ALERTS ──────────────────────────────────────────
@@ -1069,6 +1090,7 @@ async function init() {
   online.subscribe();
 
   document.querySelectorAll('.admin-tab').forEach((b) => b.addEventListener('click', () => switchAdminTab(b.dataset.tab)));
+  $('statsRefresh')?.addEventListener('click', loadStats);
 
   // Event form
   $('adminForm').addEventListener('submit', saveEvent);

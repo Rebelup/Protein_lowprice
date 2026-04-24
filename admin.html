@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260497" />
-  <link rel="stylesheet" href="admin.css?v=20260497" />
+  <link rel="stylesheet" href="style.css?v=20260498" />
+  <link rel="stylesheet" href="admin.css?v=20260498" />
 </head>
 <body>
   <header class="site-header">
@@ -21,6 +21,7 @@
     <button class="admin-tab active" data-tab="events">이벤트</button>
     <button class="admin-tab" data-tab="products">상품</button>
     <button class="admin-tab" data-tab="alerts">알림<span class="admin-alert-badge hidden" id="alertBadge">0</span></button>
+    <button class="admin-tab" data-tab="stats">통계</button>
   </nav>
 
   <main class="admin-main" style="visibility:hidden">
@@ -505,6 +506,34 @@
       </section>
     </div>
 
+    <!-- ===== 통계 탭 ===== -->
+    <div id="adminStatsTab" class="hidden">
+      <section class="admin-panel">
+        <div class="admin-panel-head">
+          <h2>이용 통계</h2>
+          <button class="admin-ghost" id="statsRefresh">새로고침</button>
+        </div>
+        <div class="stats-grid">
+          <div class="stats-card">
+            <div class="stats-card-label">현재 접속</div>
+            <div class="stats-card-value" id="statNow">0</div>
+            <div class="stats-card-sub">실시간 (본인 제외)</div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card-label">최근 60분</div>
+            <div class="stats-card-value" id="stat60m">–</div>
+            <div class="stats-card-sub">고유 방문자 수</div>
+          </div>
+          <div class="stats-card">
+            <div class="stats-card-label">오늘 (KST)</div>
+            <div class="stats-card-value" id="statToday">–</div>
+            <div class="stats-card-sub">고유 방문자 수</div>
+          </div>
+        </div>
+        <div class="admin-hint" id="statsUpdated" style="margin-top:14px"></div>
+      </section>
+    </div>
+
   </main>
 
   <!-- 옵션 추가 모달 -->
@@ -533,6 +562,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260497"></script>
+  <script src="admin.js?v=20260498"></script>
 </body>
 </html>

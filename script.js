@@ -1462,25 +1462,38 @@ function initListeners() {
   });
 }
 
-/* ── PRESENCE ── */
+/* ── PRESENCE + VISIT LOG ── */
 let presenceCh = null;
+function getIdentity() {
+  if (currentUser?.email) return currentUser.email;
+  let key = sessionStorage.getItem('guest_pid');
+  if (!key) {
+    key = 'guest-' + Math.random().toString(36).slice(2, 12);
+    sessionStorage.setItem('guest_pid', key);
+  }
+  return key;
+}
 function startPresence() {
   if (presenceCh) {
     presenceCh.track({ email: currentUser?.email || null }).catch(() => {});
     return;
   }
-  let key = currentUser?.email;
-  if (!key) {
-    key = sessionStorage.getItem('guest_pid');
-    if (!key) {
-      key = 'guest-' + Math.random().toString(36).slice(2, 12);
-      sessionStorage.setItem('guest_pid', key);
-    }
-  }
-  presenceCh = db.channel('site-online', { config: { presence: { key } } });
+  presenceCh = db.channel('site-online', { config: { presence: { key: getIdentity() } } });
   presenceCh.subscribe((status) => {
     if (status === 'SUBSCRIBED') presenceCh.track({ email: currentUser?.email || null }).catch(() => {});
   });
+}
+async function logVisit() {
+  // Throttle to one insert per identity per 30 minutes — distinct daily users
+  // stay accurate without flooding the table on rapid reloads.
+  const identity = getIdentity();
+  if (currentUser?.email === ADMIN_EMAIL) return;
+  const last = +localStorage.getItem('lv_at') || 0;
+  if (Date.now() - last < 30 * 60_000) return;
+  localStorage.setItem('lv_at', String(Date.now()));
+  try {
+    await db.from('site_visits').insert({ identity, email: currentUser?.email || null });
+  } catch { /* best effort */ }
 }
 
 /* ── INIT ── */
@@ -1498,6 +1511,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       closeLoginSheet();
     }
     startPresence();
+    logVisit();
   });
   try {
     await Promise.all([loadEvents(), loadFilterOptions(), loadProducts()]);
