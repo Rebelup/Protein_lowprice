@@ -473,7 +473,11 @@ function renderProductPage(p) {
   if (hasNutri) {
     const prot = p.protein ?? 0, carb = p.carb ?? 0, fat = p.fat ?? 0;
     const total = hasMacro ? prot + carb + fat : 0;
-    const pct = (n) => total ? Math.round(n / total * 100) : 0;
+    // % of serving size (e.g. 단백질 23g / 1회제공량 30g = 77%).
+    // Falls back to macro-ratio when serving size is unknown.
+    const pct = (n) => p.servingSize
+      ? Math.round(n / p.servingSize * 100)
+      : (total ? Math.round(n / total * 100) : 0);
     const maxMacro = hasMacro ? Math.max(prot, carb, fat) : 0;
     const barW = (n) => maxMacro ? Math.round(n / maxMacro * 100) : 0;
     const macroRows = hasMacro ? `
