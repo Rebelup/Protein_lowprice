@@ -706,19 +706,21 @@ async function loadStats() {
   const sixtyAgo = new Date(now.getTime() - 60 * 60_000);
   const dayStart = kstDayStartUtc(0);
   const weekStart = kstDayStartUtc(6);
+  const twoWeeksAgo = new Date(now.getTime() - 14 * 24 * 3600_000);
   const exclude = `email.neq.${ADMIN_EMAIL},email.is.null`;
 
-  // One query pulls everything we need for the week (<= a few K rows at typical scale).
+  // 14-day window covers weekly charts + retention (prev 7d vs last 7d).
   const { data: rows = [], error } = await db
     .from('site_visits')
-    .select('identity, email, visited_at, event_type')
-    .gte('visited_at', weekStart.toISOString())
+    .select('identity, email, visited_at, event_type, product_id')
+    .gte('visited_at', twoWeeksAgo.toISOString())
     .or(exclude)
     .order('visited_at', { ascending: false });
   if (error) { $('statsUpdated').textContent = `오류: ${error.message}`; return; }
 
-  const visits = rows.filter((r) => r.event_type === 'visit');
-  const buys = rows.filter((r) => r.event_type === 'buy_click');
+  const weekRows = rows.filter((r) => new Date(r.visited_at) >= weekStart);
+  const visits = weekRows.filter((r) => r.event_type === 'visit' || r.event_type === 'product_view');
+  const buys = weekRows.filter((r) => r.event_type === 'buy_click');
 
   const uniq = (arr) => new Set(arr.map((r) => r.identity)).size;
   $('stat60m').textContent = uniq(visits.filter((r) => new Date(r.visited_at) >= sixtyAgo));
@@ -753,6 +755,50 @@ async function loadStats() {
     if (b) b.set.add(v.identity);
   }
   renderBarChart($('chart7d'), dayBins, (b) => b.set.size, (b) => b.label);
+
+  // Retention — users active in the last 7d who were ALSO active in the prior 7d.
+  const cutoff7 = new Date(now.getTime() - 7 * 24 * 3600_000);
+  const recentUsers = new Set(), priorUsers = new Set();
+  for (const r of rows) {
+    if (r.event_type !== 'visit' && r.event_type !== 'product_view') continue;
+    const t = new Date(r.visited_at);
+    if (t >= cutoff7) recentUsers.add(r.identity);
+    else priorUsers.add(r.identity);
+  }
+  const returned = [...recentUsers].filter((i) => priorUsers.has(i)).length;
+  const pctRet = recentUsers.size ? Math.round((returned / recentUsers.size) * 100) : 0;
+  $('statRetentionPct').textContent = `${pctRet}%`;
+  $('statRetentionReturned').textContent = returned;
+  $('statRetentionTotal').textContent = recentUsers.size;
+
+  // Top-viewed + top-buy products (last 7d)
+  const prodStats = (type) => {
+    const m = new Map();
+    for (const r of weekRows) {
+      if (r.event_type !== type || !r.product_id) continue;
+      const e = m.get(r.product_id) || { distinct: new Set(), total: 0 };
+      e.distinct.add(r.identity); e.total += 1;
+      m.set(r.product_id, e);
+    }
+    return [...m.entries()]
+      .map(([pid, v]) => {
+        const p = PRODUCTS.find((x) => x.id === pid);
+        return { pid, name: p?.name || `#${pid}`, brand: p?.brand || '', distinct: v.distinct.size, total: v.total };
+      })
+      .sort((a, b) => b.total - a.total)
+      .slice(0, 10);
+  };
+  const renderRank = (el, arr, unit) => {
+    el.innerHTML = arr.length
+      ? arr.map((x, i) => `<li class="rank-row">
+          <span class="rank-num">${i + 1}</span>
+          <span class="rank-name">${esc(x.name)}<small>${esc(x.brand)}</small></span>
+          <span class="rank-val">${x.total}<small>${unit}</small></span>
+        </li>`).join('')
+      : '<li class="rank-empty">데이터 없음</li>';
+  };
+  renderRank($('topViewed'), prodStats('product_view'), '회');
+  renderRank($('topBuys'), prodStats('buy_click'), '클릭');
 
   // Recent visitor list (24h, distinct by identity, latest first)
   const cutoff = new Date(now.getTime() - 24 * 3600_000);
@@ -875,18 +921,27 @@ function renderCrawlTargets() {
     const typeLabel = t.target_type === 'event' ? '이벤트' : '상품';
     return `
     <div class="admin-row" data-id="${t.id}">
-      <div class="admin-row-body">
-        <div class="admin-row-name">${esc(displayName)}${subtitle} <span class="target-type-chip target-type--${t.target_type || 'product'}">${typeLabel}</span></div>
+      <button type="button" class="admin-row-body target-edit-body" data-id="${t.id}" title="클릭하여 편집">
+        <div class="admin-row-name">
+          <span class="target-status-dot ${t.active ? 'on' : 'off'}" title="${t.active ? '활성' : '비활성'}"></span>
+          ${esc(displayName)}${subtitle}
+          <span class="target-type-chip target-type--${t.target_type || 'product'}">${typeLabel}</span>
+        </div>
         <div class="admin-row-meta">
-          <span class="target-url-wrap"><a class="target-url" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer" title="${esc(t.url)}">${esc(truncateUrl(t.url, 40))}</a></span>
+          <span class="target-url-wrap"><span class="target-url">${esc(truncateUrl(t.url, 40))}</span></span>
           <span class="target-schedule-chip ${scheduleClass}">${esc(scheduleText)}</span>
           ${t.last_checked_at ? `<span>· 마지막: ${fmtDt(t.last_checked_at)}</span>` : '<span>· 미확인</span>'}
         </div>
+      </button>
+      <button type="button" class="admin-ghost target-run-btn" data-id="${t.id}" title="이 대상만 지금 실행">▶ 실행</button>
+      <div class="target-menu" data-id="${t.id}">
+        <button type="button" class="admin-ghost target-menu-btn" data-id="${t.id}" aria-label="더보기">⋮</button>
+        <div class="target-menu-pop hidden">
+          <a class="target-menu-item" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer">링크 열기</a>
+          <button type="button" class="target-menu-item target-toggle-btn" data-id="${t.id}" data-active="${t.active}">${t.active ? '비활성화' : '활성화'}</button>
+          <button type="button" class="target-menu-item target-menu-danger target-del-btn" data-id="${t.id}">삭제</button>
+        </div>
       </div>
-      <button class="admin-ghost target-run-btn" data-id="${t.id}" title="이 대상만 지금 실행">▶ 실행</button>
-      <button class="admin-ghost target-edit-btn" data-id="${t.id}">정보</button>
-      <button class="admin-ghost target-toggle-btn ${t.active ? '' : 'target-inactive'}" data-id="${t.id}" data-active="${t.active}">${t.active ? '활성' : '비활성'}</button>
-      <button class="admin-ghost target-del-btn" data-id="${t.id}">삭제</button>
     </div>`;
   }).join('');
 }
@@ -1397,7 +1452,14 @@ async function init() {
   $('targetList').addEventListener('click', async (e) => {
     const run = e.target.closest('.target-run-btn');
     if (run) { await runCrawlTarget(+run.dataset.id, run); return; }
-    const edit = e.target.closest('.target-edit-btn');
+    const menuBtn = e.target.closest('.target-menu-btn');
+    if (menuBtn) {
+      const pop = menuBtn.parentElement.querySelector('.target-menu-pop');
+      document.querySelectorAll('.target-menu-pop').forEach((p) => { if (p !== pop) p.classList.add('hidden'); });
+      pop.classList.toggle('hidden');
+      return;
+    }
+    const edit = e.target.closest('.target-edit-body');
     if (edit) { const t = TARGETS.find((x) => x.id === +edit.dataset.id); if (t) fillTargetForm(t); return; }
     const del = e.target.closest('.target-del-btn');
     if (del) {
@@ -1413,6 +1475,11 @@ async function init() {
       const { error } = await db.from('crawl_targets').update({ active: tog.dataset.active !== 'true' }).eq('id', +tog.dataset.id);
       if (error) return showMsg('targetMsg', error.message, true);
       await loadCrawlTargets();
+    }
+  });
+  document.addEventListener('click', (e) => {
+    if (!e.target.closest('.target-menu')) {
+      document.querySelectorAll('.target-menu-pop').forEach((p) => p.classList.add('hidden'));
     }
   });
   // (removed global runCrawlNowBtn — per-target buttons replace it)

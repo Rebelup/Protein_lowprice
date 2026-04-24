@@ -454,6 +454,7 @@ function openProductPage(id, replaceUrl = false) {
   document.body.style.overflow = 'hidden';
   if (replaceUrl) history.replaceState({ prodId: id }, '', `?product=${id}`);
   else history.pushState({ prodId: id }, '', `?product=${id}`);
+  logProductView(id);
 }
 
 function hideProductPage() {
@@ -1491,13 +1492,30 @@ async function logVisit() {
     await db.from('site_visits').insert({ identity, email: currentUser?.email || null, event_type: 'visit' });
   } catch { /* best effort */ }
 }
-async function logBuyClick() {
+async function logBuyClick(productId) {
   if (currentUser?.email === ADMIN_EMAIL) return;
   try {
     await db.from('site_visits').insert({
       identity: getIdentity(),
       email: currentUser?.email || null,
       event_type: 'buy_click',
+      product_id: productId || null,
+    });
+  } catch { /* best effort */ }
+}
+async function logProductView(productId) {
+  if (currentUser?.email === ADMIN_EMAIL) return;
+  // De-dupe bursts per product — one view per product per identity per 10 min
+  const k = 'pv_' + productId;
+  const last = +localStorage.getItem(k) || 0;
+  if (Date.now() - last < 10 * 60_000) return;
+  localStorage.setItem(k, String(Date.now()));
+  try {
+    await db.from('site_visits').insert({
+      identity: getIdentity(),
+      email: currentUser?.email || null,
+      event_type: 'product_view',
+      product_id: productId,
     });
   } catch { /* best effort */ }
 }
@@ -1528,7 +1546,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         openLoginSheet();
         return;
       }
-      if (cta.id === 'ppBuyCta') logBuyClick();
+      if (cta.id === 'ppBuyCta') logBuyClick(+cta.dataset.pid || null);
     }
   }, true);
   try {

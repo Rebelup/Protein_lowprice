@@ -4,14 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260500" />
-  <link rel="stylesheet" href="admin.css?v=20260500" />
+  <link rel="stylesheet" href="style.css?v=20260501" />
+  <link rel="stylesheet" href="admin.css?v=20260501" />
 </head>
 <body>
   <header class="site-header">
     <div class="header-inner">
       <a href="index.html" class="admin-back">← 목록</a>
-      <div class="admin-title">관리자</div>
+      <div class="admin-title"></div>
       <span class="admin-online" id="adminOnline" title="현재 접속 중 (본인 제외)">● <span id="adminOnlineCount">0</span></span>
       <button class="auth-btn" id="adminLogin">로그인</button>
     </div>
@@ -544,6 +544,23 @@
           <div class="chart-bars chart-bars--wide" id="chart7d"></div>
         </div>
         <div class="chart-block">
+          <div class="chart-title">리텐션 <small>(최근 7일 · 이전 7일에도 방문한 비율)</small></div>
+          <div class="retention-card">
+            <div class="retention-main"><span id="statRetentionPct">–</span></div>
+            <div class="retention-sub"><span id="statRetentionReturned">–</span> / <span id="statRetentionTotal">–</span> 명</div>
+          </div>
+        </div>
+        <div class="chart-block chart-block-2col">
+          <div>
+            <div class="chart-title">인기 상품 (조회) <small>최근 7일</small></div>
+            <ol class="rank-list" id="topViewed"></ol>
+          </div>
+          <div>
+            <div class="chart-title">인기 상품 (구매 클릭) <small>최근 7일</small></div>
+            <ol class="rank-list" id="topBuys"></ol>
+          </div>
+        </div>
+        <div class="chart-block">
           <div class="chart-title">최근 방문자 <small>(최근 24시간 · 고유)</small></div>
           <ul class="visitor-list" id="visitorList"></ul>
         </div>
@@ -579,6 +596,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260500"></script>
+  <script src="admin.js?v=20260501"></script>
 </body>
 </html>
