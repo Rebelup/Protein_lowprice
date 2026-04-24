@@ -756,6 +756,34 @@ async function loadStats() {
   }
   renderBarChart($('chart7d'), dayBins, (b) => b.set.size, (b) => b.label);
 
+  // Average session duration (approx.) — group last-7d events per identity,
+  // split into sessions whenever the gap exceeds 30 minutes, then take the
+  // mean of (last - first) across sessions. Single-event sessions contribute 0.
+  {
+    const byId = new Map();
+    for (const r of weekRows) {
+      if (!byId.has(r.identity)) byId.set(r.identity, []);
+      byId.get(r.identity).push(+new Date(r.visited_at));
+    }
+    const durations = [];
+    for (const arr of byId.values()) {
+      arr.sort((a, b) => a - b);
+      let start = arr[0], last = arr[0];
+      for (let i = 1; i < arr.length; i++) {
+        if (arr[i] - last > 30 * 60_000) { durations.push(last - start); start = arr[i]; }
+        last = arr[i];
+      }
+      if (start !== undefined) durations.push(last - start);
+    }
+    if (!durations.length) {
+      $('statAvgSession').textContent = '–';
+    } else {
+      const avg = Math.round(durations.reduce((a, b) => a + b, 0) / durations.length / 1000);
+      const mm = Math.floor(avg / 60), ss = avg % 60;
+      $('statAvgSession').textContent = mm ? `${mm}분 ${ss}초` : `${ss}초`;
+    }
+  }
+
   // Retention — users active in the last 7d who were ALSO active in the prior 7d.
   const cutoff7 = new Date(now.getTime() - 7 * 24 * 3600_000);
   const recentUsers = new Set(), priorUsers = new Set();

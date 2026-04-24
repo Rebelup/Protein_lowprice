@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260501" />
-  <link rel="stylesheet" href="admin.css?v=20260501" />
+  <link rel="stylesheet" href="style.css?v=20260502" />
+  <link rel="stylesheet" href="admin.css?v=20260502" />
 </head>
 <body>
   <header class="site-header">
@@ -534,6 +534,11 @@
             <div class="stats-card-value" id="statBuyToday">–</div>
             <div class="stats-card-sub">오늘 / <span id="statBuyWeek">–</span> 7일</div>
           </div>
+          <div class="stats-card">
+            <div class="stats-card-label">평균 접속 시간</div>
+            <div class="stats-card-value" id="statAvgSession">–</div>
+            <div class="stats-card-sub">최근 7일 · 세션당</div>
+          </div>
         </div>
         <div class="chart-block">
           <div class="chart-title">시간대별 방문자 <small>(최근 24시간 · KST)</small></div>
@@ -596,6 +601,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260501"></script>
+  <script src="admin.js?v=20260502"></script>
 </body>
 </html>

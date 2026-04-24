@@ -380,7 +380,6 @@ function renderEventPage(e) {
   $('eventPageBody').innerHTML = `
     <div class="ep-hero" style="background:linear-gradient(135deg, ${e.color}, ${e.color}dd)">
       <div class="ep-hero-brand">${esc(e.brandLabel)}</div>
-      <div class="ep-hero-pct">-${e.discountPct}%</div>
       <div class="ep-hero-name">${esc(e.name)}</div>
       <div class="ep-hero-meta">
         <span class="ep-hero-status ep-hero-status--${st}">${STATUS_LABEL[st] || ''}</span>
