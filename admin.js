@@ -549,7 +549,7 @@ function renderOptionGroups() {
         ${g.values.map((v, vi) => `<span class="admin-opt-chip" data-gi="${gi}" data-vi="${vi}">
           ${vi > 0 ? `<button type="button" class="opt-chip-move opt-chip-up" data-gi="${gi}" data-vi="${vi}">↑</button>` : ''}
           ${vi < g.values.length - 1 ? `<button type="button" class="opt-chip-move opt-chip-down" data-gi="${gi}" data-vi="${vi}">↓</button>` : ''}
-          <span class="opt-chip-label">${esc(v)}</span>
+          <span class="opt-chip-label" data-gi="${gi}" data-vi="${vi}" title="클릭하여 이름 수정">${esc(v)}</span>
           <button type="button" class="opt-chip-del" data-gi="${gi}" data-vi="${vi}">✕</button>
         </span>`).join('')}
         ${!g.values.length ? '<span class="admin-option-empty-hint">아직 추가된 값이 없습니다</span>' : ''}
@@ -1195,6 +1195,41 @@ async function init() {
         [vals[vi], vals[vi + 1]] = [vals[vi + 1], vals[vi]];
         renderOptionGroups();
       }
+      return;
+    }
+    const chipLabel = e.target.closest('.opt-chip-label');
+    if (chipLabel && !chipLabel.querySelector('input')) {
+      const gi = +chipLabel.dataset.gi, vi = +chipLabel.dataset.vi;
+      const oldVal = currentOptions[gi]?.values[vi];
+      if (oldVal == null) return;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.className = 'admin-input-sm opt-chip-rename';
+      input.value = oldVal;
+      chipLabel.textContent = '';
+      chipLabel.appendChild(input);
+      input.focus();
+      input.select();
+      let done = false;
+      const commit = (save) => {
+        if (done) return;
+        done = true;
+        const newVal = input.value.trim();
+        if (!save || !newVal || newVal === oldVal) return renderOptionGroups();
+        if (currentOptions[gi].values.includes(newVal)) {
+          alert(`"${newVal}" 값이 이미 존재합니다.`);
+          return renderOptionGroups();
+        }
+        syncOptionsFromDOM();
+        currentOptions[gi].values[vi] = newVal;
+        currentSkus.forEach((s) => { if (s.combo[gi] === oldVal) s.combo[gi] = newVal; });
+        renderOptionGroups();
+      };
+      input.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); commit(true); }
+        else if (ev.key === 'Escape') { ev.preventDefault(); commit(false); }
+      });
+      input.addEventListener('blur', () => commit(true));
       return;
     }
   });

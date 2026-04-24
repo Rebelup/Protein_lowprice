@@ -391,6 +391,16 @@
   background: var(--blue-light); color: var(--blue);
   font-size: 12.5px; font-weight: 600;
 }
+.opt-chip-label {
+  cursor: text; padding: 0 2px; border-radius: 3px;
+}
+.opt-chip-label:hover { background: rgba(255,255,255,.5); }
+.opt-chip-rename {
+  font-size: 12.5px; font-weight: 600; color: var(--blue);
+  background: var(--white); border: 1px solid var(--blue);
+  border-radius: 4px; padding: 1px 6px; width: 110px;
+  outline: none;
+}
 .opt-chip-del {
   background: none; border: none; cursor: pointer;
   font-size: 11px; color: var(--blue); padding: 0; line-height: 1;
