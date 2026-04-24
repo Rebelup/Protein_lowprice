@@ -28,9 +28,10 @@ type Rec = Record<string, unknown>;
 
 interface Target {
   id: number; brand: string; label: string; url: string; active: boolean;
+  target_type?: 'product' | 'event' | null;
   category1: string | null; category2: string | null; category3: string | null; category4: string | null;
   schedule_hour: number | null; schedule_minute: number | null; schedule_days: string[] | null;
-  last_run_at: string | null; last_hash: string | null;
+  last_run_at: string | null; last_hash: string | null; last_events?: string[] | null;
 }
 interface Opt { name: string; values: string[]; }
 interface Sku { combo: string[]; price: number; orig_price: number; }
@@ -143,11 +144,16 @@ function readAdd(p: Rec): Record<string, string> {
   return out;
 }
 
+// Each nutrient has two regex directions: label→number and number→label. Match either.
 const NUTRI_RE: Array<[RegExp, keyof Nutri]> = [
   [/(?:열량|칼로리)[^0-9]{0,15}(\d+(?:\.\d+)?)\s*(?:kcal|㎉)/i, 'calories'],
+  [/(\d+(?:\.\d+)?)\s*(?:kcal|㎉)\s*(?:의\s*)?(?:열량|칼로리)/i, 'calories'],
   [/단백질[을은]?[^0-9]{0,10}(\d+(?:\.\d+)?)\s*g/i, 'protein_g'],
+  [/(\d+(?:\.\d+)?)\s*g(?:의|\s)*\s*단백질/i, 'protein_g'],
   [/탄수화물[을은]?[^0-9]{0,10}(\d+(?:\.\d+)?)\s*g/i, 'carb_g'],
+  [/(\d+(?:\.\d+)?)\s*g(?:의|\s)*\s*탄수화물/i, 'carb_g'],
   [/(?<!포화|트랜스)지방[을은]?[^0-9]{0,10}(\d+(?:\.\d+)?)\s*g/i, 'fat_g'],
+  [/(\d+(?:\.\d+)?)\s*g(?:의|\s)*\s*(?<!포화|트랜스)지방/i, 'fat_g'],
   [/당류[을은]?[^0-9]{0,10}(\d+(?:\.\d+)?)\s*g/i, 'sugar_g'],
   [/포화지방[산]?[^0-9]{0,10}(\d+(?:\.\d+)?)\s*g/i, 'saturated_fat_g'],
   [/트랜스지방[산]?[^0-9]{0,10}(\d+(?:\.\d+)?)\s*g/i, 'trans_fat_g'],
@@ -157,16 +163,20 @@ const NUTRI_RE: Array<[RegExp, keyof Nutri]> = [
 function extractNutri(text: string): Nutri {
   const out: Nutri = {};
   if (!text) return out;
+  // Serving size can be expressed several ways. Prefer the explicit "1회 제공량"
+  // but fall back to scoop/serving patterns common on supplement sites.
   const svRe = /1회\s*제공량[^0-9]*?(\d+(?:\.\d+)?)\s*(?:g|ml|그램)/i;
-  const sv = text.match(svRe);
+  const svScoop = /(?:1\s*)?(?:스쿱|scoop|serving|서빙|회분)\s*(?:당|\(?\s*)(\d+(?:\.\d+)?)\s*(?:g|ml)/i;
+  const sv = text.match(svRe) ?? text.match(svScoop);
   if (sv) out.serving_size_g = parseFloat(sv[1]);
   let ctx = '';
   if (sv) {
-    const slice = text.slice(sv.index ?? 0, (sv.index ?? 0) + 2500);
+    const slice = text.slice(sv.index ?? 0, (sv.index ?? 0) + 3000);
     const end = slice.match(/(?:100\s*g\s*당|1일\s*영양성분\s*기준치|일일권장량|일일기준치|per\s*100)/i);
     ctx = end ? slice.slice(0, end.index ?? slice.length) : slice;
   } else {
-    const sec = text.match(/영양\s*정보[\s\S]{0,2000}|영양\s*성분[\s\S]{0,2000}/i);
+    // Otherwise fall back to "per scoop/serving" context ("한 스쿱당 최대 23g의 단백질")
+    const sec = text.match(/(?:한\s*)?스쿱당[\s\S]{0,2000}|serving당[\s\S]{0,2000}|영양\s*정보[\s\S]{0,2000}|영양\s*성분[\s\S]{0,2000}/i);
     ctx = sec ? sec[0] : '';
   }
   if (!ctx) return out;
@@ -419,6 +429,73 @@ function isDetail(u: string): boolean {
   catch { return false; }
 }
 
+function extractEvents(html: string): string[] {
+  const out = new Set<string>();
+  // 1) Schema.org Event
+  const lds = flatten(collectLd(html));
+  for (const o of lds) {
+    const tp = String(o['@type'] ?? '');
+    if (tp === 'Event' || tp === 'SaleEvent') {
+      const name = String(o.name ?? '').trim();
+      if (name) out.add(name);
+    }
+  }
+  // 2) Anchor tags pointing at event/sale/promo pages
+  const aRe = /<a[^>]+href=["'][^"']*(?:event|promotion|\/promo|\/sale)[^"']*["'][^>]*>([\s\S]{3,300}?)<\/a>/gi;
+  for (const m of html.matchAll(aRe)) {
+    const text = strip(m[1]).replace(/\s+/g, ' ').trim();
+    if (text.length >= 3 && text.length <= 120) out.add(text);
+  }
+  // 3) Headings containing event-related keywords
+  const hRe = /<h[1-3][^>]*>([\s\S]{3,200}?)<\/h[1-3]>/gi;
+  const kw = /이벤트|세일|프로모션|할인|특가|기획전|행사|event|sale|promo/i;
+  for (const m of html.matchAll(hRe)) {
+    const text = strip(m[1]);
+    if (kw.test(text) && text.length >= 3 && text.length <= 120) out.add(text);
+  }
+  return [...out];
+}
+
+async function runEventTarget(t: Target, dry = false): Promise<{ events: string[]; newEvents: string[]; alerts: number; error?: string }> {
+  const started = new Date().toISOString();
+  try {
+    const html = await fetchText(t.url);
+    const events = extractEvents(html);
+    const prev = new Set(t.last_events ?? []);
+    const newEvents = events.filter((e) => !prev.has(e));
+    const alertRows: Rec[] = [];
+    alertRows.push({
+      target_id: t.id, brand: t.brand, label: '이벤트 현황',
+      url: t.url, seen: false,
+      snippet: `현재 ${events.length}개 이벤트 감지됨 (${t.label || t.brand})`,
+    });
+    if (newEvents.length) {
+      alertRows.push({
+        target_id: t.id, brand: t.brand, label: '새 이벤트 감지',
+        url: t.url, seen: false,
+        snippet: `새 이벤트 ${newEvents.length}개: ${newEvents.slice(0, 5).join(' | ')}${newEvents.length > 5 ? ' …' : ''}`,
+      });
+    }
+    if (!dry) {
+      if (alertRows.length) await db.from('crawl_alerts').insert(alertRows);
+      await db.from('crawl_targets').update({
+        last_events: events, last_checked_at: new Date().toISOString(), last_run_at: new Date().toISOString(),
+        last_run_status: 'ok', last_run_summary: { type: 'event', events: events.length, new: newEvents.length, ran_at: started },
+      }).eq('id', t.id);
+    }
+    return { events, newEvents, alerts: alertRows.length };
+  } catch (err) {
+    const msg = (err as Error).message ?? String(err);
+    if (!dry) {
+      await db.from('crawl_targets').update({
+        last_run_at: new Date().toISOString(), last_run_status: 'error',
+        last_run_summary: { error: msg, ran_at: started },
+      }).eq('id', t.id);
+    }
+    return { events: [], newEvents: [], alerts: 0, error: msg };
+  }
+}
+
 async function runTarget(t: Target, dry = false): Promise<{ products: Prod[]; alerts: number; error?: string }> {
   const started = new Date().toISOString();
   try {
@@ -521,15 +598,25 @@ Deno.serve(async (req) => {
     let totalP = 0, totalA = 0;
     const results: Rec[] = [];
     for (const t of picked) {
-      const r = await runTarget(t as Target, !!body.dry);
-      totalP += r.products.length;
-      totalA += r.alerts;
-      results.push({
-        target_id: t.id, label: t.label || t.brand, brand: t.brand, url: t.url,
-        admin_title: (t as Rec).admin_title ?? null,
-        category1: t.category1, category2: t.category2, category3: t.category3, category4: t.category4,
-        products: r.products, alerts: r.alerts, error: r.error ?? null,
-      });
+      if ((t as Target).target_type === 'event') {
+        const r = await runEventTarget(t as Target, !!body.dry);
+        totalA += r.alerts;
+        results.push({
+          target_id: t.id, label: t.label || t.brand, brand: t.brand, url: t.url,
+          admin_title: (t as Rec).admin_title ?? null, target_type: 'event',
+          events: r.events, new_events: r.newEvents, alerts: r.alerts, error: r.error ?? null,
+        });
+      } else {
+        const r = await runTarget(t as Target, !!body.dry);
+        totalP += r.products.length;
+        totalA += r.alerts;
+        results.push({
+          target_id: t.id, label: t.label || t.brand, brand: t.brand, url: t.url,
+          admin_title: (t as Rec).admin_title ?? null, target_type: 'product',
+          category1: t.category1, category2: t.category2, category3: t.category3, category4: t.category4,
+          products: r.products, alerts: r.alerts, error: r.error ?? null,
+        });
+      }
     }
     if (!body.dry) {
       await db.from('crawl_logs').insert({

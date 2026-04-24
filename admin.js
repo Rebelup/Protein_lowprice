@@ -540,6 +540,8 @@ function renderOptionGroups() {
   c.innerHTML = currentOptions.map((g, gi) => `
     <div class="admin-option-group">
       <div class="admin-option-group-row">
+        <button type="button" class="admin-ghost opt-group-move-up" data-gi="${gi}" ${gi === 0 ? 'disabled' : ''} title="위로">↑</button>
+        <button type="button" class="admin-ghost opt-group-move-down" data-gi="${gi}" ${gi === currentOptions.length - 1 ? 'disabled' : ''} title="아래로">↓</button>
         <input type="text" class="admin-input-sm option-name-input" data-gi="${gi}" value="${esc(g.name)}" placeholder="옵션명 (예: 맛)" />
         <button type="button" class="admin-ghost option-group-del" data-gi="${gi}">삭제</button>
       </div>
@@ -765,16 +767,18 @@ function renderCrawlTargets() {
     const scheduleClass = (t.schedule_hour != null && t.schedule_hour !== '' && (t.schedule_days || []).length) ? '' : 'target-schedule--off';
     const displayName = t.admin_title || t.label || brandLabel || t.url;
     const subtitle = t.admin_title && t.label ? ` · ${esc(t.label)}` : '';
+    const typeLabel = t.target_type === 'event' ? '이벤트' : '상품';
     return `
     <div class="admin-row" data-id="${t.id}">
       <div class="admin-row-body">
-        <div class="admin-row-name">${esc(displayName)}${subtitle}</div>
+        <div class="admin-row-name">${esc(displayName)}${subtitle} <span class="target-type-chip target-type--${t.target_type || 'product'}">${typeLabel}</span></div>
         <div class="admin-row-meta">
           <span class="target-url-wrap"><a class="target-url" href="${esc(t.url)}" target="_blank" rel="noopener noreferrer" title="${esc(t.url)}">${esc(truncateUrl(t.url, 40))}</a></span>
           <span class="target-schedule-chip ${scheduleClass}">${esc(scheduleText)}</span>
           ${t.last_checked_at ? `<span>· 마지막: ${fmtDt(t.last_checked_at)}</span>` : '<span>· 미확인</span>'}
         </div>
       </div>
+      <button class="admin-ghost target-run-btn" data-id="${t.id}" title="이 대상만 지금 실행">▶ 실행</button>
       <button class="admin-ghost target-edit-btn" data-id="${t.id}">정보</button>
       <button class="admin-ghost target-toggle-btn ${t.active ? '' : 'target-inactive'}" data-id="${t.id}" data-active="${t.active}">${t.active ? '활성' : '비활성'}</button>
       <button class="admin-ghost target-del-btn" data-id="${t.id}">삭제</button>
@@ -793,6 +797,7 @@ function setSelectedWeekdays(days) {
 function resetTargetForm() {
   editingTargetId = null;
   $('tId').value = '';
+  $('tType').value = 'product';
   $('tAdminTitle').value = '';
   $('tBrand').value = ''; $('tLabel').value = ''; $('tUrl').value = '';
   ['tCat1', 'tCat2', 'tCat3', 'tCat4'].forEach((id) => { $(id).value = ''; });
@@ -805,6 +810,7 @@ function resetTargetForm() {
 function fillTargetForm(t) {
   editingTargetId = t.id;
   $('tId').value = t.id;
+  $('tType').value = t.target_type || 'product';
   $('tAdminTitle').value = t.admin_title || '';
   $('tBrand').value = t.brand || '';
   $('tLabel').value = t.label || '';
@@ -835,6 +841,7 @@ async function saveCrawlTarget(ev) {
     brand,
     label: label || brandLabel,
     admin_title: $('tAdminTitle').value.trim() || null,
+    target_type: $('tType').value || 'product',
     url,
     category1: $('tCat1').value || null,
     category2: $('tCat2').value || null,
@@ -977,28 +984,23 @@ function applyCrawlDetailMode() {
   $('crawlResultToggle').textContent = crawlResultDetailed ? '간결히' : '자세히';
 }
 
-async function runCrawlNow() {
-  const btn = $('runCrawlNowBtn');
-  btn.disabled = true; btn.textContent = '실행 중...';
+async function runCrawlTarget(targetId, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = '실행 중...'; }
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 120000);
   try {
     const res = await fetch(`${SUPABASE_URL}/functions/v1/crawl-run`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY },
-      body: JSON.stringify({ force: true }),
+      body: JSON.stringify({ target_id: targetId }),
       signal: controller.signal,
     });
     clearTimeout(timeout);
     const text = await res.text();
     let data; try { data = JSON.parse(text); } catch { data = { raw: text }; }
-    if (!res.ok || data?.ok === false) {
-      throw new Error(data?.error || `HTTP ${res.status}`);
-    }
-    const checked = data.checked ?? 0;
-    const products = data.products ?? 0;
-    const alerts = data.alerts ?? 0;
-    showMsg('targetMsg', `완료: ${checked}개 대상 확인, 상품 ${products}개 수집, 변경 ${alerts}건`);
+    if (!res.ok || data?.ok === false) throw new Error(data?.error || `HTTP ${res.status}`);
+    const products = data.products ?? 0, alerts = data.alerts ?? 0;
+    showMsg('targetMsg', `완료: 상품 ${products}개 · 변경 ${alerts}건`);
     renderCrawlResults(data);
     await loadAlerts();
     await loadCrawlTargets();
@@ -1006,10 +1008,10 @@ async function runCrawlNow() {
   } catch (e) {
     clearTimeout(timeout);
     const msg = e?.name === 'AbortError' ? '시간 초과' : (e?.message || String(e));
-    console.error('[runCrawlNow]', e);
+    console.error('[runCrawlTarget]', e);
     showMsg('targetMsg', '실행 실패: ' + msg, true);
   }
-  btn.disabled = false; btn.textContent = '지금 실행';
+  if (btn) { btn.disabled = false; btn.textContent = '▶ 실행'; }
 }
 
 function renderGate(forbidden = false) {
@@ -1133,6 +1135,28 @@ async function init() {
     if (inputs.length) inputs[inputs.length - 1].focus();
   });
   $('optionGroupsContainer').addEventListener('click', (e) => {
+    const up = e.target.closest('.opt-group-move-up');
+    if (up) {
+      syncOptionsFromDOM();
+      const gi = +up.dataset.gi;
+      if (gi > 0) {
+        [currentOptions[gi - 1], currentOptions[gi]] = [currentOptions[gi], currentOptions[gi - 1]];
+        currentSkus.forEach((s) => { [s.combo[gi - 1], s.combo[gi]] = [s.combo[gi], s.combo[gi - 1]]; });
+        renderOptionGroups();
+      }
+      return;
+    }
+    const down = e.target.closest('.opt-group-move-down');
+    if (down) {
+      syncOptionsFromDOM();
+      const gi = +down.dataset.gi;
+      if (gi < currentOptions.length - 1) {
+        [currentOptions[gi], currentOptions[gi + 1]] = [currentOptions[gi + 1], currentOptions[gi]];
+        currentSkus.forEach((s) => { [s.combo[gi], s.combo[gi + 1]] = [s.combo[gi + 1], s.combo[gi]]; });
+        renderOptionGroups();
+      }
+      return;
+    }
     const del = e.target.closest('.option-group-del');
     if (del) {
       syncOptionsFromDOM();
@@ -1216,6 +1240,8 @@ async function init() {
   $('targetForm').addEventListener('submit', saveCrawlTarget);
   $('targetCancel').addEventListener('click', () => { resetTargetForm(); showMsg('targetMsg', '취소되었습니다.'); });
   $('targetList').addEventListener('click', async (e) => {
+    const run = e.target.closest('.target-run-btn');
+    if (run) { await runCrawlTarget(+run.dataset.id, run); return; }
     const edit = e.target.closest('.target-edit-btn');
     if (edit) { const t = TARGETS.find((x) => x.id === +edit.dataset.id); if (t) fillTargetForm(t); return; }
     const del = e.target.closest('.target-del-btn');
@@ -1234,7 +1260,7 @@ async function init() {
       await loadCrawlTargets();
     }
   });
-  $('runCrawlNowBtn').addEventListener('click', runCrawlNow);
+  // (removed global runCrawlNowBtn — per-target buttons replace it)
   $('crawlResultToggle').addEventListener('click', () => { crawlResultDetailed = !crawlResultDetailed; applyCrawlDetailMode(); });
   $('crawlResultClose').addEventListener('click', () => { $('crawlResultPanel').classList.add('hidden'); });
 

@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260488" />
-  <link rel="stylesheet" href="admin.css?v=20260488" />
+  <link rel="stylesheet" href="style.css?v=20260489" />
+  <link rel="stylesheet" href="admin.css?v=20260489" />
 </head>
 <body>
   <header class="site-header">
@@ -413,10 +413,18 @@
       <section class="admin-panel">
         <div class="admin-panel-head">
           <h2>모니터링 대상</h2>
-          <button class="admin-ghost" id="runCrawlNowBtn">지금 실행</button>
+          <small class="admin-hint" style="margin:0">각 대상 옆 ▶ 버튼으로 개별 실행</small>
         </div>
         <form id="targetForm" class="admin-form" autocomplete="off" style="margin-bottom:14px">
           <input type="hidden" id="tId" />
+
+          <div class="admin-field">
+            <span>크롤링 종류 <em>*</em></span>
+            <select id="tType">
+              <option value="product">상품 크롤링 (DB에 upsert)</option>
+              <option value="event">이벤트 크롤링 (알림만, DB 미수정)</option>
+            </select>
+          </div>
 
           <label class="admin-field">
             <span>관리용 제목</span>
@@ -524,6 +532,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260488"></script>
+  <script src="admin.js?v=20260489"></script>
 </body>
 </html>

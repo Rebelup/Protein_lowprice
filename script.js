@@ -569,14 +569,17 @@ function renderProductPage(p) {
 
   $('ppCtaBar').innerHTML = `<a class="ep-cta" href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener noreferrer">구매하러 가기 →</a>`;
 
-  // 옵션 선택 UI — 기본은 "가장 싼 SKU" 기준. 그 combo의 값이 각 그룹에서 맨 앞에 오도록 정렬.
+  // Sort option values by the cheapest SKU price that uses each value (ascending).
+  // As a side-effect the cheapest combo value lands first in each group.
   const cheapestSku = getCheapestSku(p);
-  if (cheapestSku && p.options?.length) {
+  if (p.optionSkus?.length && p.options?.length) {
     p.options.forEach((g, gi) => {
-      const preferred = cheapestSku.combo[gi];
-      if (preferred && g.values.includes(preferred)) {
-        g.values = [preferred, ...g.values.filter((v) => v !== preferred)];
-      }
+      const priceOf = (v) => {
+        let min = Infinity;
+        for (const s of p.optionSkus) if (s.combo[gi] === v && s.price > 0 && s.price < min) min = s.price;
+        return min;
+      };
+      g.values = [...g.values].sort((a, b) => priceOf(a) - priceOf(b));
     });
   }
 
