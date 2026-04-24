@@ -15,6 +15,11 @@
 }
 .admin-back:hover { background: #F0F0F0; color: var(--blue); }
 .admin-title { flex: 1; font-size: 15px; font-weight: 800; text-align: center; }
+.admin-online {
+  font-size: 12px; font-weight: 700; color: #2E7D32;
+  padding: 4px 10px; background: #E8F5E9; border-radius: 99px;
+  white-space: nowrap; margin-right: 6px;
+}
 
 .admin-main {
   max-width: 720px; margin: 0 auto;

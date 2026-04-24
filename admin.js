@@ -1054,6 +1054,20 @@ async function init() {
   $('adminLogin').textContent = data.session.user.email || '로그인됨';
   $('adminLogin').addEventListener('click', async () => { await db.auth.signOut(); location.href = 'index.html'; });
 
+  // Online-user count (presence). Admin is observe-only — does not call .track()
+  // so this tab itself is not added to the count. Excludes the admin email key.
+  const online = db.channel('site-online');
+  const updateOnline = () => {
+    const state = online.presenceState();
+    const count = Object.keys(state).filter((k) => k !== ADMIN_EMAIL).length;
+    const el = $('adminOnlineCount');
+    if (el) el.textContent = count;
+  };
+  online.on('presence', { event: 'sync' }, updateOnline);
+  online.on('presence', { event: 'join' }, updateOnline);
+  online.on('presence', { event: 'leave' }, updateOnline);
+  online.subscribe();
+
   document.querySelectorAll('.admin-tab').forEach((b) => b.addEventListener('click', () => switchAdminTab(b.dataset.tab)));
 
   // Event form

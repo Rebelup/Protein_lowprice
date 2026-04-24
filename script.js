@@ -1462,6 +1462,27 @@ function initListeners() {
   });
 }
 
+/* ── PRESENCE ── */
+let presenceCh = null;
+function startPresence() {
+  if (presenceCh) {
+    presenceCh.track({ email: currentUser?.email || null }).catch(() => {});
+    return;
+  }
+  let key = currentUser?.email;
+  if (!key) {
+    key = sessionStorage.getItem('guest_pid');
+    if (!key) {
+      key = 'guest-' + Math.random().toString(36).slice(2, 12);
+      sessionStorage.setItem('guest_pid', key);
+    }
+  }
+  presenceCh = db.channel('site-online', { config: { presence: { key } } });
+  presenceCh.subscribe((status) => {
+    if (status === 'SUBSCRIBED') presenceCh.track({ email: currentUser?.email || null }).catch(() => {});
+  });
+}
+
 /* ── INIT ── */
 document.addEventListener('DOMContentLoaded', async () => {
   showLoading(true);
@@ -1476,6 +1497,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       pendingLink = null;
       closeLoginSheet();
     }
+    startPresence();
   });
   try {
     await Promise.all([loadEvents(), loadFilterOptions(), loadProducts()]);
