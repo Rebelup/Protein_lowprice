@@ -164,7 +164,10 @@ function getBestEventPrice(p, overridePrice = null) {
 function renderProductCard(p) {
   const cheapest = getCheapestSku(p);
   const basePrice = cheapest ? cheapest.price : p.salePrice;
-  const baseOrig = cheapest ? (cheapest.origPrice || cheapest.price) : p.originalPrice;
+  // Prefer SKU-level orig; fall back to product-level so any 정가>판매가 gap
+  // is still visible on the card regardless of where the crawler wrote it.
+  const skuOrig = cheapest?.origPrice && cheapest.origPrice > cheapest.price ? cheapest.origPrice : 0;
+  const baseOrig = skuOrig || (p.originalPrice > basePrice ? p.originalPrice : basePrice);
   const disc = baseOrig > basePrice ? Math.max(1, Math.ceil((1 - basePrice / baseOrig) * 100)) : 0;
   const thumb = p.thumbnail
     ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
