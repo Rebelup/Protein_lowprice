@@ -167,7 +167,7 @@ function renderProductCard(p) {
   const disc = baseOrig > basePrice ? Math.max(1, Math.ceil((1 - basePrice / baseOrig) * 100)) : 0;
   const thumb = p.thumbnail
     ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
-    : p.emoji;
+    : esc(p.emoji || "");
   let priceHtml;
   if (prodState.showEventPrice) {
     const ev = getBestEventPrice(p);
@@ -383,7 +383,7 @@ function renderEventPage(e) {
         const ev2 = getBestEventPrice(p);
         const thumb = p.thumbnail
           ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
-          : p.emoji;
+          : esc(p.emoji || "");
         const priceHtml = ev2
           ? `<div class="prod-card-price"><span class="prod-pct">-${ev2.pct}%</span><span class="prod-sale">${fmtPrice(ev2.price)}</span><span class="prod-orig">${fmtPrice(basePrice)}</span></div><div class="prod-ev-tag">⚡ 이벤트 적용가</div>`
           : `<div class="prod-card-price">${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}<span class="prod-sale">${fmtPrice(basePrice)}</span>${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}</div>`;
@@ -462,7 +462,7 @@ function renderProductPage(p) {
   const disc = p.originalPrice > p.salePrice ? Math.round((1 - p.salePrice / p.originalPrice) * 100) : 0;
   const thumb = p.thumbnail
     ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
-    : p.emoji;
+    : esc(p.emoji || "");
   const sect = (title, body) => `<div class="ep-section"><div class="ep-section-title">${title}</div>${body}</div>`;
   const hasOptions = p.options && p.options.length > 0;
 
