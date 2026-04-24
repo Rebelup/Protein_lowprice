@@ -333,6 +333,21 @@ function renderEventPage(e) {
   const safeLink = esc(safeUrl(e.link));
   const sect = (title, body) => `<div class="ep-section"><div class="ep-section-title">${title}</div>${body}</div>`;
 
+  const DESC_LIMIT = 120;
+  const descSection = e.desc
+    ? sect('📝 이벤트 설명', (() => {
+        const raw = String(e.desc);
+        const full = esc(raw);
+        if (raw.length <= DESC_LIMIT) return `<p class="ep-desc">${full}</p>`;
+        const shortText = esc(raw.slice(0, DESC_LIMIT).trimEnd() + '…');
+        return `<div class="ep-desc-wrap">
+          <p class="ep-desc ep-desc--short">${shortText}</p>
+          <p class="ep-desc ep-desc--full hidden">${full}</p>
+          <button class="ep-desc-toggle" type="button" data-expanded="false">더보기</button>
+        </div>`;
+      })())
+    : '';
+
   const typeChips = e.productTypes?.length
     ? sect('🏷️ 적용 상품 유형', `<div class="ep-chips">${e.productTypes.map((t) => `<span class="ep-chip">${esc(ALL_TYPES.find((p) => p.value === t)?.label || t)}</span>`).join('')}</div>`)
     : '';
@@ -351,12 +366,12 @@ function renderEventPage(e) {
       <div class="ep-hero-brand">${esc(e.brandLabel)}</div>
       <div class="ep-hero-pct">-${e.discountPct}%</div>
       <div class="ep-hero-name">${esc(e.name)}</div>
-      ${e.desc ? `<p class="ep-hero-desc">${esc(e.desc)}</p>` : ''}
       <div class="ep-hero-meta">
         <span class="ep-hero-status ep-hero-status--${st}">${STATUS_LABEL[st] || ''}</span>
         ${dd ? `<span class="ep-hero-dday">${dd}</span>` : ''}
       </div>
     </div>
+    ${descSection}
     ${sect('📅 기간', `<div class="ep-info-box">${fmtPeriod(e.startDate, e.endDate)}</div>`)}
     ${typeChips}${conds}${howTo}${coupon}
     ${(() => {
@@ -392,6 +407,16 @@ function renderEventPage(e) {
       copyBtn.textContent = '복사됨!';
       setTimeout(() => { copyBtn.textContent = '복사'; }, 1500);
     });
+  });
+
+  const descToggle = $('eventPageBody').querySelector('.ep-desc-toggle');
+  descToggle?.addEventListener('click', () => {
+    const wrap = descToggle.closest('.ep-desc-wrap');
+    const expanded = descToggle.dataset.expanded === 'true';
+    wrap.querySelector('.ep-desc--short').classList.toggle('hidden', !expanded);
+    wrap.querySelector('.ep-desc--full').classList.toggle('hidden', expanded);
+    descToggle.dataset.expanded = expanded ? 'false' : 'true';
+    descToggle.textContent = expanded ? '더보기' : '간략히';
   });
 
   $('epCtaBtn')?.addEventListener('click', (ev) => {
