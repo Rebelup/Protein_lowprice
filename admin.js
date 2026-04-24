@@ -672,22 +672,106 @@ function switchAdminTab(tab) {
   if (tab === 'stats') loadStats();
 }
 
+const KST_OFFSET_MS = 9 * 60 * 60_000;
+function kstDayStartUtc(daysBack) {
+  // UTC Date corresponding to 00:00 KST `daysBack` days ago.
+  const nowKst = new Date(Date.now() + KST_OFFSET_MS);
+  const midKst = Date.UTC(nowKst.getUTCFullYear(), nowKst.getUTCMonth(), nowKst.getUTCDate() - daysBack);
+  return new Date(midKst - KST_OFFSET_MS);
+}
+function kstHourKey(d) {
+  const k = new Date(d.getTime() + KST_OFFSET_MS);
+  return `${k.getUTCFullYear()}-${k.getUTCMonth()}-${k.getUTCDate()}-${k.getUTCHours()}`;
+}
+function kstDayKey(d) {
+  const k = new Date(d.getTime() + KST_OFFSET_MS);
+  return `${k.getUTCMonth() + 1}/${k.getUTCDate()}`;
+}
+function renderBarChart(el, bins, valueFn, labelFn) {
+  const max = Math.max(1, ...bins.map(valueFn));
+  el.innerHTML = bins.map((b) => {
+    const v = valueFn(b);
+    const h = Math.round((v / max) * 100);
+    return `<div class="chart-bar"${v ? ` title="${labelFn(b)}: ${v}명"` : ''}>
+      <div class="chart-bar-fill" style="height:${h}%"></div>
+      <div class="chart-bar-val">${v || ''}</div>
+      <div class="chart-bar-lbl">${labelFn(b)}</div>
+    </div>`;
+  }).join('');
+}
+
 async function loadStats() {
   $('statNow').textContent = $('adminOnlineCount').textContent || '0';
   const now = new Date();
-  const sixtyAgo = new Date(now.getTime() - 60 * 60_000).toISOString();
-  // Today in KST: build local-day start in KST (UTC+9), convert to UTC ISO.
-  const kstOff = 9 * 60 * 60_000;
-  const kstNow = new Date(now.getTime() + kstOff);
-  const kstMidUtc = Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate());
-  const todayStart = new Date(kstMidUtc - kstOff).toISOString();
-  const [r60, rDay] = await Promise.all([
-    db.from('site_visits').select('identity', { count: 'exact', head: false }).gte('visited_at', sixtyAgo).or(`email.neq.${ADMIN_EMAIL},email.is.null`),
-    db.from('site_visits').select('identity', { count: 'exact', head: false }).gte('visited_at', todayStart).or(`email.neq.${ADMIN_EMAIL},email.is.null`),
-  ]);
-  const distinct = (rows) => new Set((rows.data || []).map((r) => r.identity)).size;
-  $('stat60m').textContent = distinct(r60);
-  $('statToday').textContent = distinct(rDay);
+  const sixtyAgo = new Date(now.getTime() - 60 * 60_000);
+  const dayStart = kstDayStartUtc(0);
+  const weekStart = kstDayStartUtc(6);
+  const exclude = `email.neq.${ADMIN_EMAIL},email.is.null`;
+
+  // One query pulls everything we need for the week (<= a few K rows at typical scale).
+  const { data: rows = [], error } = await db
+    .from('site_visits')
+    .select('identity, email, visited_at, event_type')
+    .gte('visited_at', weekStart.toISOString())
+    .or(exclude)
+    .order('visited_at', { ascending: false });
+  if (error) { $('statsUpdated').textContent = `오류: ${error.message}`; return; }
+
+  const visits = rows.filter((r) => r.event_type === 'visit');
+  const buys = rows.filter((r) => r.event_type === 'buy_click');
+
+  const uniq = (arr) => new Set(arr.map((r) => r.identity)).size;
+  $('stat60m').textContent = uniq(visits.filter((r) => new Date(r.visited_at) >= sixtyAgo));
+  $('statToday').textContent = uniq(visits.filter((r) => new Date(r.visited_at) >= dayStart));
+  $('statBuyToday').textContent = buys.filter((r) => new Date(r.visited_at) >= dayStart).length;
+  $('statBuyWeek').textContent = buys.length;
+
+  // 24-hour bars: bucket by hour
+  const hourBins = [];
+  for (let i = 23; i >= 0; i--) {
+    const t = new Date(now.getTime() - i * 3600_000);
+    hourBins.push({ key: kstHourKey(t), label: String(new Date(t.getTime() + KST_OFFSET_MS).getUTCHours()), set: new Set() });
+  }
+  const hourMap = new Map(hourBins.map((b) => [b.key, b]));
+  for (const v of visits) {
+    const d = new Date(v.visited_at);
+    if (now - d > 24 * 3600_000) continue;
+    const b = hourMap.get(kstHourKey(d));
+    if (b) b.set.add(v.identity);
+  }
+  renderBarChart($('chart24h'), hourBins, (b) => b.set.size, (b) => `${b.label}시`);
+
+  // 7-day bars: bucket by day
+  const dayBins = [];
+  for (let i = 6; i >= 0; i--) {
+    const start = kstDayStartUtc(i);
+    dayBins.push({ key: kstDayKey(start), label: kstDayKey(start), set: new Set() });
+  }
+  const dayMap = new Map(dayBins.map((b) => [b.key, b]));
+  for (const v of visits) {
+    const b = dayMap.get(kstDayKey(new Date(v.visited_at)));
+    if (b) b.set.add(v.identity);
+  }
+  renderBarChart($('chart7d'), dayBins, (b) => b.set.size, (b) => b.label);
+
+  // Recent visitor list (24h, distinct by identity, latest first)
+  const cutoff = new Date(now.getTime() - 24 * 3600_000);
+  const seen = new Set();
+  const recent = [];
+  for (const v of visits) {
+    if (new Date(v.visited_at) < cutoff) break;
+    if (seen.has(v.identity)) continue;
+    seen.add(v.identity);
+    recent.push(v);
+  }
+  $('visitorList').innerHTML = recent.length
+    ? recent.map((r) => {
+        const who = r.email ? esc(r.email) : '<span class="visitor-anon">익명</span>';
+        const t = new Date(r.visited_at).toLocaleString('ko-KR', { hour12: false });
+        return `<li class="visitor-row"><span class="visitor-who">${who}</span><span class="visitor-when">${t}</span></li>`;
+      }).join('')
+    : '<li class="visitor-empty">방문 기록 없음</li>';
+
   $('statsUpdated').textContent = `갱신: ${now.toLocaleTimeString('ko-KR')}`;
 }
 

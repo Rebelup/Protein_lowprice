@@ -32,6 +32,47 @@
 .stats-card-value { font-size: 28px; font-weight: 800; color: var(--blue); margin: 6px 0 4px; }
 .stats-card-sub { font-size: 11px; color: var(--muted); }
 
+.chart-block { margin-top: 20px; }
+.chart-title { font-size: 13px; font-weight: 700; margin-bottom: 10px; color: var(--text); }
+.chart-title small { font-weight: 500; color: var(--muted); margin-left: 4px; }
+.chart-bars {
+  display: grid; grid-template-columns: repeat(24, 1fr);
+  gap: 2px; align-items: end; height: 140px;
+  background: var(--bg); border-radius: 8px; padding: 8px 6px 4px;
+}
+.chart-bars--wide { grid-template-columns: repeat(7, 1fr); gap: 8px; padding: 8px 12px 4px; }
+.chart-bar {
+  display: flex; flex-direction: column; align-items: center;
+  height: 100%; min-width: 0; position: relative;
+}
+.chart-bar-fill {
+  width: 100%; min-height: 1px; background: var(--blue); border-radius: 3px 3px 0 0;
+  margin-top: auto; transition: height .3s;
+}
+.chart-bar-val {
+  font-size: 9px; color: var(--sub); font-weight: 700;
+  position: absolute; top: -2px; left: 50%; transform: translate(-50%, -100%);
+  white-space: nowrap;
+}
+.chart-bars--wide .chart-bar-val { font-size: 11px; }
+.chart-bar-lbl {
+  font-size: 9px; color: var(--muted); margin-top: 2px;
+  white-space: nowrap; overflow: hidden;
+}
+.chart-bars--wide .chart-bar-lbl { font-size: 11px; }
+
+.visitor-list { list-style: none; padding: 0; margin: 0; max-height: 300px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; }
+.visitor-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 12px; border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+.visitor-row:last-child { border-bottom: none; }
+.visitor-who { font-weight: 600; color: var(--text); word-break: break-all; }
+.visitor-anon { color: var(--muted); font-weight: 500; font-style: italic; }
+.visitor-when { font-size: 11.5px; color: var(--muted); white-space: nowrap; margin-left: 8px; }
+.visitor-empty { padding: 18px; text-align: center; color: var(--muted); font-size: 13px; }
+
 .admin-main {
   max-width: 720px; margin: 0 auto;
   padding: 16px 14px 40px;

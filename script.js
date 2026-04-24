@@ -608,7 +608,7 @@ function renderProductPage(p) {
     ? `<div class="pp-inner-tabs">${tabs.map((t, i) => `<button class="pp-inner-tab${i === 0 ? ' active' : ''}" data-target="${t.target}">${t.label}</button>`).join('')}</div>`
     : '';
 
-  $('ppCtaBar').innerHTML = `<a class="ep-cta" href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener noreferrer">구매하러 가기 →</a>`;
+  $('ppCtaBar').innerHTML = `<a class="ep-cta" id="ppBuyCta" data-pid="${p.id}" href="${esc(safeUrl(p.link))}" target="_blank" rel="noopener noreferrer">구매하러 가기 →</a>`;
 
   // Sort option values by the cheapest SKU price that uses each value (ascending).
   // As a side-effect the cheapest combo value lands first in each group.
@@ -1492,7 +1492,17 @@ async function logVisit() {
   if (Date.now() - last < 30 * 60_000) return;
   localStorage.setItem('lv_at', String(Date.now()));
   try {
-    await db.from('site_visits').insert({ identity, email: currentUser?.email || null });
+    await db.from('site_visits').insert({ identity, email: currentUser?.email || null, event_type: 'visit' });
+  } catch { /* best effort */ }
+}
+async function logBuyClick() {
+  if (currentUser?.email === ADMIN_EMAIL) return;
+  try {
+    await db.from('site_visits').insert({
+      identity: getIdentity(),
+      email: currentUser?.email || null,
+      event_type: 'buy_click',
+    });
   } catch { /* best effort */ }
 }
 
@@ -1513,6 +1523,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     startPresence();
     logVisit();
   });
+  document.addEventListener('click', (ev) => {
+    if (ev.target.closest('#ppBuyCta')) logBuyClick();
+  }, true);
   try {
     await Promise.all([loadEvents(), loadFilterOptions(), loadProducts()]);
     buildDynamicFilters();
