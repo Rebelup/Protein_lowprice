@@ -173,12 +173,24 @@ function renderProductCard(p) {
   if (prodState.showEventPrice) {
     const ev = getBestEventPrice(p);
     if (ev) {
-      priceHtml = `<div class="prod-card-price">
-          ${ev.pct > 0 ? `<span class="prod-pct">-${ev.pct}%</span>` : ''}
-          <span class="prod-sale">${fmtPrice(ev.price)}</span>
-          ${ev.pct > 0 ? `<span class="prod-orig">${fmtPrice(basePrice)}</span>` : ''}
-        </div>
-        <div class="prod-ev-tag">⚡ 이벤트 적용가</div>`;
+      // With a real event discount show event-vs-base pricing; with a 0% event
+      // fall back to the product's own sale-vs-original discount so the card
+      // still conveys the savings.
+      if (ev.pct > 0) {
+        priceHtml = `<div class="prod-card-price">
+            <span class="prod-pct">-${ev.pct}%</span>
+            <span class="prod-sale">${fmtPrice(ev.price)}</span>
+            <span class="prod-orig">${fmtPrice(basePrice)}</span>
+          </div>
+          <div class="prod-ev-tag">⚡ 이벤트 적용가</div>`;
+      } else {
+        priceHtml = `<div class="prod-card-price">
+            ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
+            <span class="prod-sale">${fmtPrice(basePrice)}</span>
+            ${disc > 0 ? `<span class="prod-orig">${fmtPrice(baseOrig)}</span>` : ''}
+          </div>
+          <div class="prod-ev-tag">⚡ 이벤트 적용가</div>`;
+      }
     } else {
       priceHtml = `<div class="prod-card-price">
           ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
@@ -386,7 +398,9 @@ function renderEventPage(e) {
           ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
           : esc(p.emoji || "");
         const priceHtml = ev2
-          ? `<div class="prod-card-price">${ev2.pct > 0 ? `<span class="prod-pct">-${ev2.pct}%</span>` : ''}<span class="prod-sale">${fmtPrice(ev2.price)}</span>${ev2.pct > 0 ? `<span class="prod-orig">${fmtPrice(basePrice)}</span>` : ''}</div><div class="prod-ev-tag">⚡ 이벤트 적용가</div>`
+          ? (ev2.pct > 0
+              ? `<div class="prod-card-price"><span class="prod-pct">-${ev2.pct}%</span><span class="prod-sale">${fmtPrice(ev2.price)}</span><span class="prod-orig">${fmtPrice(basePrice)}</span></div><div class="prod-ev-tag">⚡ 이벤트 적용가</div>`
+              : `<div class="prod-card-price">${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}<span class="prod-sale">${fmtPrice(basePrice)}</span>${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}</div><div class="prod-ev-tag">⚡ 이벤트 적용가</div>`)
           : `<div class="prod-card-price">${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}<span class="prod-sale">${fmtPrice(basePrice)}</span>${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}</div>`;
         return `<article class="prod-card ep-rel-prod-card" data-pid="${p.id}">
           <div class="prod-card-thumb">${thumb}</div>
