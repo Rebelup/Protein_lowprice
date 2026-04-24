@@ -138,13 +138,13 @@ function eventBasePrice(e, p) {
 
 function getBestEventPrice(p, overridePrice = null) {
   const eligible = EVENTS.filter((e) =>
-    e.productIds.includes(p.id) && e.active !== false && e.discountPct &&
+    e.productIds.includes(p.id) && e.active !== false &&
     (eventStatus(e) === 'ongoing' || eventStatus(e) === 'ending')
   );
   const basePrice = overridePrice ?? getFirstSkuPrice(p);
   if (!eligible.length || !basePrice) return null;
 
-  const combinable = eligible.filter((e) => e.combinable);
+  const combinable = eligible.filter((e) => e.combinable && e.discountPct);
   let optionA = null;
   if (combinable.length >= 2) {
     let price = basePrice;
@@ -152,9 +152,10 @@ function getBestEventPrice(p, overridePrice = null) {
     optionA = { price, pct: Math.round((1 - price / basePrice) * 100), eventName: `${combinable.length}개 이벤트 중복 적용` };
   }
 
-  const best = eligible.reduce((a, b) => (b.discountPct > a.discountPct ? b : a));
+  const best = eligible.reduce((a, b) => ((b.discountPct || 0) > (a.discountPct || 0) ? b : a));
+  const pct = best.discountPct || 0;
   const base = best.discountBase === 'original' ? (p.originalPrice || basePrice) : basePrice;
-  const evPrice = Math.round(base * (1 - best.discountPct / 100));
+  const evPrice = pct ? Math.round(base * (1 - pct / 100)) : basePrice;
   const optionB = { price: evPrice, pct: Math.round((1 - evPrice / basePrice) * 100), eventName: best.name };
 
   return (optionA && optionA.price < optionB.price) ? optionA : optionB;
@@ -173,9 +174,9 @@ function renderProductCard(p) {
     const ev = getBestEventPrice(p);
     if (ev) {
       priceHtml = `<div class="prod-card-price">
-          <span class="prod-pct">-${ev.pct}%</span>
+          ${ev.pct > 0 ? `<span class="prod-pct">-${ev.pct}%</span>` : ''}
           <span class="prod-sale">${fmtPrice(ev.price)}</span>
-          <span class="prod-orig">${fmtPrice(basePrice)}</span>
+          ${ev.pct > 0 ? `<span class="prod-orig">${fmtPrice(basePrice)}</span>` : ''}
         </div>
         <div class="prod-ev-tag">⚡ 이벤트 적용가</div>`;
     } else {
@@ -385,7 +386,7 @@ function renderEventPage(e) {
           ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
           : esc(p.emoji || "");
         const priceHtml = ev2
-          ? `<div class="prod-card-price"><span class="prod-pct">-${ev2.pct}%</span><span class="prod-sale">${fmtPrice(ev2.price)}</span><span class="prod-orig">${fmtPrice(basePrice)}</span></div><div class="prod-ev-tag">⚡ 이벤트 적용가</div>`
+          ? `<div class="prod-card-price">${ev2.pct > 0 ? `<span class="prod-pct">-${ev2.pct}%</span>` : ''}<span class="prod-sale">${fmtPrice(ev2.price)}</span>${ev2.pct > 0 ? `<span class="prod-orig">${fmtPrice(basePrice)}</span>` : ''}</div><div class="prod-ev-tag">⚡ 이벤트 적용가</div>`
           : `<div class="prod-card-price">${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}<span class="prod-sale">${fmtPrice(basePrice)}</span>${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}</div>`;
         return `<article class="prod-card ep-rel-prod-card" data-pid="${p.id}">
           <div class="prod-card-thumb">${thumb}</div>
@@ -655,16 +656,23 @@ function renderProductPage(p) {
       </div>
     </div>`;
     if (bestEv) {
-      const saving = basePrice - bestEv.price;
-      cardHtml += `<div class="pp-opt-card-divider"></div>
-        <div class="pp-opt-evt-row">
-          <span class="pp-opt-evt-label">⚡ 이벤트 최대할인</span>
-          <span class="pp-opt-evt-disc">-${bestEv.pct}%&nbsp;&nbsp;-${fmtPrice(saving)}</span>
-        </div>
-        <div class="pp-opt-evt-final">
-          <span class="pp-opt-evt-final-label">최종 가격</span>
-          <span class="pp-opt-evt-final-price">${fmtPrice(bestEv.price)}</span>
-        </div>`;
+      if (bestEv.pct > 0) {
+        const saving = basePrice - bestEv.price;
+        cardHtml += `<div class="pp-opt-card-divider"></div>
+          <div class="pp-opt-evt-row">
+            <span class="pp-opt-evt-label">⚡ 이벤트 최대할인</span>
+            <span class="pp-opt-evt-disc">-${bestEv.pct}%&nbsp;&nbsp;-${fmtPrice(saving)}</span>
+          </div>
+          <div class="pp-opt-evt-final">
+            <span class="pp-opt-evt-final-label">최종 가격</span>
+            <span class="pp-opt-evt-final-price">${fmtPrice(bestEv.price)}</span>
+          </div>`;
+      } else {
+        cardHtml += `<div class="pp-opt-card-divider"></div>
+          <div class="pp-opt-evt-row">
+            <span class="pp-opt-evt-label">⚡ 이벤트 적용중</span>
+          </div>`;
+      }
     }
     optionSectionHtml = `<div class="pp-opt-section"><div class="pp-opt-card pp-opt-card--standalone">${cardHtml}</div></div>`;
   }
@@ -747,16 +755,23 @@ function renderProductPage(p) {
           }
           const ev = getBestEventPrice(p, basePrice);
           if (ev) {
-            const saving = basePrice - ev.price;
-            cardHtml += `<div class="pp-opt-card-divider"></div>
-              <div class="pp-opt-evt-row">
-                <span class="pp-opt-evt-label">⚡ 이벤트 적용 최대할인</span>
-                <span class="pp-opt-evt-disc">-${ev.pct}%&nbsp;&nbsp;-${fmtPrice(saving)}</span>
-              </div>
-              <div class="pp-opt-evt-final">
-                <span class="pp-opt-evt-final-label">최종 가격</span>
-                <span class="pp-opt-evt-final-price">${fmtPrice(ev.price)}</span>
-              </div>`;
+            if (ev.pct > 0) {
+              const saving = basePrice - ev.price;
+              cardHtml += `<div class="pp-opt-card-divider"></div>
+                <div class="pp-opt-evt-row">
+                  <span class="pp-opt-evt-label">⚡ 이벤트 적용 최대할인</span>
+                  <span class="pp-opt-evt-disc">-${ev.pct}%&nbsp;&nbsp;-${fmtPrice(saving)}</span>
+                </div>
+                <div class="pp-opt-evt-final">
+                  <span class="pp-opt-evt-final-label">최종 가격</span>
+                  <span class="pp-opt-evt-final-price">${fmtPrice(ev.price)}</span>
+                </div>`;
+            } else {
+              cardHtml += `<div class="pp-opt-card-divider"></div>
+                <div class="pp-opt-evt-row">
+                  <span class="pp-opt-evt-label">⚡ 이벤트 적용중</span>
+                </div>`;
+            }
           }
           cardEl.innerHTML = cardHtml;
           cardEl.classList.remove('hidden');
