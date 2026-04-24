@@ -490,12 +490,6 @@ function renderProductPage(p) {
   let nutriSection = '';
   if (hasNutri) {
     const prot = p.protein ?? 0, carb = p.carb ?? 0, fat = p.fat ?? 0;
-    const total = hasMacro ? prot + carb + fat : 0;
-    // % of serving size (e.g. 단백질 23g / 1회제공량 30g = 77%).
-    // Falls back to macro-ratio when serving size is unknown.
-    const pct = (n) => p.servingSize
-      ? Math.round(n / p.servingSize * 100)
-      : (total ? Math.round(n / total * 100) : 0);
     const maxMacro = hasMacro ? Math.max(prot, carb, fat) : 0;
     const barW = (n) => maxMacro ? Math.round(n / maxMacro * 100) : 0;
     const macroRows = hasMacro ? `
@@ -503,17 +497,17 @@ function renderProductPage(p) {
         <div class="nutri-bar-row">
           <span class="nutri-bar-label">단백질</span>
           <div class="nutri-bar-track"><div class="nutri-bar-fill nb-prot" style="width:${barW(prot)}%"></div></div>
-          <span class="nutri-bar-g">${prot}g</span><span class="nutri-bar-pct">${pct(prot)}%</span>
+          <span class="nutri-bar-g">${prot}g</span>
         </div>
         <div class="nutri-bar-row">
           <span class="nutri-bar-label">탄수화물</span>
           <div class="nutri-bar-track"><div class="nutri-bar-fill nb-carb" style="width:${barW(carb)}%"></div></div>
-          <span class="nutri-bar-g">${carb}g</span><span class="nutri-bar-pct">${pct(carb)}%</span>
+          <span class="nutri-bar-g">${carb}g</span>
         </div>
         <div class="nutri-bar-row">
           <span class="nutri-bar-label">지방</span>
           <div class="nutri-bar-track"><div class="nutri-bar-fill nb-fat" style="width:${barW(fat)}%"></div></div>
-          <span class="nutri-bar-g">${fat}g</span><span class="nutri-bar-pct">${pct(fat)}%</span>
+          <span class="nutri-bar-g">${fat}g</span>
         </div>
       </div>` : '';
     const tableRows = [
