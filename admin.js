@@ -687,17 +687,38 @@ function kstDayKey(d) {
   const k = new Date(d.getTime() + KST_OFFSET_MS);
   return `${k.getUTCMonth() + 1}/${k.getUTCDate()}`;
 }
-function renderBarChart(el, bins, valueFn, labelFn) {
+// Stack a short label (e.g. "15시") character-by-character so each glyph stays
+// upright — reads straight top-to-bottom without needing to tilt the head.
+function stackedLabel(x, y, text) {
+  const chars = [...String(text)];
+  return `<text class="chart-xlbl" x="${x.toFixed(1)}" y="${y.toFixed(1)}" text-anchor="middle">${
+    chars.map((c, i) => `<tspan x="${x.toFixed(1)}" dy="${i === 0 ? 0 : 1.1}em">${esc(c)}</tspan>`).join('')
+  }</text>`;
+}
+function renderLineChart(el, bins, valueFn, labelFn, unit = '') {
+  const n = bins.length;
+  const W = 480, H = 170;
+  const padL = 10, padR = 10, padT = 10, padB = 46;
+  const innerW = W - padL - padR;
+  const innerH = H - padT - padB;
   const max = Math.max(1, ...bins.map(valueFn));
-  el.innerHTML = bins.map((b) => {
+  const step = n > 1 ? innerW / (n - 1) : 0;
+  const pts = bins.map((b, i) => {
     const v = valueFn(b);
-    const h = Math.round((v / max) * 100);
-    return `<div class="chart-bar"${v ? ` title="${labelFn(b)}: ${v}명"` : ''}>
-      <div class="chart-bar-fill" style="height:${h}%"></div>
-      <div class="chart-bar-val">${v || ''}</div>
-      <div class="chart-bar-lbl">${labelFn(b)}</div>
-    </div>`;
-  }).join('');
+    return [padL + i * step, padT + innerH - (v / max) * innerH, v];
+  });
+  const line = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  const area = `${line} L${(padL + innerW).toFixed(1)},${(padT + innerH).toFixed(1)} L${padL.toFixed(1)},${(padT + innerH).toFixed(1)} Z`;
+  const dots = pts.map(([x, y, v], i) => v
+    ? `<circle class="chart-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.8"><title>${labelFn(bins[i])}: ${v}${unit}</title></circle>`
+    : '').join('');
+  const labels = pts.map(([x], i) => stackedLabel(x, padT + innerH + 14, labelFn(bins[i]))).join('');
+  el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="chart-svg">
+    <path class="chart-area" d="${area}" />
+    <path class="chart-line" d="${line}" />
+    ${dots}
+    ${labels}
+  </svg>`;
 }
 
 async function loadStats() {
@@ -741,7 +762,7 @@ async function loadStats() {
     const b = hourMap.get(kstHourKey(d));
     if (b) b.set.add(v.identity);
   }
-  renderBarChart($('chart24h'), hourBins, (b) => b.set.size, (b) => `${b.label}시`);
+  renderLineChart($('chart24h'), hourBins, (b) => b.set.size, (b) => `${b.label}시`, '명');
 
   // 7-day bars: bucket by day
   const dayBins = [];
@@ -754,34 +775,62 @@ async function loadStats() {
     const b = dayMap.get(kstDayKey(new Date(v.visited_at)));
     if (b) b.set.add(v.identity);
   }
-  renderBarChart($('chart7d'), dayBins, (b) => b.set.size, (b) => b.label);
+  renderLineChart($('chart7d'), dayBins, (b) => b.set.size, (b) => b.label, '명');
 
-  // Average session duration (approx.) — group last-7d events per identity,
-  // split into sessions whenever the gap exceeds 30 minutes, then take the
-  // mean of (last - first) across sessions. Single-event sessions contribute 0.
+  // Approximate sessions for the 7-day window — group per identity, split on
+  // 30-minute gaps, then keep (startTime, durationSeconds) for each session.
+  const sessions = [];
   {
     const byId = new Map();
     for (const r of weekRows) {
       if (!byId.has(r.identity)) byId.set(r.identity, []);
       byId.get(r.identity).push(+new Date(r.visited_at));
     }
-    const durations = [];
     for (const arr of byId.values()) {
       arr.sort((a, b) => a - b);
       let start = arr[0], last = arr[0];
       for (let i = 1; i < arr.length; i++) {
-        if (arr[i] - last > 30 * 60_000) { durations.push(last - start); start = arr[i]; }
+        if (arr[i] - last > 30 * 60_000) {
+          sessions.push({ start, dur: (last - start) / 1000 });
+          start = arr[i];
+        }
         last = arr[i];
       }
-      if (start !== undefined) durations.push(last - start);
+      if (start !== undefined) sessions.push({ start, dur: (last - start) / 1000 });
     }
-    if (!durations.length) {
+    if (!sessions.length) {
       $('statAvgSession').textContent = '–';
     } else {
-      const avg = Math.round(durations.reduce((a, b) => a + b, 0) / durations.length / 1000);
+      const avg = Math.round(sessions.reduce((a, s) => a + s.dur, 0) / sessions.length);
       const mm = Math.floor(avg / 60), ss = avg % 60;
       $('statAvgSession').textContent = mm ? `${mm}분 ${ss}초` : `${ss}초`;
     }
+  }
+
+  // Hour-of-day (0-23 KST) avg session duration — every session counts toward
+  // the bucket of its start hour.
+  {
+    const buckets = Array.from({ length: 24 }, (_, h) => ({ hour: h, sum: 0, n: 0 }));
+    for (const s of sessions) {
+      const kstHour = new Date(s.start + KST_OFFSET_MS).getUTCHours();
+      buckets[kstHour].sum += s.dur; buckets[kstHour].n += 1;
+    }
+    renderLineChart(
+      $('chartSession'),
+      buckets,
+      (b) => b.n ? Math.round(b.sum / b.n) : 0,
+      (b) => `${b.hour}시`,
+      '초',
+    );
+  }
+
+  // Buy-click / distinct visitor ratio (last 7d)
+  {
+    const visitors = new Set(weekRows.filter((r) => r.event_type === 'visit' || r.event_type === 'product_view').map((r) => r.identity)).size;
+    const clicks = buys.length;
+    $('statBuyRatio').textContent = visitors
+      ? `${clicks}/${visitors} (${Math.round((clicks / visitors) * 100)}%)`
+      : '–';
   }
 
   // Retention — users active in the last 7d who were ALSO active in the prior 7d.
