@@ -437,10 +437,6 @@ function renderEventPage(e) {
     descToggle.textContent = expanded ? '더보기' : '간략히';
   });
 
-  $('epCtaBtn')?.addEventListener('click', (ev) => {
-    if (!currentUser) { ev.preventDefault(); pendingLink = ev.currentTarget.getAttribute('href'); openLoginSheet(); }
-  });
-
   $('eventPageBody').querySelectorAll('.ep-rel-prod-card[data-pid]').forEach((card) => {
     card.addEventListener('click', () => openProductPage(+card.dataset.pid));
   });
@@ -1524,7 +1520,16 @@ document.addEventListener('DOMContentLoaded', async () => {
     logVisit();
   });
   document.addEventListener('click', (ev) => {
-    if (ev.target.closest('#ppBuyCta')) logBuyClick();
+    const cta = ev.target.closest('#ppBuyCta, .pp-ev-link-btn, #epCtaBtn');
+    if (cta) {
+      if (!currentUser) {
+        ev.preventDefault();
+        pendingLink = cta.getAttribute('href');
+        openLoginSheet();
+        return;
+      }
+      if (cta.id === 'ppBuyCta') logBuyClick();
+    }
   }, true);
   try {
     await Promise.all([loadEvents(), loadFilterOptions(), loadProducts()]);
