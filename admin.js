@@ -776,7 +776,13 @@ async function loadStats() {
   if (STATS_RANGE === 1) {
     for (let i = 23; i >= 0; i--) {
       const t = new Date(now.getTime() - i * 3600_000);
-      bins.push({ key: kstHourKey(t), label: String(new Date(t.getTime() + KST_OFFSET_MS).getUTCHours()) + '시', set: new Set() });
+      const k = new Date(t.getTime() + KST_OFFSET_MS);
+      bins.push({
+        key: kstHourKey(t),
+        label: String(k.getUTCHours()) + '시',
+        full: `${k.getUTCMonth() + 1}월 ${k.getUTCDate()}일 ${k.getUTCHours()}시`,
+        set: new Set(),
+      });
     }
     const m = new Map(bins.map((b) => [b.key, b]));
     for (const v of rangeVisits) {
@@ -787,7 +793,14 @@ async function loadStats() {
   } else {
     for (let i = STATS_RANGE - 1; i >= 0; i--) {
       const start = kstDayStartUtc(i);
-      bins.push({ key: kstDayKey(start), label: kstDayKey(start), set: new Set() });
+      const k = new Date(start.getTime() + KST_OFFSET_MS);
+      const dow = ['일', '월', '화', '수', '목', '금', '토'][k.getUTCDay()];
+      bins.push({
+        key: kstDayKey(start),
+        label: kstDayKey(start),
+        full: `${k.getUTCMonth() + 1}월 ${k.getUTCDate()}일 (${dow})`,
+        set: new Set(),
+      });
     }
     const m = new Map(bins.map((b) => [b.key, b]));
     for (const v of rangeVisits) {
@@ -800,13 +813,13 @@ async function loadStats() {
     const emails = [...b.set].filter((id) => id.includes('@')).slice(0, 10);
     const anon = [...b.set].length - emails.length;
     $('chartVisitorsDetail').innerHTML = `
-      <div class="chart-detail-row"><strong>${b.label}</strong><span>${b.set.size}명 방문</span></div>
+      <div class="chart-detail-row"><strong>${esc(b.full)}</strong><span>${b.set.size}명 방문</span></div>
       ${emails.length ? `<div class="chart-detail-sub">${emails.map(esc).join(', ')}${anon ? ` · 익명 ${anon}명` : ''}</div>` : (anon ? `<div class="chart-detail-sub">익명 ${anon}명</div>` : '')}
     `;
   });
 
   // Approximate sessions for the selected range — group per identity, split on
-  // 30-minute gaps, then keep (startTime, durationSeconds) for each session.
+  // 30-minute gaps, then keep (startTime, durationSeconds, identity) for each session.
   const sessions = [];
   {
     const byId = new Map();
@@ -814,17 +827,17 @@ async function loadStats() {
       if (!byId.has(r.identity)) byId.set(r.identity, []);
       byId.get(r.identity).push(+new Date(r.visited_at));
     }
-    for (const arr of byId.values()) {
+    for (const [identity, arr] of byId.entries()) {
       arr.sort((a, b) => a - b);
       let start = arr[0], last = arr[0];
       for (let i = 1; i < arr.length; i++) {
         if (arr[i] - last > 30 * 60_000) {
-          sessions.push({ start, dur: (last - start) / 1000 });
+          sessions.push({ start, dur: (last - start) / 1000, identity });
           start = arr[i];
         }
         last = arr[i];
       }
-      if (start !== undefined) sessions.push({ start, dur: (last - start) / 1000 });
+      if (start !== undefined) sessions.push({ start, dur: (last - start) / 1000, identity });
     }
     if (!sessions.length) {
       $('statAvgSession').textContent = '–';
@@ -836,12 +849,15 @@ async function loadStats() {
   }
 
   // Hour-of-day (0-23 KST) avg session duration — every session counts toward
-  // the bucket of its start hour.
+  // the bucket of its start hour. Also collect distinct identities + the dates
+  // those sessions fell on so the detail panel can show "어느 날짜의 N명".
   {
-    const buckets = Array.from({ length: 24 }, (_, h) => ({ hour: h, sum: 0, n: 0 }));
+    const buckets = Array.from({ length: 24 }, (_, h) => ({ hour: h, sum: 0, n: 0, users: new Set(), dates: new Set() }));
     for (const s of sessions) {
-      const kstHour = new Date(s.start + KST_OFFSET_MS).getUTCHours();
-      buckets[kstHour].sum += s.dur; buckets[kstHour].n += 1;
+      const k = new Date(s.start + KST_OFFSET_MS);
+      const b = buckets[k.getUTCHours()];
+      b.sum += s.dur; b.n += 1; b.users.add(s.identity);
+      b.dates.add(`${k.getUTCMonth() + 1}/${k.getUTCDate()}`);
     }
     const rangeLbl = STATS_RANGE === 1 ? '최근 24시간' : `최근 ${STATS_RANGE}일`;
     $('chartSessionTitle').innerHTML = `시간대별 평균 접속 시간 <small>(${rangeLbl} · KST · 초)</small>`;
@@ -854,8 +870,13 @@ async function loadStats() {
       (b) => {
         const avg = b.n ? Math.round(b.sum / b.n) : 0;
         const mm = Math.floor(avg / 60), ss = avg % 60;
+        const dateList = [...b.dates].sort((a, b) => {
+          const [am, ad] = a.split('/').map(Number); const [bm, bd] = b.split('/').map(Number);
+          return am - bm || ad - bd;
+        });
         $('chartSessionDetail').innerHTML = `
-          <div class="chart-detail-row"><strong>${b.hour}시</strong><span>평균 ${mm ? `${mm}분 ${ss}초` : `${ss}초`}</span></div>
+          <div class="chart-detail-row"><strong>${b.hour}시</strong><span>평균 ${mm ? `${mm}분 ${ss}초` : `${ss}초`} · ${b.users.size}명 접속</span></div>
+          <div class="chart-detail-sub">세션 ${b.n}건 · ${dateList.length ? `날짜: ${dateList.join(', ')}` : '데이터 없음'}</div>
           <div class="chart-detail-sub">세션 ${b.n}건 · 총 ${Math.round(b.sum)}초</div>
         `;
       },
