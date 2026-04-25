@@ -814,6 +814,7 @@ async function loadStats() {
         label: String(k.getUTCHours()) + '시',
         full: `${k.getUTCMonth() + 1}월 ${k.getUTCDate()}일 ${k.getUTCHours()}시`,
         visitors: new Set(), sUsers: new Set(), sDur: 0, sCount: 0,
+        userDurs: new Map(),
       });
     }
     $('chartVisitorsTitle').innerHTML = '시간대별 방문자 <small>(최근 24시간 · KST)</small>';
@@ -827,6 +828,7 @@ async function loadStats() {
         label: kstDayKey(start),
         full: `${k.getUTCMonth() + 1}월 ${k.getUTCDate()}일 (${dow})`,
         visitors: new Set(), sUsers: new Set(), sDur: 0, sCount: 0,
+        userDurs: new Map(),
       });
     }
     $('chartVisitorsTitle').innerHTML = `일별 방문자 <small>(최근 ${STATS_RANGE}일 · KST)</small>`;
@@ -880,7 +882,10 @@ async function loadStats() {
   // for range >1. Rightmost bin = current hour / today.
   for (const s of sessions) {
     const b = binMap.get(keyFn(new Date(s.start)));
-    if (b) { b.sDur += s.dur; b.sCount += 1; b.sUsers.add(s.identity); }
+    if (b) {
+      b.sDur += s.dur; b.sCount += 1; b.sUsers.add(s.identity);
+      b.userDurs.set(s.identity, (b.userDurs.get(s.identity) || 0) + s.dur);
+    }
   }
   const rangeLbl = STATS_RANGE === 1 ? '최근 24시간' : `최근 ${STATS_RANGE}일`;
   const axisLbl = useHour ? '시간대별' : '일별';
@@ -893,10 +898,19 @@ async function loadStats() {
     '초',
     (b) => {
       const avg = b.sCount ? Math.round(b.sDur / b.sCount) : 0;
-      const mm = Math.floor(avg / 60), ss = avg % 60;
+      const fmt = (sec) => {
+        const s = Math.round(sec);
+        const m = Math.floor(s / 60), r = s % 60;
+        return m ? `${m}분 ${r}초` : `${r}초`;
+      };
+      const userRows = [...b.userDurs.entries()]
+        .sort((x, y) => y[1] - x[1])
+        .map(([id, dur]) => `<li class="ses-user-row"><span class="ses-user-name">${id.includes('@') ? esc(id) : '<span class="visitor-anon">익명</span>'}</span><span class="ses-user-dur">${fmt(dur)}</span></li>`)
+        .join('');
       $('chartSessionDetail').innerHTML = `
-        <div class="chart-detail-row"><strong>${esc(b.full)}</strong><span>평균 ${mm ? `${mm}분 ${ss}초` : `${ss}초`} · ${b.sUsers.size}명 접속</span></div>
-        <div class="chart-detail-sub">세션 ${b.sCount}건 · 총 ${Math.round(b.sDur)}초</div>
+        <div class="chart-detail-row"><strong>${esc(b.full)}</strong><span>평균 ${fmt(avg)} · ${b.sUsers.size}명 접속</span></div>
+        <div class="chart-detail-sub">세션 ${b.sCount}건 · 총 ${fmt(b.sDur)}</div>
+        ${userRows ? `<ul class="ses-user-list">${userRows}</ul>` : ''}
       `;
     },
   );
