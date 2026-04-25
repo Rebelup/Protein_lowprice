@@ -222,7 +222,9 @@ body {
 .prod-card-price { display: flex; align-items: baseline; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
 .prod-ev-tag {
   font-size: 10.5px; font-weight: 700; color: var(--blue); margin-top: 2px;
+  display: inline-flex; align-items: center; gap: 6px; flex-wrap: wrap;
 }
+.prod-ev-dday { margin-top: 0; align-self: center; }
 .prod-ev-tag--none {
   color: var(--muted);
 }

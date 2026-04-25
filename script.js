@@ -51,6 +51,32 @@ function dDayText(e, long = false) {
   if (!isFinite(left) || left < 0) return '';
   return long ? (left === 0 ? '오늘 종료' : `${left}일 남음`) : (left === 0 ? 'D-DAY' : `D-${left}`);
 }
+// Same idea as dDayText but switches to hours/minutes once < 1 day remains.
+function eventTimeLeftText(e) {
+  if (!e?.endDate) return '';
+  const st = eventStatus(e);
+  if (st !== 'ongoing' && st !== 'ending') return '';
+  const ms = +new Date(e.endDate) - Date.now();
+  if (ms <= 0) return '';
+  const days = Math.floor(ms / 86_400_000);
+  if (days >= 1) return `${days}일 남음`;
+  const hours = Math.floor(ms / 3_600_000);
+  if (hours >= 1) return `${hours}시간 남음`;
+  const mins = Math.max(1, Math.floor(ms / 60_000));
+  return `${mins}분 남음`;
+}
+function getSoonestEndingEvent(p) {
+  const eligible = EVENTS.filter((e) =>
+    e.productIds.includes(p.id) && e.active !== false &&
+    (eventStatus(e) === 'ongoing' || eventStatus(e) === 'ending')
+  );
+  if (!eligible.length) return null;
+  return eligible.reduce((a, b) => {
+    const aEnd = a.endDate ? +new Date(a.endDate) : Infinity;
+    const bEnd = b.endDate ? +new Date(b.endDate) : Infinity;
+    return aEnd <= bEnd ? a : b;
+  });
+}
 
 /* ── DATA ── */
 async function loadProducts() {
@@ -176,6 +202,8 @@ function renderProductCard(p) {
   if (prodState.showEventPrice) {
     const ev = getBestEventPrice(p);
     if (ev) {
+      const ddSoon = eventTimeLeftText(getSoonestEndingEvent(p));
+      const ddChip = ddSoon ? `<span class="evt-card-dday prod-ev-dday">${ddSoon}</span>` : '';
       // With a real event discount show event-vs-base pricing; with a 0% event
       // fall back to the product's own sale-vs-original discount so the card
       // still conveys the savings.
@@ -185,14 +213,14 @@ function renderProductCard(p) {
             <span class="prod-sale">${fmtPrice(ev.price)}</span>
             <span class="prod-orig">${fmtPrice(basePrice)}</span>
           </div>
-          <div class="prod-ev-tag">⚡ 이벤트 적용가</div>`;
+          <div class="prod-ev-tag">⚡ 이벤트 적용가${ddChip}</div>`;
       } else {
         priceHtml = `<div class="prod-card-price">
             ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
             <span class="prod-sale">${fmtPrice(basePrice)}</span>
             ${disc > 0 ? `<span class="prod-orig">${fmtPrice(baseOrig)}</span>` : ''}
           </div>
-          <div class="prod-ev-tag">⚡ 이벤트 적용가</div>`;
+          <div class="prod-ev-tag">⚡ 이벤트 적용가${ddChip}</div>`;
       }
     } else {
       priceHtml = `<div class="prod-card-price">
