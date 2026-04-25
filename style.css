@@ -210,9 +210,16 @@ body {
 .prod-card-thumb {
   width: 100%; aspect-ratio: 1; background: var(--bg);
   display: flex; align-items: center; justify-content: center; font-size: 36px;
-  overflow: hidden;
+  overflow: hidden; position: relative;
 }
 .prod-card-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.prod-card-cat {
+  position: absolute; top: 6px; left: 6px; z-index: 2;
+  font-size: 10.5px; font-weight: 700; color: var(--white);
+  background: rgba(26, 26, 26, .72);
+  padding: 3px 8px; border-radius: 99px;
+  backdrop-filter: blur(2px);
+}
 .prod-card-body { padding: 10px; display: flex; flex-direction: column; gap: 3px; }
 .prod-card-name {
   font-size: 13px; font-weight: 700; line-height: 1.35;
@@ -451,6 +458,12 @@ body {
 .pp-hero-info { flex: 1; min-width: 0; }
 .pp-hero-brand { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .pp-hero-name { font-size: 17px; font-weight: 800; line-height: 1.3; margin-bottom: 8px; }
+.pp-breadcrumb {
+  font-size: 12px; color: var(--sub); line-height: 1.4;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 4px;
+  margin-bottom: 6px;
+}
+.pp-bc-sep { color: var(--muted); font-weight: 300; }
 .pp-hero-price { display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
 .pp-ev-price-hint { font-size: 11.5px; color: var(--blue); font-weight: 600; margin-top: 4px; }
 .pp-pct { font-size: 16px; font-weight: 800; color: var(--red); }

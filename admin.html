@@ -68,6 +68,10 @@
               <input type="number" id="fDiscount" min="0" max="100" value="0" />
             </label>
             <label class="admin-field">
+              <span>할인 금액 (원)</span>
+              <input type="number" id="fDiscountAmount" min="0" step="100" value="0" />
+            </label>
+            <label class="admin-field">
               <span>활성</span>
               <select id="fActive">
                 <option value="true">활성</option>
@@ -79,6 +83,7 @@
               <input type="checkbox" id="fCombinable" />
             </label>
           </div>
+          <small class="admin-hint">% 또는 금액 중 하나만 입력하세요. 둘 다 0이면 "이벤트 적용중"으로만 표시됩니다.</small>
 
           <div class="admin-field">
             <span class="admin-label">할인 기준</span>

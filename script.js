@@ -83,7 +83,7 @@ async function loadProducts() {
   const { data } = await db.from('products').select('*').order('id');
   PRODUCTS = (data || []).map((p) => ({
     id: p.id, name: p.name, brand: p.brand, store: p.store || p.brand,
-    category1: p.category1 || '', category2: p.category2 || '',
+    category1: p.category1 || '', category2: p.category2 || '', category3: p.category3 || '', category4: p.category4 || '',
     emoji: p.emoji || '💊', thumbnail: p.thumbnail || '',
     originalPrice: p.original_price || 0, salePrice: p.sale_price || 0,
     link: p.link || '#',
@@ -103,7 +103,7 @@ async function loadEvents() {
   if (error) throw new Error(error.message);
   EVENTS = (data || []).map((e) => ({
     id: e.id, brand: e.brand, brandLabel: e.brand_label, name: e.name,
-    desc: e.description || '', discountPct: e.discount_pct,
+    desc: e.description || '', discountPct: e.discount_pct, discountAmount: e.discount_amount || 0,
     color: e.color || '#0077CC', active: e.active,
     startDate: e.start_date || '', endDate: e.end_date || '', link: e.link || '',
     conditions: e.conditions || [], howTo: e.how_to || [],
@@ -162,6 +162,15 @@ function eventBasePrice(e, p) {
   return e.discountBase === 'original' ? (p.originalPrice || sale) : sale;
 }
 
+// Given an event, returns the discounted price for `base` (or `base` itself if
+// the event has neither pct nor amount). Amount discount wins when both are set.
+function applyEventDiscount(e, base) {
+  if (e.discountAmount > 0) return Math.max(0, base - e.discountAmount);
+  if (e.discountPct > 0) return Math.round(base * (1 - e.discountPct / 100));
+  return base;
+}
+function eventSavings(e, base) { return Math.max(0, base - applyEventDiscount(e, base)); }
+
 function getBestEventPrice(p, overridePrice = null) {
   const eligible = EVENTS.filter((e) =>
     e.productIds.includes(p.id) && e.active !== false &&
@@ -170,18 +179,17 @@ function getBestEventPrice(p, overridePrice = null) {
   const basePrice = overridePrice ?? getFirstSkuPrice(p);
   if (!eligible.length || !basePrice) return null;
 
-  const combinable = eligible.filter((e) => e.combinable && e.discountPct);
+  const combinable = eligible.filter((e) => e.combinable && (e.discountPct || e.discountAmount));
   let optionA = null;
   if (combinable.length >= 2) {
     let price = basePrice;
-    combinable.forEach((e) => { price = Math.round(price * (1 - e.discountPct / 100)); });
+    combinable.forEach((e) => { price = applyEventDiscount(e, price); });
     optionA = { price, pct: Math.round((1 - price / basePrice) * 100), eventName: `${combinable.length}개 이벤트 중복 적용` };
   }
 
-  const best = eligible.reduce((a, b) => ((b.discountPct || 0) > (a.discountPct || 0) ? b : a));
-  const pct = best.discountPct || 0;
+  const best = eligible.reduce((a, b) => (eventSavings(b, basePrice) > eventSavings(a, basePrice) ? b : a));
   const base = best.discountBase === 'original' ? (p.originalPrice || basePrice) : basePrice;
-  const evPrice = pct ? Math.round(base * (1 - pct / 100)) : basePrice;
+  const evPrice = applyEventDiscount(best, base);
   const optionB = { price: evPrice, pct: Math.round((1 - evPrice / basePrice) * 100), eventName: best.name };
 
   return (optionA && optionA.price < optionB.price) ? optionA : optionB;
@@ -237,8 +245,13 @@ function renderProductCard(p) {
         ${disc > 0 ? `<span class="prod-orig">${fmtPrice(baseOrig)}</span>` : ''}
       </div>`;
   }
+  // Last non-empty category as a small chip on the card thumbnail (max 6 chars).
+  const lastCat = [p.category4, p.category3, p.category2, p.category1].find(Boolean) || '';
+  const catChip = lastCat
+    ? `<span class="prod-card-cat">${esc(lastCat.length > 6 ? lastCat.slice(0, 6) + '..' : lastCat)}</span>`
+    : '';
   return `<article class="prod-card" data-pid="${p.id}">
-    <div class="prod-card-thumb">${thumb}</div>
+    <div class="prod-card-thumb">${catChip}${thumb}</div>
     <div class="prod-card-body">
       <div class="prod-card-name">${esc(p.name)}</div>
       <div class="prod-card-brand">${esc(p.store)}</div>
@@ -311,7 +324,7 @@ function switchTab(tab) {
 function renderCard(e) {
   const st = eventStatus(e);
   const period = fmtPeriod(e.startDate, e.endDate);
-  const dd = dDayText(e, true);
+  const dd = eventTimeLeftText(e);
   const ddLabel = st === 'ended' ? '종료' : (st === 'upcoming' ? STATUS_LABEL.upcoming : dd);
   const thumb = e.thumbnail
     ? `<img src="${esc(safeUrl(e.thumbnail))}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{textContent:'🏷️'}))">`
@@ -373,7 +386,7 @@ function closeEventPage() {
 
 function renderEventPage(e) {
   const st = eventStatus(e);
-  const dd = dDayText(e, true);
+  const dd = eventTimeLeftText(e);
   const safeLink = esc(safeUrl(e.link));
   const sect = (title, body) => `<div class="ep-section"><div class="ep-section-title">${title}</div>${body}</div>`;
 
@@ -562,22 +575,23 @@ function renderProductPage(p) {
       const color = e.color || '#1A69E5';
       const st = eventStatus(e);
       const stLabel = { ongoing: '진행중', ending: '종료임박', upcoming: '예정', ended: '종료' }[st] || '';
-      const dd = dDayText(e, true);
+      const dd = eventTimeLeftText(e);
       const period = fmtPeriod(e.startDate, e.endDate);
 
       // 이벤트 적용 시 가격
       let priceHtml = '';
-      if (e.discountPct && p.salePrice) {
+      if ((e.discountPct || e.discountAmount) && p.salePrice) {
         const base = eventBasePrice(e, p);
-        const eventPrice = Math.round(base * (1 - e.discountPct / 100));
+        const eventPrice = applyEventDiscount(e, base);
         const savings = p.salePrice - eventPrice;
-        priceHtml = `<div class="pp-ev-price-box" data-discount-pct="${e.discountPct}" data-discount-base="${e.discountBase || 'sale'}">
+        const badge = e.discountAmount > 0 ? `-${fmtPrice(e.discountAmount)}` : `-${e.discountPct}%`;
+        priceHtml = `<div class="pp-ev-price-box" data-discount-pct="${e.discountPct || 0}" data-discount-amount="${e.discountAmount || 0}" data-discount-base="${e.discountBase || 'sale'}">
           <div class="pp-ev-price-label">이벤트 적용 시 예상 가격</div>
           <div class="pp-ev-price-row">
             <span class="pp-ev-orig-price">${fmtPrice(p.salePrice)}</span>
             <span class="pp-ev-arr">→</span>
             <span class="pp-ev-event-price">${fmtPrice(eventPrice)}</span>
-            <span class="pp-ev-save-badge">-${e.discountPct}%</span>
+            <span class="pp-ev-save-badge">${badge}</span>
           </div>
           <div class="pp-ev-save-text">${fmtPrice(savings)} 절약</div>
         </div>`;
@@ -721,12 +735,17 @@ function renderProductPage(p) {
     </div>`;
   })() : '';
 
+  const cats = [p.category1, p.category2, p.category3, p.category4].filter(Boolean);
+  const breadcrumbHtml = cats.length
+    ? `<div class="pp-breadcrumb">${cats.map(esc).join(' <span class="pp-bc-sep">›</span> ')}</div>`
+    : '';
   $('prodPageBody').innerHTML = `
     <div class="pp-hero">
       <div class="pp-hero-thumb">${thumb}</div>
       <div class="pp-hero-info">
         <div class="pp-hero-brand">${esc(p.store || p.brand)}</div>
         <div class="pp-hero-name">${esc(p.name)}</div>
+        ${breadcrumbHtml}
       </div>
     </div>
     ${shortDescHtml}
@@ -817,9 +836,10 @@ function renderProductPage(p) {
 
       $('prodPageBody').querySelectorAll('.pp-ev-price-box[data-discount-pct]').forEach((box) => {
         const discPct = +box.dataset.discountPct;
+        const discAmt = +(box.dataset.discountAmount || 0);
         const discBase = box.dataset.discountBase;
         const base = discBase === 'original' ? (p.originalPrice || p.salePrice) : basePrice;
-        const evPrice = Math.round(base * (1 - discPct / 100));
+        const evPrice = discAmt > 0 ? Math.max(0, base - discAmt) : Math.round(base * (1 - discPct / 100));
         const savings = basePrice - evPrice;
         box.querySelector('.pp-ev-orig-price').textContent = fmtPrice(basePrice);
         box.querySelector('.pp-ev-event-price').textContent = fmtPrice(evPrice);

@@ -210,7 +210,7 @@ async function doBulkDelete(table, set, btnId, onDone) {
 const EVENT_FIELDS = [
   ['fName', 'name'], ['fBrand', 'brand'], ['fBrandLabel', 'brand_label'],
   ['fThumbnail', 'thumbnail'], ['fDescription', 'description'],
-  ['fDiscount', 'discount_pct'],
+  ['fDiscount', 'discount_pct'], ['fDiscountAmount', 'discount_amount'],
   ['fLink', 'link'], ['fCouponCode', 'coupon_code'], ['fCouponNote', 'coupon_note'],
 ];
 
@@ -227,7 +227,7 @@ function fillEventForm(e) {
   $('fId').value = e?.id ?? '';
   EVENT_FIELDS.forEach(([id, key]) => {
     if (id === 'fBrand' || id === 'fBrandLabel') return;
-    $(id).value = e?.[key] ?? (id === 'fDiscount' ? 0 : '');
+    $(id).value = e?.[key] ?? (id === 'fDiscount' || id === 'fDiscountAmount' ? 0 : '');
   });
   const ongoing = !e?.start_date && !e?.end_date;
   $('fOngoing').checked = ongoing;
@@ -295,7 +295,7 @@ function collectEventForm() {
   const payload = {};
   EVENT_FIELDS.forEach(([id, key]) => {
     const v = $(id).value.trim();
-    payload[key] = v === '' ? null : (key === 'discount_pct' ? +v : v);
+    payload[key] = v === '' ? null : (key === 'discount_pct' || key === 'discount_amount' ? +v : v);
   });
   payload.start_date = $('fOngoing').checked ? null : partsToISO($('fStartDate').value, $('fStartH').value, $('fStartM').value);
   payload.end_date = $('fOngoing').checked ? null : partsToISO($('fEndDate').value, $('fEndH').value, $('fEndM').value);
