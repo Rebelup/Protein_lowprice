@@ -881,6 +881,11 @@ async function loadStats() {
   // the bucket of its start hour. Also collect distinct identities + the dates
   // those sessions fell on so the detail panel can show "어느 날짜의 N명".
   {
+    // Today/yesterday in KST so we can tag them in the date list.
+    const nowKstD = new Date(Date.now() + KST_OFFSET_MS);
+    const todayKey = `${nowKstD.getUTCMonth() + 1}/${nowKstD.getUTCDate()}`;
+    const yKstD = new Date(Date.now() + KST_OFFSET_MS - 24 * 3600_000);
+    const yestKey = `${yKstD.getUTCMonth() + 1}/${yKstD.getUTCDate()}`;
     const buckets = Array.from({ length: 24 }, (_, h) => ({ hour: h, sum: 0, n: 0, users: new Set(), dates: new Set() }));
     for (const s of sessions) {
       const k = new Date(s.start + KST_OFFSET_MS);
@@ -899,14 +904,14 @@ async function loadStats() {
       (b) => {
         const avg = b.n ? Math.round(b.sum / b.n) : 0;
         const mm = Math.floor(avg / 60), ss = avg % 60;
+        // Sort newest-first so today appears at the front of the list.
         const dateList = [...b.dates].sort((a, b) => {
           const [am, ad] = a.split('/').map(Number); const [bm, bd] = b.split('/').map(Number);
-          return am - bm || ad - bd;
-        });
+          return (bm - am) || (bd - ad);
+        }).map((d) => d === todayKey ? `${d} (오늘)` : (d === yestKey ? `${d} (어제)` : d));
         $('chartSessionDetail').innerHTML = `
           <div class="chart-detail-row"><strong>${b.hour}시</strong><span>평균 ${mm ? `${mm}분 ${ss}초` : `${ss}초`} · ${b.users.size}명 접속</span></div>
-          <div class="chart-detail-sub">세션 ${b.n}건 · ${dateList.length ? `날짜: ${dateList.join(', ')}` : '데이터 없음'}</div>
-          <div class="chart-detail-sub">세션 ${b.n}건 · 총 ${Math.round(b.sum)}초</div>
+          <div class="chart-detail-sub">세션 ${b.n}건 · 총 ${Math.round(b.sum)}초${dateList.length ? `<br>날짜 (최신순): ${dateList.join(', ')}` : ''}</div>
         `;
       },
     );
