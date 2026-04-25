@@ -126,6 +126,15 @@ async function loadFilterOptions() {
   ALL_CAT2 = map('cat2');
 }
 
+// Resolve a stored category value to its display label. cat3/cat4 have no
+// filter_options rows so they fall back to the stored value.
+function catLabel(value, level) {
+  if (!value) return '';
+  const list = level === 1 ? ALL_CAT1 : level === 2 ? ALL_CAT2 : null;
+  if (!list) return value;
+  return list.find((x) => x.value === value)?.label || value;
+}
+
 /* ── FILTER + SORT ── */
 function getFiltered() {
   const q = state.search.toLowerCase();
@@ -246,9 +255,14 @@ function renderProductCard(p) {
       </div>`;
   }
   // Last non-empty category as a small chip on the card thumbnail (max 6 chars).
-  const lastCat = [p.category4, p.category3, p.category2, p.category1].find(Boolean) || '';
-  const catChip = lastCat
-    ? `<span class="prod-card-cat">${esc(lastCat.length > 6 ? lastCat.slice(0, 6) + '..' : lastCat)}</span>`
+  // Uses display label when one is registered (cat1/cat2); cat3/cat4 fall back
+  // to the raw value.
+  const lastPair = [
+    [4, p.category4], [3, p.category3], [2, p.category2], [1, p.category1],
+  ].find(([, v]) => v);
+  const lastLabel = lastPair ? catLabel(lastPair[1], lastPair[0]) : '';
+  const catChip = lastLabel
+    ? `<span class="prod-card-cat">${esc(lastLabel.length > 6 ? lastLabel.slice(0, 6) + '..' : lastLabel)}</span>`
     : '';
   return `<article class="prod-card" data-pid="${p.id}">
     <div class="prod-card-thumb">${catChip}${thumb}</div>
@@ -735,7 +749,12 @@ function renderProductPage(p) {
     </div>`;
   })() : '';
 
-  const cats = [p.category1, p.category2, p.category3, p.category4].filter(Boolean);
+  const cats = [
+    catLabel(p.category1, 1),
+    catLabel(p.category2, 2),
+    catLabel(p.category3, 3),
+    catLabel(p.category4, 4),
+  ].filter(Boolean);
   const breadcrumbHtml = cats.length
     ? `<div class="pp-breadcrumb">${cats.map(esc).join(' <span class="pp-bc-sep">›</span> ')}</div>`
     : '';

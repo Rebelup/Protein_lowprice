@@ -621,11 +621,41 @@ function generateAllCombinations() {
 // ─── OPTION MODAL ─────────────────────────────────────────
 const MODAL_TITLES = { brand: '새 브랜드 추가', cat1: '카테고리 1 추가', cat2: '카테고리 2 추가', cat3: '카테고리 3 추가', cat4: '카테고리 4 추가' };
 
+function renderExistingOptions() {
+  const list = optionModalKind === 'brand' ? BRANDS : (CATS[+optionModalKind.slice(3) - 1] || []);
+  const box = $('optExistingList');
+  if (!list.length) { box.innerHTML = '<div class="opt-empty">등록된 항목이 없습니다.</div>'; return; }
+  box.innerHTML = list.map((r) => `
+    <div class="opt-row" data-id="${r.id}">
+      <input type="text" class="admin-input-sm opt-row-label" data-id="${r.id}" value="${esc(r.label)}" placeholder="표시명" />
+      <span class="opt-row-key">${esc(r.value)}</span>
+      <button type="button" class="admin-ghost opt-row-save" data-id="${r.id}">저장</button>
+      <button type="button" class="admin-ghost admin-ghost--danger opt-row-del" data-id="${r.id}">삭제</button>
+    </div>`).join('');
+}
+
+async function updateOptionLabel(id, label) {
+  const { error } = await db.from('filter_options').update({ label }).eq('id', id);
+  if (error) { alert(`수정 실패: ${error.message}`); return false; }
+  await loadOptions();
+  renderExistingOptions();
+  return true;
+}
+
+async function deleteOption(id) {
+  const { error } = await db.from('filter_options').delete().eq('id', id);
+  if (error) { alert(`삭제 실패: ${error.message}`); return false; }
+  await loadOptions();
+  renderExistingOptions();
+  return true;
+}
+
 function openOptionModal(kind) {
   optionModalKind = kind;
-  $('optionModalTitle').textContent = MODAL_TITLES[kind] || '새 항목 추가';
+  $('optionModalTitle').textContent = MODAL_TITLES[kind] || '항목 관리';
   $('optKey').value = ''; $('optLabel').value = '';
   $('optionMsg').classList.add('hidden');
+  renderExistingOptions();
   $('optionModal').classList.remove('hidden');
   setTimeout(() => $('optKey').focus(), 50);
 }
@@ -1443,6 +1473,25 @@ async function init() {
   $('optionSave').addEventListener('click', saveOption);
   $('optionModal').addEventListener('click', (e) => { if (e.target === $('optionModal')) closeOptionModal(); });
   [$('optKey'), $('optLabel')].forEach((inp) => inp.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveOption(); }));
+  $('optExistingList').addEventListener('click', async (e) => {
+    const save = e.target.closest('.opt-row-save');
+    if (save) {
+      const id = +save.dataset.id;
+      const inp = $('optExistingList').querySelector(`.opt-row-label[data-id="${id}"]`);
+      const label = inp?.value.trim();
+      if (!label) return;
+      await updateOptionLabel(id, label);
+      return;
+    }
+    const del = e.target.closest('.opt-row-del');
+    if (del) {
+      const id = +del.dataset.id;
+      const row = $('optExistingList').querySelector(`.opt-row[data-id="${id}"]`);
+      const label = row?.querySelector('.opt-row-label')?.value || '';
+      if (!confirm(`'${label}' 항목을 삭제하시겠습니까? (기존 상품 데이터에는 영향 없음)`)) return;
+      await deleteOption(id);
+    }
+  });
 
   // Product form
   $('prodForm').addEventListener('submit', saveProd);
