@@ -44,14 +44,7 @@ function eventStatus(e) {
   const left = daysUntil(e.endDate);
   return (left <= 7 && left >= 0) ? 'ending' : 'ongoing';
 }
-function dDayText(e, long = false) {
-  const st = eventStatus(e);
-  if (st !== 'ongoing' && st !== 'ending') return '';
-  const left = daysUntil(e.endDate);
-  if (!isFinite(left) || left < 0) return '';
-  return long ? (left === 0 ? '오늘 종료' : `${left}일 남음`) : (left === 0 ? 'D-DAY' : `D-${left}`);
-}
-// Same idea as dDayText but switches to hours/minutes once < 1 day remains.
+// Returns a "남음" label that adapts unit (일/시간/분) based on time remaining.
 function eventTimeLeftText(e) {
   if (!e?.endDate) return '';
   const st = eventStatus(e);
@@ -212,49 +205,35 @@ function getBestEventPrice(p, overridePrice = null) {
   return (optionA && optionA.price < optionB.price) ? optionA : optionB;
 }
 
-function renderProductCard(p) {
+// Shared price block for product cards (home + event-page related list).
+// applyEvent=true folds the best applicable event discount into the displayed
+// price/disc, applyEvent=false shows raw 판매가 vs 정가.
+function productPriceBlock(p, applyEvent) {
   const cheapest = getCheapestSku(p);
   const basePrice = cheapest ? cheapest.price : p.salePrice;
-  // Prefer SKU-level orig; fall back to product-level so any 정가>판매가 gap
-  // is still visible on the card regardless of where the crawler wrote it.
   const skuOrig = cheapest?.origPrice && cheapest.origPrice > cheapest.price ? cheapest.origPrice : 0;
   const baseOrig = skuOrig || (p.originalPrice > basePrice ? p.originalPrice : basePrice);
-  const disc = baseOrig > basePrice ? Math.max(1, Math.ceil((1 - basePrice / baseOrig) * 100)) : 0;
+  const ev = applyEvent ? getBestEventPrice(p) : null;
+  const finalPrice = ev ? ev.price : basePrice;
+  const finalOrig = baseOrig > finalPrice ? baseOrig : (p.originalPrice > finalPrice ? p.originalPrice : 0);
+  const finalDisc = finalOrig ? Math.max(1, Math.ceil((1 - finalPrice / finalOrig) * 100)) : 0;
+  const priceRow = `<div class="prod-card-price">
+      ${finalDisc > 0 ? `<span class="prod-pct">-${finalDisc}%</span>` : ''}
+      <span class="prod-sale">${fmtPrice(finalPrice)}</span>
+      ${finalDisc > 0 ? `<span class="prod-orig">${fmtPrice(finalOrig)}</span>` : ''}
+    </div>`;
+  if (!applyEvent) return priceRow;
+  if (!ev) return `${priceRow}<div class="prod-ev-tag prod-ev-tag--none">이벤트 없음</div>`;
+  const ddSoon = eventTimeLeftText(getSoonestEndingEvent(p));
+  const ddChip = ddSoon ? `<span class="evt-card-dday prod-ev-dday">${ddSoon}</span>` : '';
+  return `${priceRow}<div class="prod-ev-tag">⚡ 이벤트 적용가${ddChip}</div>`;
+}
+
+function renderProductCard(p) {
   const thumb = p.thumbnail
     ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
     : esc(p.emoji || "");
-  // Final-price view: 정가 → (판매가 - 이벤트할인) 할인율을 통합해서 보여준다.
-  // showEventPrice가 켜져 있으면 이벤트까지 반영, 꺼져 있으면 판매가 그대로.
-  let priceHtml;
-  if (prodState.showEventPrice) {
-    const ev = getBestEventPrice(p);
-    const finalPrice = ev ? ev.price : basePrice;
-    const finalOrig = baseOrig > finalPrice ? baseOrig : (p.originalPrice > finalPrice ? p.originalPrice : 0);
-    const finalDisc = finalOrig ? Math.max(1, Math.ceil((1 - finalPrice / finalOrig) * 100)) : 0;
-    if (ev) {
-      const ddSoon = eventTimeLeftText(getSoonestEndingEvent(p));
-      const ddChip = ddSoon ? `<span class="evt-card-dday prod-ev-dday">${ddSoon}</span>` : '';
-      priceHtml = `<div class="prod-card-price">
-          ${finalDisc > 0 ? `<span class="prod-pct">-${finalDisc}%</span>` : ''}
-          <span class="prod-sale">${fmtPrice(finalPrice)}</span>
-          ${finalDisc > 0 ? `<span class="prod-orig">${fmtPrice(finalOrig)}</span>` : ''}
-        </div>
-        <div class="prod-ev-tag">⚡ 이벤트 적용가${ddChip}</div>`;
-    } else {
-      priceHtml = `<div class="prod-card-price">
-          ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
-          <span class="prod-sale">${fmtPrice(basePrice)}</span>
-          ${disc > 0 ? `<span class="prod-orig">${fmtPrice(baseOrig)}</span>` : ''}
-        </div>
-        <div class="prod-ev-tag prod-ev-tag--none">이벤트 없음</div>`;
-    }
-  } else {
-    priceHtml = `<div class="prod-card-price">
-        ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
-        <span class="prod-sale">${fmtPrice(basePrice)}</span>
-        ${disc > 0 ? `<span class="prod-orig">${fmtPrice(baseOrig)}</span>` : ''}
-      </div>`;
-  }
+  const priceHtml = productPriceBlock(p, prodState.showEventPrice);
   // Last non-empty category as a small chip on the card thumbnail (max 6 chars).
   // Uses display label when one is registered (cat1/cat2); cat3/cat4 fall back
   // to the raw value.
@@ -450,17 +429,10 @@ function renderEventPage(e) {
       const linked = PRODUCTS.filter((p) => (e.productIds || []).includes(p.id));
       if (!linked.length) return '';
       const cards = linked.map((p) => {
-        const basePrice = getFirstSkuPrice(p);
-        const disc = p.originalPrice > basePrice ? Math.round((1 - basePrice / p.originalPrice) * 100) : 0;
-        const ev2 = getBestEventPrice(p);
         const thumb = p.thumbnail
           ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
           : esc(p.emoji || "");
-        const priceHtml = ev2
-          ? (ev2.pct > 0
-              ? `<div class="prod-card-price"><span class="prod-pct">-${ev2.pct}%</span><span class="prod-sale">${fmtPrice(ev2.price)}</span><span class="prod-orig">${fmtPrice(basePrice)}</span></div><div class="prod-ev-tag">⚡ 이벤트 적용가</div>`
-              : `<div class="prod-card-price">${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}<span class="prod-sale">${fmtPrice(basePrice)}</span>${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}</div><div class="prod-ev-tag">⚡ 이벤트 적용가</div>`)
-          : `<div class="prod-card-price">${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}<span class="prod-sale">${fmtPrice(basePrice)}</span>${disc > 0 ? `<span class="prod-orig">${fmtPrice(p.originalPrice)}</span>` : ''}</div>`;
+        const priceHtml = productPriceBlock(p, true);
         return `<article class="prod-card ep-rel-prod-card" data-pid="${p.id}">
           <div class="prod-card-thumb">${thumb}</div>
           <div class="prod-card-body">
