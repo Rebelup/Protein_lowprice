@@ -700,7 +700,7 @@ function renderLineChart(el, bins, valueFn, labelFn, unit = '', onSelect = null)
   // Canvas is 900×300 (3:1) — wide enough to breathe, short enough that the
   // whole thing fits on screen without scrolling.
   const W = 900, H = 300;
-  const padL = 24, padR = 18, padT = 16, padB = 64;
+  const padL = 52, padR = 18, padT = 16, padB = 60;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
   const max = Math.max(1, ...bins.map(valueFn));
@@ -709,20 +709,49 @@ function renderLineChart(el, bins, valueFn, labelFn, unit = '', onSelect = null)
     const v = valueFn(b);
     return [padL + i * step, padT + innerH - (v / max) * innerH, v];
   });
-  const line = pts.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  // Round Y-axis max up to a "nice" number so grid lines fall on round values.
+  const niceMax = (() => {
+    if (max <= 4) return Math.max(1, Math.ceil(max));
+    const pow = Math.pow(10, Math.floor(Math.log10(max)));
+    const norm = max / pow;
+    const nice = norm <= 1 ? 1 : norm <= 2 ? 2 : norm <= 5 ? 5 : 10;
+    return nice * pow;
+  })();
+  const ySteps = 4;
+  const grid = [];
+  const yLabels = [];
+  for (let i = 0; i <= ySteps; i++) {
+    const ratio = i / ySteps;
+    const y = padT + innerH - ratio * innerH;
+    const v = Math.round(niceMax * ratio);
+    grid.push(`<line class="chart-grid" x1="${padL}" y1="${y.toFixed(1)}" x2="${(padL + innerW).toFixed(1)}" y2="${y.toFixed(1)}" />`);
+    yLabels.push(`<text class="chart-ylbl" x="${padL - 8}" y="${(y + 3.5).toFixed(1)}" text-anchor="end">${v}${unit}</text>`);
+  }
+  // Recompute Y-positions against niceMax so the line lines up with grid lines.
+  const ptsScaled = bins.map((b, i) => {
+    const v = valueFn(b);
+    return [padL + i * step, padT + innerH - (v / niceMax) * innerH, v];
+  });
+  const line = ptsScaled.map(([x, y], i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
   const area = `${line} L${(padL + innerW).toFixed(1)},${(padT + innerH).toFixed(1)} L${padL.toFixed(1)},${(padT + innerH).toFixed(1)} Z`;
-  const dots = pts.map(([x, y, v], i) => v
+  const dots = ptsScaled.map(([x, y, v], i) => v
     ? `<circle class="chart-dot" data-idx="${i}" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="4"><title>${labelFn(bins[i])}: ${v}${unit}</title></circle>`
     : '').join('');
-  // Invisible wide hitboxes on every column make tapping on small/zero points easy on mobile.
   const hitW = step || innerW;
-  const hits = pts.map(([x], i) => `<rect class="chart-hit" data-idx="${i}" x="${(x - hitW / 2).toFixed(1)}" y="${padT}" width="${hitW.toFixed(1)}" height="${innerH}"></rect>`).join('');
-  const labels = pts.map(([x], i) => stackedLabel(x, padT + innerH + 14, labelFn(bins[i]))).join('');
+  const hits = ptsScaled.map(([x], i) => `<rect class="chart-hit" data-idx="${i}" x="${(x - hitW / 2).toFixed(1)}" y="${padT}" width="${hitW.toFixed(1)}" height="${innerH}"></rect>`).join('');
+  // Show ~6 X-axis labels max — first, last, evenly-spaced in between.
+  const labelStride = n <= 7 ? 1 : Math.max(1, Math.floor((n - 1) / 5));
+  const xLabels = ptsScaled.map(([x], i) => {
+    const show = i === 0 || i === n - 1 || (i % labelStride === 0 && (n - 1 - i) >= labelStride / 2);
+    return show ? stackedLabel(x, padT + innerH + 14, labelFn(bins[i])) : '';
+  }).join('');
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="chart-svg" role="img">
+    ${grid.join('')}
+    ${yLabels.join('')}
     <path class="chart-area" d="${area}" />
     <path class="chart-line" d="${line}" />
     ${dots}
-    ${labels}
+    ${xLabels}
     ${hits}
   </svg>`;
   if (onSelect) {
