@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>핏허브</title>
-  <link rel="stylesheet" href="style.css?v=20260514" />
+  <link rel="stylesheet" href="style.css?v=20260515" />
 </head>
 <body>
 
@@ -74,7 +74,7 @@
     <div class="filter-row filter-row--spread">
       <div class="filter-left">
         <button class="sort-btn" id="prodSortBtn">
-          <span id="prodSortLabel">할인 높은순</span>
+          <span id="prodSortLabel">가격 낮은순</span>
           <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div class="filter-divider"></div>
@@ -124,8 +124,8 @@
   <div class="sort-sheet hidden" id="prodSortSheet">
     <div class="sheet-handle"></div>
     <div class="sort-sheet-title">정렬</div>
-    <button class="sort-option active" data-sort="discount_desc">할인 높은순</button>
-    <button class="sort-option" data-sort="price_asc">가격 낮은순</button>
+    <button class="sort-option" data-sort="discount_desc">할인 높은순</button>
+    <button class="sort-option active" data-sort="price_asc">가격 낮은순</button>
     <button class="sort-option" data-sort="price_desc">가격 높은순</button>
     <button class="sort-option" data-sort="name">이름순</button>
   </div>
@@ -282,6 +282,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <div class="toast" id="toast"></div>
-  <script src="script.js?v=20260514"></script>
+  <script src="script.js?v=20260515"></script>
 </body>
 </html>

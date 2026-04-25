@@ -4,8 +4,8 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>관리자</title>
-  <link rel="stylesheet" href="style.css?v=20260514" />
-  <link rel="stylesheet" href="admin.css?v=20260514" />
+  <link rel="stylesheet" href="style.css?v=20260515" />
+  <link rel="stylesheet" href="admin.css?v=20260515" />
 </head>
 <body>
   <header class="site-header">
@@ -554,6 +554,11 @@
             <div class="stats-card-value" id="statAvgSession">–</div>
             <div class="stats-card-sub">최근 7일 · 세션당</div>
           </div>
+          <div class="stats-card">
+            <div class="stats-card-label">가입 유저</div>
+            <div class="stats-card-value" id="statUsersTotal">–</div>
+            <div class="stats-card-sub">오늘 +<span id="statUsersToday">0</span> · 7일 +<span id="statUsersWeek">0</span></div>
+          </div>
         </div>
         <div class="chart-block">
           <div class="chart-title" id="chartVisitorsTitle">방문자</div>
@@ -620,6 +625,6 @@
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="admin.js?v=20260514"></script>
+  <script src="admin.js?v=20260515"></script>
 </body>
 </html>

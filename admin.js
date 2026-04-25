@@ -825,6 +825,14 @@ async function loadStats() {
   $('stat60m').textContent = uniq(visits.filter((r) => new Date(r.visited_at) >= sixtyAgo));
   $('statToday').textContent = uniq(visits.filter((r) => new Date(r.visited_at) >= dayStart));
   $('statBuyToday').textContent = buys.filter((r) => new Date(r.visited_at) >= dayStart).length;
+
+  // Registered-user counts via SECURITY DEFINER RPC (RLS-safe).
+  db.rpc('admin_user_stats').then(({ data }) => {
+    if (!data) return;
+    $('statUsersTotal').textContent = data.total ?? '–';
+    $('statUsersToday').textContent = data.today ?? 0;
+    $('statUsersWeek').textContent = data.last_7d ?? 0;
+  }).catch(() => {});
   $('statBuyWeek').textContent = buys.length;
 
   // Build the rolling time axis once and reuse for both visitor + session charts.

@@ -10,7 +10,7 @@ let currentUser = null, pendingLink = null;
 let brandGroup = null, typeGroup = null, prodBrandGroup = null;
 
 const state = { search: '', sort: 'discount_desc', brands: new Set(), productTypes: new Set(), period: 'all' };
-const prodState = { sort: 'discount_desc', cat1: '', cat2: '', brands: new Set(), priceRange: 'all', discountMin: 0, showEventPrice: true };
+const prodState = { sort: 'price_asc', cat1: '', cat2: '', brands: new Set(), priceRange: 'all', discountMin: 0, showEventPrice: true };
 
 const $ = (id) => document.getElementById(id);
 const $$ = (sel, root = document) => root.querySelectorAll(sel);
@@ -160,6 +160,14 @@ function getCheapestSku(p) {
   return p.optionSkus.filter((s) => s.price > 0).sort((a, b) => a.price - b.price)[0] ?? null;
 }
 
+// Cheapest visible price after the best applicable event discount.
+function getFinalPrice(p) {
+  const cheapest = getCheapestSku(p);
+  const base = cheapest ? cheapest.price : p.salePrice;
+  const ev = getBestEventPrice(p, base);
+  return ev ? ev.price : base;
+}
+
 function getFirstSkuPrice(p) {
   const cheapest = getCheapestSku(p);
   if (cheapest) return cheapest.price;
@@ -215,30 +223,23 @@ function renderProductCard(p) {
   const thumb = p.thumbnail
     ? `<img src="${esc(safeUrl(p.thumbnail))}" alt="" loading="lazy" onerror="this.style.display='none'">`
     : esc(p.emoji || "");
+  // Final-price view: 정가 → (판매가 - 이벤트할인) 할인율을 통합해서 보여준다.
+  // showEventPrice가 켜져 있으면 이벤트까지 반영, 꺼져 있으면 판매가 그대로.
   let priceHtml;
   if (prodState.showEventPrice) {
     const ev = getBestEventPrice(p);
+    const finalPrice = ev ? ev.price : basePrice;
+    const finalOrig = baseOrig > finalPrice ? baseOrig : (p.originalPrice > finalPrice ? p.originalPrice : 0);
+    const finalDisc = finalOrig ? Math.max(1, Math.ceil((1 - finalPrice / finalOrig) * 100)) : 0;
     if (ev) {
       const ddSoon = eventTimeLeftText(getSoonestEndingEvent(p));
       const ddChip = ddSoon ? `<span class="evt-card-dday prod-ev-dday">${ddSoon}</span>` : '';
-      // With a real event discount show event-vs-base pricing; with a 0% event
-      // fall back to the product's own sale-vs-original discount so the card
-      // still conveys the savings.
-      if (ev.pct > 0) {
-        priceHtml = `<div class="prod-card-price">
-            <span class="prod-pct">-${ev.pct}%</span>
-            <span class="prod-sale">${fmtPrice(ev.price)}</span>
-            <span class="prod-orig">${fmtPrice(basePrice)}</span>
-          </div>
-          <div class="prod-ev-tag">⚡ 이벤트 적용가${ddChip}</div>`;
-      } else {
-        priceHtml = `<div class="prod-card-price">
-            ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
-            <span class="prod-sale">${fmtPrice(basePrice)}</span>
-            ${disc > 0 ? `<span class="prod-orig">${fmtPrice(baseOrig)}</span>` : ''}
-          </div>
-          <div class="prod-ev-tag">⚡ 이벤트 적용가${ddChip}</div>`;
-      }
+      priceHtml = `<div class="prod-card-price">
+          ${finalDisc > 0 ? `<span class="prod-pct">-${finalDisc}%</span>` : ''}
+          <span class="prod-sale">${fmtPrice(finalPrice)}</span>
+          ${finalDisc > 0 ? `<span class="prod-orig">${fmtPrice(finalOrig)}</span>` : ''}
+        </div>
+        <div class="prod-ev-tag">⚡ 이벤트 적용가${ddChip}</div>`;
     } else {
       priceHtml = `<div class="prod-card-price">
           ${disc > 0 ? `<span class="prod-pct">-${disc}%</span>` : ''}
@@ -312,12 +313,13 @@ function renderProducts() {
   });
   items = [...items].sort((a, b) => {
     if (prodState.sort === 'discount_desc') {
-      const da = a.originalPrice > a.salePrice ? 1 - a.salePrice / a.originalPrice : 0;
-      const db2 = b.originalPrice > b.salePrice ? 1 - b.salePrice / b.originalPrice : 0;
+      const fa = getFinalPrice(a), fb = getFinalPrice(b);
+      const da = a.originalPrice > fa ? 1 - fa / a.originalPrice : 0;
+      const db2 = b.originalPrice > fb ? 1 - fb / b.originalPrice : 0;
       return db2 - da;
     }
-    if (prodState.sort === 'price_asc') return a.salePrice - b.salePrice;
-    if (prodState.sort === 'price_desc') return b.salePrice - a.salePrice;
+    if (prodState.sort === 'price_asc') return getFinalPrice(a) - getFinalPrice(b);
+    if (prodState.sort === 'price_desc') return getFinalPrice(b) - getFinalPrice(a);
     return a.name.localeCompare(b.name, 'ko');
   });
   $('prodResultCount').textContent = items.length;
@@ -923,7 +925,18 @@ function renderProductPage(p) {
           subGroup.querySelectorAll('.pp-opt-btn').forEach((b) => b.classList.remove('active'));
           if (firstValid) {
             const newBtn = subGroup.querySelector(`.pp-opt-btn[data-val="${esc(firstValid)}"]`);
-            if (newBtn) newBtn.classList.add('active');
+            if (newBtn) {
+              newBtn.classList.add('active');
+              // If the auto-picked button is in the collapsed tail, expand
+              // the group so the user sees the selection.
+              if (newBtn.classList.contains('pp-opt-btn--hidden')) {
+                const subContainer = subGroup.querySelector('.pp-opt-btns');
+                subContainer?.querySelectorAll('.pp-opt-btn').forEach((b) => b.classList.remove('pp-opt-btn--hidden'));
+                if (subContainer) subContainer.dataset.collapsed = 'false';
+                const subMore = subGroup.querySelector('.pp-opt-more');
+                if (subMore) subMore.textContent = '간략히';
+              }
+            }
           }
         }
       }
