@@ -699,8 +699,8 @@ function renderLineChart(el, bins, valueFn, labelFn, unit = '', onSelect = null)
   const n = bins.length;
   // Canvas is 900×300 (3:1) — wide enough to breathe, short enough that the
   // whole thing fits on screen without scrolling.
-  const W = 900, H = 300;
-  const padL = 52, padR = 18, padT = 16, padB = 60;
+  const W = 900, H = 320;
+  const padL = 70, padR = 18, padT = 18, padB = 80;
   const innerW = W - padL - padR;
   const innerH = H - padT - padB;
   const max = Math.max(1, ...bins.map(valueFn));
@@ -725,7 +725,7 @@ function renderLineChart(el, bins, valueFn, labelFn, unit = '', onSelect = null)
     const y = padT + innerH - ratio * innerH;
     const v = Math.round(niceMax * ratio);
     grid.push(`<line class="chart-grid" x1="${padL}" y1="${y.toFixed(1)}" x2="${(padL + innerW).toFixed(1)}" y2="${y.toFixed(1)}" />`);
-    yLabels.push(`<text class="chart-ylbl" x="${padL - 8}" y="${(y + 3.5).toFixed(1)}" text-anchor="end">${v}${unit}</text>`);
+    yLabels.push(`<text class="chart-ylbl" x="${padL - 10}" y="${(y + 6).toFixed(1)}" text-anchor="end">${v}${unit}</text>`);
   }
   // Recompute Y-positions against niceMax so the line lines up with grid lines.
   const ptsScaled = bins.map((b, i) => {
@@ -743,7 +743,7 @@ function renderLineChart(el, bins, valueFn, labelFn, unit = '', onSelect = null)
   const labelStride = n <= 7 ? 1 : Math.max(1, Math.floor((n - 1) / 5));
   const xLabels = ptsScaled.map(([x], i) => {
     const show = i === 0 || i === n - 1 || (i % labelStride === 0 && (n - 1 - i) >= labelStride / 2);
-    return show ? stackedLabel(x, padT + innerH + 14, labelFn(bins[i])) : '';
+    return show ? stackedLabel(x, padT + innerH + 22, labelFn(bins[i])) : '';
   }).join('');
   el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="chart-svg" role="img">
     ${grid.join('')}

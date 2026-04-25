@@ -56,13 +56,13 @@
 .stats-range-btn:last-child { border-right: none; }
 .stats-range-btn.active { background: var(--blue); color: var(--white); }
 .line-chart .chart-area { fill: var(--blue); opacity: .12; }
-.line-chart .chart-line { fill: none; stroke: var(--blue); stroke-width: 2.2; stroke-linejoin: round; stroke-linecap: round; }
+.line-chart .chart-line { fill: none; stroke: var(--blue); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; }
 .line-chart .chart-dot { fill: var(--blue); cursor: pointer; transition: r .15s; }
-.line-chart .chart-dot:hover, .line-chart .chart-dot--active { fill: var(--red); r: 6; }
+.line-chart .chart-dot:hover, .line-chart .chart-dot--active { fill: var(--red); r: 8; }
 .line-chart .chart-hit { fill: transparent; cursor: pointer; }
 .line-chart .chart-hit:hover + * { opacity: .5; }
-.line-chart .chart-xlbl { font-size: 11px; fill: var(--muted); }
-.line-chart .chart-ylbl { font-size: 11px; fill: var(--muted); }
+.line-chart .chart-xlbl { font-size: 18px; fill: var(--sub); }
+.line-chart .chart-ylbl { font-size: 18px; fill: var(--sub); }
 .line-chart .chart-grid { stroke: #DDD; stroke-width: 1; stroke-dasharray: 2 3; }
 
 .chart-detail {
