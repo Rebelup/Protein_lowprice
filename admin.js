@@ -797,12 +797,15 @@ async function loadStats() {
   $('statBuyToday').textContent = buys.filter((r) => new Date(r.visited_at) >= dayStart).length;
   $('statBuyWeek').textContent = buys.length;
 
-  // Visitor chart — the bucket size adapts to the chosen range. Range 1 uses
-  // hourly buckets for the last 24h; larger ranges use daily buckets.
+  // Build the rolling time axis once and reuse for both visitor + session charts.
+  // Range 1 → 24 hourly bins ending at the current hour (rightmost = now).
+  // Range N>1 → N daily bins ending at today (rightmost = today).
   const rangeRows = rows.filter((r) => new Date(r.visited_at) >= rangeStart);
   const rangeVisits = rangeRows.filter((r) => r.event_type === 'visit' || r.event_type === 'product_view');
+  const useHour = STATS_RANGE === 1;
+  const keyFn = (d) => useHour ? kstHourKey(d) : kstDayKey(d);
   const bins = [];
-  if (STATS_RANGE === 1) {
+  if (useHour) {
     for (let i = 23; i >= 0; i--) {
       const t = new Date(now.getTime() - i * 3600_000);
       const k = new Date(t.getTime() + KST_OFFSET_MS);
@@ -810,13 +813,8 @@ async function loadStats() {
         key: kstHourKey(t),
         label: String(k.getUTCHours()) + '시',
         full: `${k.getUTCMonth() + 1}월 ${k.getUTCDate()}일 ${k.getUTCHours()}시`,
-        set: new Set(),
+        visitors: new Set(), sUsers: new Set(), sDur: 0, sCount: 0,
       });
-    }
-    const m = new Map(bins.map((b) => [b.key, b]));
-    for (const v of rangeVisits) {
-      const b = m.get(kstHourKey(new Date(v.visited_at)));
-      if (b) b.set.add(v.identity);
     }
     $('chartVisitorsTitle').innerHTML = '시간대별 방문자 <small>(최근 24시간 · KST)</small>';
   } else {
@@ -828,21 +826,21 @@ async function loadStats() {
         key: kstDayKey(start),
         label: kstDayKey(start),
         full: `${k.getUTCMonth() + 1}월 ${k.getUTCDate()}일 (${dow})`,
-        set: new Set(),
+        visitors: new Set(), sUsers: new Set(), sDur: 0, sCount: 0,
       });
-    }
-    const m = new Map(bins.map((b) => [b.key, b]));
-    for (const v of rangeVisits) {
-      const b = m.get(kstDayKey(new Date(v.visited_at)));
-      if (b) b.set.add(v.identity);
     }
     $('chartVisitorsTitle').innerHTML = `일별 방문자 <small>(최근 ${STATS_RANGE}일 · KST)</small>`;
   }
-  renderLineChart($('chartVisitors'), bins, (b) => b.set.size, (b) => b.label, '명', (b) => {
-    const emails = [...b.set].filter((id) => id.includes('@')).slice(0, 10);
-    const anon = [...b.set].length - emails.length;
+  const binMap = new Map(bins.map((b) => [b.key, b]));
+  for (const v of rangeVisits) {
+    const b = binMap.get(keyFn(new Date(v.visited_at)));
+    if (b) b.visitors.add(v.identity);
+  }
+  renderLineChart($('chartVisitors'), bins, (b) => b.visitors.size, (b) => b.label, '명', (b) => {
+    const emails = [...b.visitors].filter((id) => id.includes('@')).slice(0, 10);
+    const anon = [...b.visitors].length - emails.length;
     $('chartVisitorsDetail').innerHTML = `
-      <div class="chart-detail-row"><strong>${esc(b.full)}</strong><span>${b.set.size}명 방문</span></div>
+      <div class="chart-detail-row"><strong>${esc(b.full)}</strong><span>${b.visitors.size}명 방문</span></div>
       ${emails.length ? `<div class="chart-detail-sub">${emails.map(esc).join(', ')}${anon ? ` · 익명 ${anon}명` : ''}</div>` : (anon ? `<div class="chart-detail-sub">익명 ${anon}명</div>` : '')}
     `;
   });
@@ -877,45 +875,31 @@ async function loadStats() {
     }
   }
 
-  // Hour-of-day (0-23 KST) avg session duration — every session counts toward
-  // the bucket of its start hour. Also collect distinct identities + the dates
-  // those sessions fell on so the detail panel can show "어느 날짜의 N명".
-  {
-    // Today/yesterday in KST so we can tag them in the date list.
-    const nowKstD = new Date(Date.now() + KST_OFFSET_MS);
-    const todayKey = `${nowKstD.getUTCMonth() + 1}/${nowKstD.getUTCDate()}`;
-    const yKstD = new Date(Date.now() + KST_OFFSET_MS - 24 * 3600_000);
-    const yestKey = `${yKstD.getUTCMonth() + 1}/${yKstD.getUTCDate()}`;
-    const buckets = Array.from({ length: 24 }, (_, h) => ({ hour: h, sum: 0, n: 0, users: new Set(), dates: new Set() }));
-    for (const s of sessions) {
-      const k = new Date(s.start + KST_OFFSET_MS);
-      const b = buckets[k.getUTCHours()];
-      b.sum += s.dur; b.n += 1; b.users.add(s.identity);
-      b.dates.add(`${k.getUTCMonth() + 1}/${k.getUTCDate()}`);
-    }
-    const rangeLbl = STATS_RANGE === 1 ? '최근 24시간' : `최근 ${STATS_RANGE}일`;
-    $('chartSessionTitle').innerHTML = `시간대별 평균 접속 시간 <small>(${rangeLbl} · KST · 초)</small>`;
-    renderLineChart(
-      $('chartSession'),
-      buckets,
-      (b) => b.n ? Math.round(b.sum / b.n) : 0,
-      (b) => `${b.hour}시`,
-      '초',
-      (b) => {
-        const avg = b.n ? Math.round(b.sum / b.n) : 0;
-        const mm = Math.floor(avg / 60), ss = avg % 60;
-        // Sort newest-first so today appears at the front of the list.
-        const dateList = [...b.dates].sort((a, b) => {
-          const [am, ad] = a.split('/').map(Number); const [bm, bd] = b.split('/').map(Number);
-          return (bm - am) || (bd - ad);
-        }).map((d) => d === todayKey ? `${d} (오늘)` : (d === yestKey ? `${d} (어제)` : d));
-        $('chartSessionDetail').innerHTML = `
-          <div class="chart-detail-row"><strong>${b.hour}시</strong><span>평균 ${mm ? `${mm}분 ${ss}초` : `${ss}초`} · ${b.users.size}명 접속</span></div>
-          <div class="chart-detail-sub">세션 ${b.n}건 · 총 ${Math.round(b.sum)}초${dateList.length ? `<br>날짜 (최신순): ${dateList.join(', ')}` : ''}</div>
-        `;
-      },
-    );
+  // Average session duration on the same rolling time axis as the visitor
+  // chart — each bin = a specific (date, hour) for range 1 or a specific date
+  // for range >1. Rightmost bin = current hour / today.
+  for (const s of sessions) {
+    const b = binMap.get(keyFn(new Date(s.start)));
+    if (b) { b.sDur += s.dur; b.sCount += 1; b.sUsers.add(s.identity); }
   }
+  const rangeLbl = STATS_RANGE === 1 ? '최근 24시간' : `최근 ${STATS_RANGE}일`;
+  const axisLbl = useHour ? '시간대별' : '일별';
+  $('chartSessionTitle').innerHTML = `${axisLbl} 평균 접속 시간 <small>(${rangeLbl} · KST · 초)</small>`;
+  renderLineChart(
+    $('chartSession'),
+    bins,
+    (b) => b.sCount ? Math.round(b.sDur / b.sCount) : 0,
+    (b) => b.label,
+    '초',
+    (b) => {
+      const avg = b.sCount ? Math.round(b.sDur / b.sCount) : 0;
+      const mm = Math.floor(avg / 60), ss = avg % 60;
+      $('chartSessionDetail').innerHTML = `
+        <div class="chart-detail-row"><strong>${esc(b.full)}</strong><span>평균 ${mm ? `${mm}분 ${ss}초` : `${ss}초`} · ${b.sUsers.size}명 접속</span></div>
+        <div class="chart-detail-sub">세션 ${b.sCount}건 · 총 ${Math.round(b.sDur)}초</div>
+      `;
+    },
+  );
 
   // Buy-click / distinct visitor ratio (last 7d)
   {
