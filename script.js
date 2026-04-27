@@ -142,6 +142,10 @@ function getFiltered() {
       return true;
     })
     .sort((a, b) => {
+      const stA = eventStatus(a);
+      const stB = eventStatus(b);
+      if (stA === 'ended' && stB !== 'ended') return 1;
+      if (stB === 'ended' && stA !== 'ended') return -1;
       if (state.sort === 'discount_desc') return (b.discountPct || 0) - (a.discountPct || 0);
       if (state.sort === 'end_asc') {
         const ea = a.endDate || '9999-12-31';
@@ -180,7 +184,10 @@ function renderEventCard(e) {
         ${e.desc ? `<p class="evt-card-desc">${escHtml(e.desc)}</p>` : ''}
         <div class="evt-card-foot">
           <span class="evt-card-period">📅 ${period}</span>
-          ${dDay ? `<span class="evt-card-dday">${dDay}</span>` : ''}
+          <div class="evt-card-foot-right">
+            <span class="evt-card-brand-tag" style="color:${e.color};background:${e.color}1A">${escHtml(e.brandLabel)}</span>
+            ${dDay ? `<span class="evt-card-dday">${dDay}</span>` : ''}
+          </div>
         </div>
       </div>
     </article>`;

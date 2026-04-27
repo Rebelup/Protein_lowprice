@@ -144,6 +144,38 @@ body {
 .header-icon-btn:hover { background: #F0F0F0; }
 
 /* =====================
+   TAB NAV
+   ===================== */
+.tab-nav {
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  padding: 0 8px;
+  display: flex;
+  gap: 4px;
+  position: sticky;
+  top: 56px;
+  z-index: 91;
+}
+.tab-btn {
+  padding: 12px 14px 10px;
+  background: none;
+  border: none;
+  border-bottom: 2.5px solid transparent;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--sub);
+  cursor: pointer;
+  transition: color .15s, border-color .15s;
+  line-height: 1;
+  white-space: nowrap;
+}
+.tab-btn.tab-active {
+  color: var(--blue);
+  border-bottom-color: var(--blue);
+  font-weight: 700;
+}
+
+/* =====================
    FILTER ROW
    ===================== */
 .filter-row {
@@ -151,7 +183,7 @@ body {
   border-bottom: 1px solid var(--border);
   padding: 8px 14px;
   position: sticky;
-  top: 56px;
+  top: 96px;
   z-index: 90;
 }
 .filter-left {
@@ -292,7 +324,20 @@ body {
   gap: 10px;
   font-size: 12px;
 }
-.evt-card-period { color: var(--muted); }
+.evt-card-period { color: var(--muted); flex: 1; }
+.evt-card-foot-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.evt-card-brand-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 99px;
+  white-space: nowrap;
+}
 .evt-card-dday {
   font-weight: 700;
   color: var(--red);
