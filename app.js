@@ -9,17 +9,18 @@ const state = {
   profile: null,
   selectedDate: new Date(),
   routines: [],
-  routineLogs: {},   // { routineId: boolean }
+  routineLogs: {},
   posts: [],
   postLikes: new Set(),
   streak: 0,
-  innerTab: 'routine',
+  innerTab: 'exercise',
   periodMenuOpen: false,
-  itemCount: 0,
+  selectedPhoto: null,
 };
 
 // ── 초기화 ──
 async function init() {
+  // OAuth 리다이렉트 처리
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     state.user = session.user;
@@ -30,7 +31,7 @@ async function init() {
   }
 
   sb.auth.onAuthStateChange(async (event, session) => {
-    if (event === 'SIGNED_IN' && session) {
+    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
       state.user = session.user;
       await loadAll();
       showApp();
@@ -42,64 +43,15 @@ async function init() {
   });
 }
 
-// ── 인증 ──
-async function handleLogin() {
-  const email = document.getElementById('login-email').value.trim();
-  const password = document.getElementById('login-password').value;
-  const errEl = document.getElementById('login-error');
-  errEl.textContent = '';
-
-  if (!email || !password) {
-    errEl.textContent = '이메일과 비밀번호를 입력해주세요.';
-    return;
-  }
-
-  const { error } = await sb.auth.signInWithPassword({ email, password });
-  if (error) {
-    errEl.textContent = '로그인 실패. 이메일/비밀번호를 확인해주세요.';
-  }
-}
-
-async function handleRegister() {
-  const username = document.getElementById('reg-username').value.trim();
-  const email = document.getElementById('reg-email').value.trim();
-  const password = document.getElementById('reg-password').value;
-  const errEl = document.getElementById('reg-error');
-  errEl.textContent = '';
-  errEl.style.color = '#ef4444';
-
-  if (!username || !email || !password) {
-    errEl.textContent = '모든 항목을 입력해주세요.';
-    return;
-  }
-  if (password.length < 6) {
-    errEl.textContent = '비밀번호는 6자 이상이어야 합니다.';
-    return;
-  }
-
-  const { error } = await sb.auth.signUp({
-    email,
-    password,
-    options: { data: { username } },
+// ── Google 로그인 ──
+async function signInWithGoogle() {
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.href },
   });
-
   if (error) {
-    errEl.textContent = '가입 실패: ' + error.message;
-  } else {
-    errEl.style.color = '#22c55e';
-    errEl.textContent = '가입 완료! 이메일 인증 후 로그인해주세요.';
-    setTimeout(showLogin, 2000);
+    document.getElementById('auth-error').textContent = '로그인 실패: ' + error.message;
   }
-}
-
-function showRegister() {
-  document.getElementById('login-form').classList.add('hidden');
-  document.getElementById('register-form').classList.remove('hidden');
-}
-
-function showLogin() {
-  document.getElementById('register-form').classList.add('hidden');
-  document.getElementById('login-form').classList.remove('hidden');
 }
 
 // ── 데이터 로딩 ──
@@ -113,13 +65,18 @@ async function loadProfile() {
   if (!state.user) return;
   let { data } = await sb.from('profiles').select('*').eq('id', state.user.id).single();
   if (!data) {
-    // 프로필이 없으면 생성 (기존 유저 대응)
-    const username = state.user.user_metadata?.username || state.user.email?.split('@')[0] || '사용자';
+    const username =
+      state.user.user_metadata?.full_name ||
+      state.user.user_metadata?.name ||
+      state.user.email?.split('@')[0] ||
+      '사용자';
+    const avatar_url = state.user.user_metadata?.avatar_url || null;
     const { data: created } = await sb.from('profiles').upsert({
       id: state.user.id,
       username,
-      full_name: '',
+      full_name: username,
       bio: '',
+      avatar_url,
     }).select().single();
     data = created;
   }
@@ -135,11 +92,6 @@ async function loadRoutines() {
     .eq('is_active', true)
     .order('created_at');
   state.routines = data || [];
-  state.routines.forEach(r => {
-    if (r.routine_items) {
-      r.routine_items.sort((a, b) => a.order_index - b.order_index);
-    }
-  });
 }
 
 async function loadRoutineLogsForDate(date) {
@@ -149,17 +101,13 @@ async function loadRoutineLogsForDate(date) {
     .select('*')
     .eq('user_id', state.user.id)
     .eq('log_date', fmtDate(date));
-
   state.routineLogs = {};
-  (data || []).forEach(log => {
-    state.routineLogs[log.routine_id] = log.is_complete;
-  });
+  (data || []).forEach(log => { state.routineLogs[log.routine_id] = log.is_complete; });
 }
 
 async function toggleRoutineComplete(routineId) {
   const wasComplete = state.routineLogs[routineId] === true;
   const isComplete = !wasComplete;
-
   state.routineLogs[routineId] = isComplete;
   renderRoutineList();
 
@@ -191,13 +139,14 @@ async function addRoutine(routineData) {
       name: routineData.name,
       type: routineData.type,
       days_of_week: routineData.days,
+      meal_time: routineData.mealTime || null,
     })
     .select()
     .single();
 
   if (error) {
     console.error('루틴 추가 실패:', error);
-    alert('루틴 추가에 실패했습니다: ' + error.message);
+    alert('루틴 추가 실패: ' + error.message);
     return;
   }
 
@@ -218,7 +167,7 @@ async function deleteRoutine(routineId) {
 async function loadPosts() {
   const { data } = await sb
     .from('posts')
-    .select('*, profiles(username)')
+    .select('*, profiles(username, avatar_url)')
     .order('created_at', { ascending: false })
     .limit(50);
   state.posts = data || [];
@@ -232,20 +181,44 @@ async function loadPosts() {
   }
 }
 
-async function addPost(content) {
-  if (!content.trim()) return;
+async function uploadPhoto(file) {
+  const ext = file.name.split('.').pop();
+  const path = `${state.user.id}/${Date.now()}.${ext}`;
+  const { error } = await sb.storage.from('post-images').upload(path, file);
+  if (error) { console.error('이미지 업로드 실패:', error); return null; }
+  const { data } = sb.storage.from('post-images').getPublicUrl(path);
+  return data.publicUrl;
+}
+
+async function savePost() {
+  const content = document.getElementById('post-content').value.trim();
+  if (!content && !state.selectedPhoto) return;
+
+  document.getElementById('compose-post-btn').disabled = true;
+  document.getElementById('compose-post-btn').textContent = '게시 중...';
+
+  let imageUrl = null;
+  if (state.selectedPhoto) {
+    imageUrl = await uploadPhoto(state.selectedPhoto);
+  }
+
   const { error } = await sb.from('posts').insert({
     user_id: state.user.id,
-    content: content.trim(),
+    content: content || '',
+    image_url: imageUrl,
   });
+
   if (error) {
-    console.error('게시물 추가 실패:', error);
-    alert('게시물 추가에 실패했습니다: ' + error.message);
+    console.error('게시 실패:', error);
+    alert('게시 실패: ' + error.message);
+    document.getElementById('compose-post-btn').disabled = false;
+    document.getElementById('compose-post-btn').textContent = '게시';
     return;
   }
+
   await loadPosts();
   renderPosts();
-  closeModal('modal-add-post');
+  closeCompose();
 }
 
 async function toggleLike(postId) {
@@ -262,8 +235,19 @@ async function toggleLike(postId) {
     post.likes_count = (post.likes_count || 0) + 1;
     await sb.from('post_likes').insert({ post_id: postId, user_id: state.user.id });
   }
-
   await sb.from('posts').update({ likes_count: post.likes_count }).eq('id', postId);
+  renderPosts();
+}
+
+async function deletePost(postId) {
+  if (!confirm('게시물을 삭제할까요?')) return;
+  const post = state.posts.find(p => p.id === postId);
+  if (post?.image_url) {
+    const path = post.image_url.split('/post-images/')[1];
+    if (path) await sb.storage.from('post-images').remove([path]);
+  }
+  await sb.from('posts').delete().eq('id', postId).eq('user_id', state.user.id);
+  state.posts = state.posts.filter(p => p.id !== postId);
   renderPosts();
 }
 
@@ -271,12 +255,9 @@ async function saveProfile() {
   const username = document.getElementById('edit-username').value.trim();
   const bio = document.getElementById('edit-bio').value.trim();
   if (!username) return;
-
-  const { error } = await sb
-    .from('profiles')
+  const { error } = await sb.from('profiles')
     .update({ username, bio, updated_at: new Date().toISOString() })
     .eq('id', state.user.id);
-
   if (!error) {
     state.profile = { ...state.profile, username, bio };
     renderProfile();
@@ -292,22 +273,15 @@ async function calcStreak() {
     .eq('user_id', state.user.id)
     .eq('is_complete', true)
     .order('log_date', { ascending: false });
-
-  if (!logs || logs.length === 0) {
-    state.streak = 0;
-    return;
-  }
-
+  if (!logs || logs.length === 0) { state.streak = 0; return; }
   const dates = new Set(logs.map(l => l.log_date));
   let streak = 0;
   const check = new Date();
   check.setHours(0, 0, 0, 0);
-
   while (dates.has(fmtDate(check))) {
     streak++;
     check.setDate(check.getDate() - 1);
   }
-
   state.streak = streak;
 }
 
@@ -324,51 +298,27 @@ function renderAll() {
 function updateHeaderMonth() {
   const d = state.selectedDate;
   const months = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
-  document.getElementById('header-month').textContent =
-    `${d.getFullYear()}년 ${months[d.getMonth()]}`;
+  document.getElementById('header-month').textContent = `${d.getFullYear()}년 ${months[d.getMonth()]}`;
 }
 
 function renderCalendar() {
   const container = document.getElementById('week-days');
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const sel = new Date(state.selectedDate);
-  sel.setHours(0, 0, 0, 0);
-
-  // 선택된 날짜 기준 주의 월요일 계산
+  const today = new Date(); today.setHours(0,0,0,0);
+  const sel = new Date(state.selectedDate); sel.setHours(0,0,0,0);
   const dow = sel.getDay();
   const diff = dow === 0 ? -6 : 1 - dow;
-  const monday = new Date(sel);
-  monday.setDate(sel.getDate() + diff);
-
+  const monday = new Date(sel); monday.setDate(sel.getDate() + diff);
   const dayNames = ['월','화','수','목','금','토','일'];
   container.innerHTML = '';
-
   for (let i = 0; i < 7; i++) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    d.setHours(0, 0, 0, 0);
-
+    const d = new Date(monday); d.setDate(monday.getDate() + i); d.setHours(0,0,0,0);
     const isToday = d.getTime() === today.getTime();
     const isSelected = d.getTime() === sel.getTime();
-    const dayNum = d.getDay(); // 0=일
-    const hasRoutine = state.routines.some(
-      r => r.days_of_week && r.days_of_week.includes(dayNum)
-    );
-
+    const dayNum = d.getDay();
+    const hasRoutine = state.routines.some(r => r.days_of_week?.includes(dayNum));
     const col = document.createElement('div');
-    col.className = [
-      'day-col',
-      isToday ? 'today' : '',
-      isSelected ? 'selected' : '',
-      hasRoutine ? 'has-routine' : '',
-    ].filter(Boolean).join(' ');
-
-    col.innerHTML = `
-      <span class="day-name">${dayNames[i]}</span>
-      <div class="day-num">${d.getDate()}</div>
-      <div class="day-dot"></div>
-    `;
+    col.className = ['day-col', isToday ? 'today' : '', isSelected ? 'selected' : '', hasRoutine ? 'has-routine' : ''].filter(Boolean).join(' ');
+    col.innerHTML = `<span class="day-name">${dayNames[i]}</span><div class="day-num">${d.getDate()}</div><div class="day-dot"></div>`;
     col.addEventListener('click', () => selectDate(new Date(d)));
     container.appendChild(col);
   }
@@ -385,133 +335,90 @@ async function selectDate(date) {
 function renderRoutineList() {
   const container = document.getElementById('routine-list');
   if (!container) return;
-
   const dow = state.selectedDate.getDay();
-  // 운동 탭 = exercise, 식단 탭 = diet 필터
-  const typeFilter = state.innerTab === 'todo' ? 'diet' : 'exercise';
+  const typeFilter = state.innerTab === 'diet' ? 'diet' : 'exercise';
   const dayRoutines = state.routines.filter(
-    r => r.days_of_week && r.days_of_week.includes(dow) && r.type === typeFilter
+    r => r.days_of_week?.includes(dow) && r.type === typeFilter
   );
 
   if (dayRoutines.length === 0) {
     const label = typeFilter === 'exercise' ? '운동' : '식단';
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">${typeFilter === 'exercise' ? '💪' : '🥗'}</div>
-        <p>오늘 ${label} 루틴이 없어요<br>+ 버튼으로 추가해보세요!</p>
-      </div>`;
+    const icon = typeFilter === 'exercise' ? '💪' : '🥗';
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">${icon}</div><p>오늘 ${label} 루틴이 없어요<br>+ 버튼으로 추가해보세요!</p></div>`;
     return;
   }
 
   const allDone = dayRoutines.every(r => state.routineLogs[r.id] === true);
-  if (allDone) {
-    container.innerHTML = `
-      <div class="clear-state">
-        <div class="clear-icon">😊</div>
-        <h3>클리어🎉</h3>
-        <p>내일도 화이팅이에요!</p>
-      </div>`;
-    return;
-  }
+  const clearBanner = allDone
+    ? `<div class="clear-banner"><div class="clear-banner-icon">😊</div><div class="clear-banner-text"><h4>클리어🎉</h4><p>내일도 화이팅이에요!</p></div></div>`
+    : '';
 
-  container.innerHTML = dayRoutines.map(r => buildRoutineCard(r)).join('');
+  container.innerHTML = clearBanner + dayRoutines.map(r => buildRoutineCard(r)).join('');
 }
 
 function buildRoutineCard(routine) {
   const isDone = state.routineLogs[routine.id] === true;
-  const items = routine.routine_items || [];
   const typeLabel = routine.type === 'exercise' ? '운동' : '식단';
   const typeClass = routine.type === 'exercise' ? 'exercise' : 'diet';
-
-  const itemsHtml = items.length > 0 ? `
-    <div class="routine-items-section">
-      ${items.map(item => {
-        const detail = routine.type === 'exercise'
-          ? [
-              item.sets ? `${item.sets}세트` : '',
-              item.reps ? `${item.reps}회` : '',
-              item.weight ? `${item.weight}kg` : '',
-            ].filter(Boolean).join(' · ')
-          : [
-              item.calories ? `${item.calories}kcal` : '',
-              item.protein ? `단백질 ${item.protein}g` : '',
-            ].filter(Boolean).join(' · ');
-        return `
-          <div class="routine-item-row">
-            <span class="item-name-text${isDone ? ' done' : ''}">${escHtml(item.name)}</span>
-            ${detail ? `<span class="item-detail">${detail}</span>` : ''}
-          </div>`;
-      }).join('')}
-    </div>` : '';
+  const mealBadge = routine.meal_time ? `<span class="meal-badge">${routine.meal_time}</span>` : '';
 
   return `
     <div class="routine-card">
       <div class="routine-card-header">
-        <button class="routine-check${isDone ? ' checked' : ''}"
-                onclick="toggleRoutineComplete('${routine.id}')">
+        <button class="routine-check${isDone ? ' checked' : ''}" onclick="toggleRoutineComplete('${routine.id}')">
           ${isDone ? '✓' : ''}
         </button>
         <div class="routine-card-info">
           <div class="routine-card-name${isDone ? ' done' : ''}">${escHtml(routine.name)}</div>
-          ${items.length > 0 ? `<div class="routine-card-meta">${items.length}개 항목</div>` : ''}
         </div>
-        <span class="type-badge ${typeClass}">${typeLabel}</span>
-        <button class="delete-btn" onclick="deleteRoutine('${routine.id}')"
-                title="루틴 삭제">−</button>
+        <span class="type-badge ${typeClass}">${typeLabel}${mealBadge}</span>
+        <button class="delete-btn" onclick="deleteRoutine('${routine.id}')">−</button>
       </div>
-      ${itemsHtml}
     </div>`;
 }
 
 function renderPosts() {
   const container = document.getElementById('posts-list');
   if (!container) return;
-
   if (state.posts.length === 0) {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">💬</div>
-        <p>아직 게시물이 없어요<br>첫 게시물을 작성해보세요!</p>
-      </div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">💬</div><p>아직 게시물이 없어요<br>첫 게시물을 작성해보세요!</p></div>`;
     return;
   }
-
   container.innerHTML = state.posts.map(post => {
     const username = post.profiles?.username || '익명';
     const initial = username.charAt(0).toUpperCase();
+    const avatarUrl = post.profiles?.avatar_url;
     const liked = state.postLikes.has(post.id);
     const timeAgo = getTimeAgo(new Date(post.created_at));
     const isOwn = state.user && post.user_id === state.user.id;
-
+    const avatarHtml = avatarUrl
+      ? `<img src="${avatarUrl}" class="avatar" style="object-fit:cover" alt="">`
+      : `<div class="avatar">${initial}</div>`;
+    const imageHtml = post.image_url
+      ? `<img src="${post.image_url}" class="post-image" alt="게시물 이미지">`
+      : '';
+    const contentHtml = post.content
+      ? `<p class="post-content">${escHtml(post.content)}</p>`
+      : '';
     return `
       <div class="post-card">
         <div class="post-header">
-          <div class="avatar">${initial}</div>
+          ${avatarHtml}
           <div class="post-user-info">
             <div class="post-username">${escHtml(username)}</div>
             <div class="post-time">${timeAgo}</div>
           </div>
-          ${isOwn ? `
-            <button class="icon-btn small" onclick="deletePost('${post.id}')" style="color:#9ca3af">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6l-1 14H6L5 6"/>
-                <path d="M10 11v6M14 11v6"/>
-              </svg>
-            </button>` : ''}
+          ${isOwn ? `<button class="icon-btn small" onclick="deletePost('${post.id}')" style="color:#9ca3af"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>` : ''}
         </div>
-        <p class="post-content">${escHtml(post.content)}</p>
+        ${imageHtml}
+        ${contentHtml}
         <div class="post-actions">
           <button class="post-action-btn${liked ? ' liked' : ''}" onclick="toggleLike('${post.id}')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="${liked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2">
-              <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/>
-            </svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="${liked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
             ${post.likes_count || 0}
           </button>
           <button class="post-action-btn">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>
-            </svg>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             ${post.comments_count || 0}
           </button>
         </div>
@@ -519,58 +426,36 @@ function renderPosts() {
   }).join('');
 }
 
-async function deletePost(postId) {
-  if (!confirm('게시물을 삭제할까요?')) return;
-  await sb.from('posts').delete().eq('id', postId).eq('user_id', state.user.id);
-  state.posts = state.posts.filter(p => p.id !== postId);
-  renderPosts();
-}
-
 function renderProfile() {
   const container = document.getElementById('profile-content');
   if (!container || !state.profile) return;
-
   const p = state.profile;
   const username = p.username || '사용자';
   const initial = username.charAt(0).toUpperCase();
   const bio = p.bio || '한 줄 소개를 작성해주세요';
   const totalRoutines = state.routines.length;
   const completedToday = Object.values(state.routineLogs).filter(Boolean).length;
+  const avatarHtml = p.avatar_url
+    ? `<img src="${p.avatar_url}" class="profile-img" alt="">`
+    : `<div class="profile-avatar">${initial}</div>`;
 
   container.innerHTML = `
     <div class="profile-card">
-      <div class="profile-avatar">${initial}</div>
+      ${avatarHtml}
       <div class="profile-username">${escHtml(username)}</div>
       <p class="profile-bio">${escHtml(bio)}</p>
     </div>
     <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-value">🔥 ${state.streak}</div>
-        <div class="stat-label">연속 달성</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${totalRoutines}</div>
-        <div class="stat-label">총 루틴</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${completedToday}</div>
-        <div class="stat-label">오늘 완료</div>
-      </div>
+      <div class="stat-card"><div class="stat-value">🔥 ${state.streak}</div><div class="stat-label">연속 달성</div></div>
+      <div class="stat-card"><div class="stat-value">${totalRoutines}</div><div class="stat-label">총 루틴</div></div>
+      <div class="stat-card"><div class="stat-value">${completedToday}</div><div class="stat-label">오늘 완료</div></div>
     </div>
     <div class="menu-list">
       <div class="menu-item" onclick="openEditProfileModal()">
-        <div class="menu-item-icon">✏️</div>
-        <span class="menu-item-label">프로필 수정</span>
-        <span class="menu-item-arrow">›</span>
-      </div>
-      <div class="menu-item" onclick="switchPage('routine', document.querySelector('[data-page=routine]'))">
-        <div class="menu-item-icon">💪</div>
-        <span class="menu-item-label">내 루틴 보기</span>
-        <span class="menu-item-arrow">›</span>
+        <div class="menu-item-icon">✏️</div><span class="menu-item-label">프로필 수정</span><span class="menu-item-arrow">›</span>
       </div>
       <div class="menu-item danger" onclick="handleSignOut()">
-        <div class="menu-item-icon">🚪</div>
-        <span class="menu-item-label">로그아웃</span>
+        <div class="menu-item-icon">🚪</div><span class="menu-item-label">로그아웃</span>
       </div>
     </div>`;
 }
@@ -593,13 +478,11 @@ function showAuth() {
 }
 
 function switchPage(pageName, btn) {
-  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.page:not(.compose-page)').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
   document.getElementById(`page-${pageName}`).classList.add('active');
-
   const navBtn = btn || document.querySelector(`[data-page="${pageName}"]`);
   if (navBtn) navBtn.classList.add('active');
-
   if (pageName === 'community') renderPosts();
   if (pageName === 'my') renderProfile();
 }
@@ -611,6 +494,78 @@ function switchInnerTab(tab, btn) {
   renderRoutineList();
 }
 
+// ── 글쓰기 페이지 ──
+function openCompose() {
+  state.selectedPhoto = null;
+  document.getElementById('post-content').value = '';
+  document.getElementById('photo-preview').classList.add('hidden');
+  document.getElementById('photo-preview').innerHTML = '';
+  document.getElementById('compose-post-btn').disabled = true;
+  document.getElementById('compose-post-btn').textContent = '게시';
+
+  const name = state.profile?.username || '사용자';
+  document.getElementById('compose-username').textContent = name;
+
+  const avatarEl = document.getElementById('compose-avatar');
+  if (state.profile?.avatar_url) {
+    avatarEl.style.backgroundImage = `url(${state.profile.avatar_url})`;
+    avatarEl.style.backgroundSize = 'cover';
+    avatarEl.textContent = '';
+  } else {
+    avatarEl.textContent = name.charAt(0).toUpperCase();
+  }
+
+  const composePage = document.getElementById('page-compose');
+  composePage.classList.remove('hidden-page');
+  composePage.classList.add('active');
+  document.querySelector('.bottom-nav').style.display = 'none';
+  document.getElementById('post-content').focus();
+}
+
+function closeCompose() {
+  const composePage = document.getElementById('page-compose');
+  composePage.classList.remove('active');
+  composePage.classList.add('hidden-page');
+  document.querySelector('.bottom-nav').style.display = '';
+  state.selectedPhoto = null;
+}
+
+function onComposeInput(textarea) {
+  const btn = document.getElementById('compose-post-btn');
+  btn.disabled = !textarea.value.trim() && !state.selectedPhoto;
+  // 자동 높이 조절
+  textarea.style.height = 'auto';
+  textarea.style.height = textarea.scrollHeight + 'px';
+}
+
+function handlePhotoSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  state.selectedPhoto = file;
+
+  const preview = document.getElementById('photo-preview');
+  const reader = new FileReader();
+  reader.onload = e => {
+    preview.classList.remove('hidden');
+    preview.innerHTML = `
+      <img src="${e.target.result}" alt="미리보기">
+      <button class="photo-remove" onclick="removePhoto()">✕</button>`;
+    document.getElementById('compose-post-btn').disabled = false;
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+function removePhoto() {
+  state.selectedPhoto = null;
+  const preview = document.getElementById('photo-preview');
+  preview.classList.add('hidden');
+  preview.innerHTML = '';
+  const content = document.getElementById('post-content').value.trim();
+  document.getElementById('compose-post-btn').disabled = !content;
+}
+
+// ── 모달 ──
 function togglePeriodMenu() {
   state.periodMenuOpen = !state.periodMenuOpen;
   document.getElementById('period-menu').classList.toggle('hidden', !state.periodMenuOpen);
@@ -622,46 +577,48 @@ function setPeriod(label) {
   state.periodMenuOpen = false;
 }
 
-// 외부 클릭 시 period 메뉴 닫기
 document.addEventListener('click', e => {
-  if (state.periodMenuOpen && !e.target.closest('.toolbar-left')) {
+  if (state.periodMenuOpen && !e.target.closest('.routine-toolbar')) {
     document.getElementById('period-menu').classList.add('hidden');
     state.periodMenuOpen = false;
   }
 });
 
-// ── 모달 ──
-function openModal(id) {
-  document.getElementById(id).classList.remove('hidden');
-}
-
-function closeModal(id) {
-  document.getElementById(id).classList.add('hidden');
-}
-
-function handleOverlayClick(e, id) {
-  if (e.target === e.currentTarget) closeModal(id);
-}
+function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function handleOverlayClick(e, id) { if (e.target === e.currentTarget) closeModal(id); }
 
 function openAddRoutineModal() {
   document.getElementById('routine-name').value = '';
-  // 현재 탭에 맞게 종류 기본값 설정
-  const defaultType = state.innerTab === 'todo' ? 'diet' : 'exercise';
+  const defaultType = state.innerTab === 'diet' ? 'diet' : 'exercise';
   document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
   document.querySelector(`.type-btn[data-type="${defaultType}"]`).classList.add('active');
   document.querySelectorAll('.day-btn').forEach(b => {
     const d = parseInt(b.dataset.day);
     b.classList.toggle('active', d >= 1 && d <= 5);
   });
+  // 식사시간 그룹 표시 여부
+  document.getElementById('meal-time-group').style.display =
+    defaultType === 'diet' ? '' : 'none';
+  // 식사시간 초기화
+  document.querySelectorAll('.meal-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
   openModal('modal-add-routine');
 }
 
-function openAddPostModal() {
-  document.getElementById('post-content').value = '';
-  const name = state.profile?.username || '사용자';
-  document.getElementById('post-author-name').textContent = name;
-  document.getElementById('post-author-avatar').textContent = name.charAt(0).toUpperCase();
-  openModal('modal-add-post');
+function selectType(btn) {
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const isDiet = btn.dataset.type === 'diet';
+  document.getElementById('meal-time-group').style.display = isDiet ? '' : 'none';
+}
+
+function toggleDay(btn) {
+  btn.classList.toggle('active');
+}
+
+function toggleMeal(btn) {
+  document.querySelectorAll('.meal-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
 }
 
 function openEditProfileModal() {
@@ -670,75 +627,24 @@ function openEditProfileModal() {
   openModal('modal-edit-profile');
 }
 
-function selectType(btn) {
-  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  // 항목 입력 폼 다시 그리기 (타입 변경 시 필드 바뀜)
-  document.getElementById('routine-items-list').innerHTML = '';
-  state.itemCount = 0;
-}
-
-function addRoutineItemRow() {
-  const id = `item-${++state.itemCount}`;
-  const type = document.querySelector('.type-btn.active')?.dataset.type || 'exercise';
-  const isExercise = type === 'exercise';
-
-  const div = document.createElement('div');
-  div.className = 'routine-item-form';
-  div.id = id;
-  div.innerHTML = `
-    <div class="item-inputs">
-      <input type="text" placeholder="${isExercise ? '운동 이름 (예: 스쿼트)' : '음식 이름 (예: 닭가슴살)'}"
-             class="item-name-input">
-      ${isExercise ? `
-        <div class="item-row-extra">
-          <input type="number" placeholder="세트 수" class="item-sets" min="1">
-          <input type="number" placeholder="횟수" class="item-reps" min="1">
-        </div>
-        <input type="number" placeholder="무게 kg (선택)" class="item-weight" min="0" step="0.5">
-      ` : `
-        <div class="item-row-extra">
-          <input type="number" placeholder="칼로리 kcal" class="item-calories" min="0">
-          <input type="number" placeholder="단백질 g" class="item-protein" min="0">
-        </div>
-      `}
-    </div>
-    <button class="remove-item-btn" onclick="document.getElementById('${id}').remove()">−</button>`;
-  document.getElementById('routine-items-list').appendChild(div);
-}
-
 async function saveRoutine() {
   const name = document.getElementById('routine-name').value.trim();
-  if (!name) {
-    alert('루틴 이름을 입력해주세요.');
-    return;
-  }
-
+  if (!name) { alert('루틴 이름을 입력해주세요.'); return; }
   const type = document.querySelector('.type-btn.active')?.dataset.type || 'exercise';
   const days = Array.from(document.querySelectorAll('.day-btn.active'))
     .map(b => parseInt(b.dataset.day));
-
-  if (days.length === 0) {
-    alert('요일을 하나 이상 선택해주세요.');
-    return;
-  }
-
+  if (days.length === 0) { alert('요일을 하나 이상 선택해주세요.'); return; }
+  const mealTime = type === 'diet'
+    ? (document.querySelector('.meal-btn.active')?.dataset.meal || null)
+    : null;
   closeModal('modal-add-routine');
-  await addRoutine({ name, type, days });
-}
-
-async function savePost() {
-  const content = document.getElementById('post-content').value;
-  await addPost(content);
+  await addRoutine({ name, type, days, mealTime });
 }
 
 // ── 유틸 ──
 function fmtDate(date) {
   const d = new Date(date);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
 function getTimeAgo(date) {
@@ -759,5 +665,10 @@ function escHtml(str) {
   return d.innerHTML;
 }
 
-// ── 앱 시작 ──
+// meal-btn 클릭 이벤트 위임
+document.addEventListener('click', e => {
+  const btn = e.target.closest('.meal-btn');
+  if (btn) toggleMeal(btn);
+});
+
 init();
