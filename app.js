@@ -1,62 +1,61 @@
-// ── Supabase 설정 ──
 const SUPABASE_URL = 'https://myficrjdmqbtsgmdxtiu.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15ZmljcmpkbXFidHNnbWR4dGl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODY4OTEsImV4cCI6MjA5MTU2Mjg5MX0.G2-_UEqO12SqxELdkZScvrdcYBNPW1gusEBA0ZW6smc';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-// ── 앱 상태 ──
 const state = {
-  user: null,
-  profile: null,
+  user: null, profile: null,
   selectedDate: new Date(),
-  routines: [],
-  routineLogs: {},
-  posts: [],
-  postLikes: new Set(),
-  streak: 0,
-  innerTab: 'exercise',
-  periodMenuOpen: false,
+  routines: [], routineLogs: {},
+  posts: [], postLikes: new Set(),
+  streak: 0, innerTab: 'exercise',
+  periodMenuOpen: false, currentPeriod: '하루',
   selectedPhoto: null,
+  categories: [], selectedCategoryId: null, composeCategoryId: null,
+  editingRoutineId: null,
+  pickerYear: new Date().getFullYear(), pickerMonth: new Date().getMonth(),
 };
 
-// ── 초기화 ──
 async function init() {
-  // OAuth 리다이렉트 처리
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     state.user = session.user;
+    cleanOAuthHash();
     await loadAll();
     showApp();
   } else {
     showAuth();
   }
-
   sb.auth.onAuthStateChange(async (event, session) => {
-    if ((event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') && session) {
+    if (event === 'SIGNED_IN' && session && !state.user) {
       state.user = session.user;
+      cleanOAuthHash();
       await loadAll();
       showApp();
+    } else if (event === 'TOKEN_REFRESHED' && session) {
+      state.user = session.user;
     } else if (event === 'SIGNED_OUT') {
-      state.user = null;
-      state.profile = null;
+      state.user = null; state.profile = null;
       showAuth();
     }
   });
 }
 
-// ── Google 로그인 ──
-async function signInWithGoogle() {
-  const { error } = await sb.auth.signInWithOAuth({
-    provider: 'google',
-    options: { redirectTo: window.location.href },
-  });
-  if (error) {
-    document.getElementById('auth-error').textContent = '로그인 실패: ' + error.message;
+function cleanOAuthHash() {
+  if (window.location.hash && window.location.hash.includes('access_token')) {
+    window.history.replaceState({}, '', window.location.pathname);
   }
 }
 
-// ── 데이터 로딩 ──
+async function signInWithGoogle() {
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: window.location.origin + window.location.pathname },
+  });
+  if (error) document.getElementById('auth-error').textContent = '로그인 실패: ' + error.message;
+}
+
 async function loadAll() {
-  await Promise.all([loadProfile(), loadRoutines(), loadPosts()]);
+  await Promise.all([loadProfile(), loadRoutines(), loadPosts(), loadCategories()]);
   await loadRoutineLogsForDate(state.selectedDate);
   await calcStreak();
 }
@@ -65,18 +64,9 @@ async function loadProfile() {
   if (!state.user) return;
   let { data } = await sb.from('profiles').select('*').eq('id', state.user.id).single();
   if (!data) {
-    const username =
-      state.user.user_metadata?.full_name ||
-      state.user.user_metadata?.name ||
-      state.user.email?.split('@')[0] ||
-      '사용자';
-    const avatar_url = state.user.user_metadata?.avatar_url || null;
+    const username = state.user.user_metadata?.full_name || state.user.user_metadata?.name || state.user.email?.split('@')[0] || '사용자';
     const { data: created } = await sb.from('profiles').upsert({
-      id: state.user.id,
-      username,
-      full_name: username,
-      bio: '',
-      avatar_url,
+      id: state.user.id, username, full_name: username, bio: '', avatar_url: state.user.user_metadata?.avatar_url || null,
     }).select().single();
     data = created;
   }
@@ -85,24 +75,29 @@ async function loadProfile() {
 
 async function loadRoutines() {
   if (!state.user) return;
-  const { data } = await sb
-    .from('routines')
-    .select('*, routine_items(*)')
-    .eq('user_id', state.user.id)
-    .eq('is_active', true)
-    .order('created_at');
+  const { data } = await sb.from('routines').select('*').eq('user_id', state.user.id).eq('is_active', true).order('order_index').order('created_at');
   state.routines = data || [];
 }
 
 async function loadRoutineLogsForDate(date) {
   if (!state.user) return;
-  const { data } = await sb
-    .from('routine_logs')
-    .select('*')
-    .eq('user_id', state.user.id)
-    .eq('log_date', fmtDate(date));
+  const { data } = await sb.from('routine_logs').select('*').eq('user_id', state.user.id).eq('log_date', fmtDate(date));
   state.routineLogs = {};
   (data || []).forEach(log => { state.routineLogs[log.routine_id] = log.is_complete; });
+}
+
+async function loadPosts() {
+  const { data } = await sb.from('posts').select('*, profiles(username, avatar_url), categories(name)').order('created_at', { ascending: false }).limit(50);
+  state.posts = data || [];
+  if (state.user) {
+    const { data: likes } = await sb.from('post_likes').select('post_id').eq('user_id', state.user.id);
+    state.postLikes = new Set((likes || []).map(l => l.post_id));
+  }
+}
+
+async function loadCategories() {
+  const { data } = await sb.from('categories').select('*').order('order_index').order('name');
+  state.categories = data || [];
 }
 
 async function toggleRoutineComplete(routineId) {
@@ -110,46 +105,34 @@ async function toggleRoutineComplete(routineId) {
   const isComplete = !wasComplete;
   state.routineLogs[routineId] = isComplete;
   renderRoutineList();
-
-  const { error } = await sb.from('routine_logs').upsert(
-    {
-      user_id: state.user.id,
-      routine_id: routineId,
-      log_date: fmtDate(state.selectedDate),
-      is_complete: isComplete,
-      completed_at: isComplete ? new Date().toISOString() : null,
-    },
-    { onConflict: 'user_id,routine_id,log_date' }
-  );
-
-  if (error) {
-    state.routineLogs[routineId] = wasComplete;
-    renderRoutineList();
-  } else {
-    await calcStreak();
-    document.getElementById('streak-count').textContent = state.streak;
-  }
+  const { error } = await sb.from('routine_logs').upsert({
+    user_id: state.user.id, routine_id: routineId,
+    log_date: fmtDate(state.selectedDate), is_complete: isComplete,
+    completed_at: isComplete ? new Date().toISOString() : null,
+  }, { onConflict: 'user_id,routine_id,log_date' });
+  if (error) { state.routineLogs[routineId] = wasComplete; renderRoutineList(); }
+  else { await calcStreak(); document.getElementById('streak-count').textContent = state.streak; }
 }
 
-async function addRoutine(routineData) {
-  const { data: routine, error } = await sb
-    .from('routines')
-    .insert({
-      user_id: state.user.id,
-      name: routineData.name,
-      type: routineData.type,
-      days_of_week: routineData.days,
-      meal_time: routineData.mealTime || null,
-    })
-    .select()
-    .single();
+async function addRoutine(data) {
+  const maxOrder = state.routines.filter(r => r.type === data.type).reduce((m, r) => Math.max(m, r.order_index || 0), -1);
+  const { error } = await sb.from('routines').insert({
+    user_id: state.user.id, name: data.name, type: data.type,
+    days_of_week: data.days, meal_time: data.mealTime || null,
+    time_of_day: data.timeOfDay || null, order_index: maxOrder + 1,
+  });
+  if (error) { alert('루틴 추가 실패: ' + error.message); return; }
+  await loadRoutines();
+  renderCalendar();
+  renderRoutineList();
+}
 
-  if (error) {
-    console.error('루틴 추가 실패:', error);
-    alert('루틴 추가 실패: ' + error.message);
-    return;
-  }
-
+async function updateRoutine(routineId, data) {
+  const { error } = await sb.from('routines').update({
+    name: data.name, type: data.type, days_of_week: data.days,
+    meal_time: data.mealTime || null, time_of_day: data.timeOfDay || null,
+  }).eq('id', routineId);
+  if (error) { alert('수정 실패: ' + error.message); return; }
   await loadRoutines();
   renderCalendar();
   renderRoutineList();
@@ -157,28 +140,12 @@ async function addRoutine(routineData) {
 
 async function deleteRoutine(routineId) {
   if (!confirm('이 루틴을 삭제할까요?')) return;
+  closeAllSwipes();
   await sb.from('routines').update({ is_active: false }).eq('id', routineId);
   state.routines = state.routines.filter(r => r.id !== routineId);
   delete state.routineLogs[routineId];
   renderCalendar();
   renderRoutineList();
-}
-
-async function loadPosts() {
-  const { data } = await sb
-    .from('posts')
-    .select('*, profiles(username, avatar_url)')
-    .order('created_at', { ascending: false })
-    .limit(50);
-  state.posts = data || [];
-
-  if (state.user) {
-    const { data: likes } = await sb
-      .from('post_likes')
-      .select('post_id')
-      .eq('user_id', state.user.id);
-    state.postLikes = new Set((likes || []).map(l => l.post_id));
-  }
 }
 
 async function uploadPhoto(file) {
@@ -193,39 +160,34 @@ async function uploadPhoto(file) {
 async function savePost() {
   const content = document.getElementById('post-content').value.trim();
   if (!content && !state.selectedPhoto) return;
-
-  document.getElementById('compose-post-btn').disabled = true;
-  document.getElementById('compose-post-btn').textContent = '게시 중...';
-
-  let imageUrl = null;
-  if (state.selectedPhoto) {
-    imageUrl = await uploadPhoto(state.selectedPhoto);
+  const btn = document.getElementById('compose-post-btn');
+  btn.disabled = true;
+  btn.textContent = '게시 중...';
+  try {
+    let imageUrl = null;
+    if (state.selectedPhoto) imageUrl = await uploadPhoto(state.selectedPhoto);
+    const { error } = await sb.from('posts').insert({
+      user_id: state.user.id, content: content || '',
+      image_url: imageUrl, category_id: state.composeCategoryId || null,
+    });
+    if (error) throw error;
+    await loadPosts();
+    closeCompose();
+    switchPage('community', document.querySelector('[data-page="community"]'));
+    renderPosts();
+  } catch (err) {
+    console.error('게시 실패:', err);
+    alert('게시 실패: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = '게시';
   }
-
-  const { error } = await sb.from('posts').insert({
-    user_id: state.user.id,
-    content: content || '',
-    image_url: imageUrl,
-  });
-
-  if (error) {
-    console.error('게시 실패:', error);
-    alert('게시 실패: ' + error.message);
-    document.getElementById('compose-post-btn').disabled = false;
-    document.getElementById('compose-post-btn').textContent = '게시';
-    return;
-  }
-
-  await loadPosts();
-  renderPosts();
-  closeCompose();
 }
 
 async function toggleLike(postId) {
+  if (!state.user) return;
   const liked = state.postLikes.has(postId);
   const post = state.posts.find(p => p.id === postId);
   if (!post) return;
-
   if (liked) {
     state.postLikes.delete(postId);
     post.likes_count = Math.max(0, (post.likes_count || 1) - 1);
@@ -255,33 +217,18 @@ async function saveProfile() {
   const username = document.getElementById('edit-username').value.trim();
   const bio = document.getElementById('edit-bio').value.trim();
   if (!username) return;
-  const { error } = await sb.from('profiles')
-    .update({ username, bio, updated_at: new Date().toISOString() })
-    .eq('id', state.user.id);
-  if (!error) {
-    state.profile = { ...state.profile, username, bio };
-    renderProfile();
-    closeModal('modal-edit-profile');
-  }
+  const { error } = await sb.from('profiles').update({ username, bio, updated_at: new Date().toISOString() }).eq('id', state.user.id);
+  if (!error) { state.profile = { ...state.profile, username, bio }; renderProfile(); closeModal('modal-edit-profile'); }
 }
 
 async function calcStreak() {
   if (!state.user) return;
-  const { data: logs } = await sb
-    .from('routine_logs')
-    .select('log_date')
-    .eq('user_id', state.user.id)
-    .eq('is_complete', true)
-    .order('log_date', { ascending: false });
-  if (!logs || logs.length === 0) { state.streak = 0; return; }
+  const { data: logs } = await sb.from('routine_logs').select('log_date').eq('user_id', state.user.id).eq('is_complete', true).order('log_date', { ascending: false });
+  if (!logs || !logs.length) { state.streak = 0; return; }
   const dates = new Set(logs.map(l => l.log_date));
   let streak = 0;
-  const check = new Date();
-  check.setHours(0, 0, 0, 0);
-  while (dates.has(fmtDate(check))) {
-    streak++;
-    check.setDate(check.getDate() - 1);
-  }
+  const check = new Date(); check.setHours(0,0,0,0);
+  while (dates.has(fmtDate(check))) { streak++; check.setDate(check.getDate() - 1); }
   state.streak = streak;
 }
 
@@ -292,6 +239,7 @@ function renderAll() {
   renderRoutineList();
   renderPosts();
   renderProfile();
+  renderCategoryPills();
   document.getElementById('streak-count').textContent = state.streak;
 }
 
@@ -317,7 +265,7 @@ function renderCalendar() {
     const dayNum = d.getDay();
     const hasRoutine = state.routines.some(r => r.days_of_week?.includes(dayNum));
     const col = document.createElement('div');
-    col.className = ['day-col', isToday ? 'today' : '', isSelected ? 'selected' : '', hasRoutine ? 'has-routine' : ''].filter(Boolean).join(' ');
+    col.className = ['day-col', isToday?'today':'', isSelected?'selected':'', hasRoutine?'has-routine':''].filter(Boolean).join(' ');
     col.innerHTML = `<span class="day-name">${dayNames[i]}</span><div class="day-num">${d.getDate()}</div><div class="day-dot"></div>`;
     col.addEventListener('click', () => selectDate(new Date(d)));
     container.appendChild(col);
@@ -335,25 +283,27 @@ async function selectDate(date) {
 function renderRoutineList() {
   const container = document.getElementById('routine-list');
   if (!container) return;
+  closeAllSwipes();
   const dow = state.selectedDate.getDay();
   const typeFilter = state.innerTab === 'diet' ? 'diet' : 'exercise';
-  const dayRoutines = state.routines.filter(
-    r => r.days_of_week?.includes(dow) && r.type === typeFilter
-  );
+  let dayRoutines = state.routines.filter(r => r.days_of_week?.includes(dow) && r.type === typeFilter);
+
+  if (state.currentPeriod !== '하루') {
+    dayRoutines = dayRoutines.filter(r => r.time_of_day === state.currentPeriod);
+  }
+
+  dayRoutines.sort((a, b) => (a.order_index ?? 999) - (b.order_index ?? 999));
 
   if (dayRoutines.length === 0) {
     const label = typeFilter === 'exercise' ? '운동' : '식단';
-    const icon = typeFilter === 'exercise' ? '💪' : '🥗';
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">${icon}</div><p>오늘 ${label} 루틴이 없어요<br>+ 버튼으로 추가해보세요!</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">${typeFilter==='exercise'?'💪':'🥗'}</div><p>오늘 ${label} 루틴이 없어요<br>+ 버튼으로 추가해보세요!</p></div>`;
     return;
   }
 
   const allDone = dayRoutines.every(r => state.routineLogs[r.id] === true);
-  const clearBanner = allDone
-    ? `<div class="clear-banner"><div class="clear-banner-icon">😊</div><div class="clear-banner-text"><h4>클리어🎉</h4><p>내일도 화이팅이에요!</p></div></div>`
-    : '';
-
+  const clearBanner = allDone ? `<div class="clear-banner"><div class="clear-banner-icon">😊</div><div class="clear-banner-text"><h4>클리어🎉</h4><p>내일도 화이팅이에요!</p></div></div>` : '';
   container.innerHTML = clearBanner + dayRoutines.map(r => buildRoutineCard(r)).join('');
+  setupSwipeAndDrag();
 }
 
 function buildRoutineCard(routine) {
@@ -361,30 +311,86 @@ function buildRoutineCard(routine) {
   const typeLabel = routine.type === 'exercise' ? '운동' : '식단';
   const typeClass = routine.type === 'exercise' ? 'exercise' : 'diet';
   const mealBadge = routine.meal_time ? `<span class="meal-badge">${routine.meal_time}</span>` : '';
+  const todBadge = routine.time_of_day ? `<span class="routine-card-meta">${routine.time_of_day}</span>` : '';
 
   return `
-    <div class="routine-card">
-      <div class="routine-card-header">
-        <button class="routine-check${isDone ? ' checked' : ''}" onclick="toggleRoutineComplete('${routine.id}')">
-          ${isDone ? '✓' : ''}
+    <div class="routine-item-wrap" data-id="${routine.id}">
+      <div class="routine-card-actions">
+        <button class="card-action-btn edit" onclick="openEditRoutineModal('${routine.id}')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          수정
         </button>
-        <div class="routine-card-info">
-          <div class="routine-card-name${isDone ? ' done' : ''}">${escHtml(routine.name)}</div>
+        <button class="card-action-btn delete" onclick="deleteRoutine('${routine.id}')">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+          삭제
+        </button>
+      </div>
+      <div class="routine-card" data-id="${routine.id}">
+        <div class="drag-handle" data-id="${routine.id}">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="8" x2="21" y2="8"/><line x1="3" y1="16" x2="21" y2="16"/></svg>
         </div>
-        <span class="type-badge ${typeClass}">${typeLabel}${mealBadge}</span>
-        <button class="delete-btn" onclick="deleteRoutine('${routine.id}')">−</button>
+        <div class="routine-card-inner">
+          <button class="routine-check${isDone?' checked':''}" onclick="toggleRoutineComplete('${routine.id}')">
+            ${isDone?'✓':''}
+          </button>
+          <div class="routine-card-info">
+            <div class="routine-card-name${isDone?' done':''}">${escHtml(routine.name)}</div>
+            ${todBadge}
+          </div>
+          <span class="type-badge ${typeClass}">${typeLabel}${mealBadge}</span>
+        </div>
       </div>
     </div>`;
+}
+
+function renderCategoryPills() {
+  const bar = document.getElementById('category-filter-bar');
+  if (!bar) return;
+  const active = state.selectedCategoryId;
+  bar.innerHTML = `<button class="cat-pill${!active?' active':''}" data-cat-id="" onclick="filterByCategory(this)">전체</button>`;
+  state.categories.forEach(c => {
+    bar.innerHTML += `<button class="cat-pill${active===c.id?' active':''}" data-cat-id="${c.id}" onclick="filterByCategory(this)">${escHtml(c.name)}</button>`;
+  });
+}
+
+function filterByCategory(btn) {
+  document.querySelectorAll('.cat-pill').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  state.selectedCategoryId = btn.dataset.catId || null;
+  renderPosts();
+}
+
+function renderComposeCategoryPills() {
+  const container = document.getElementById('compose-cat-pills');
+  if (!container) return;
+  container.innerHTML = state.categories.map(c => `
+    <button class="compose-cat-pill${state.composeCategoryId===c.id?' active':''}"
+      onclick="selectComposeCategory('${c.id}', this)">${escHtml(c.name)}</button>`).join('');
+}
+
+function selectComposeCategory(id, btn) {
+  if (state.composeCategoryId === id) {
+    state.composeCategoryId = null;
+    document.querySelectorAll('.compose-cat-pill').forEach(b => b.classList.remove('active'));
+  } else {
+    state.composeCategoryId = id;
+    document.querySelectorAll('.compose-cat-pill').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+  }
 }
 
 function renderPosts() {
   const container = document.getElementById('posts-list');
   if (!container) return;
-  if (state.posts.length === 0) {
+  let posts = state.posts;
+  if (state.selectedCategoryId) {
+    posts = posts.filter(p => p.category_id === state.selectedCategoryId);
+  }
+  if (posts.length === 0) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">💬</div><p>아직 게시물이 없어요<br>첫 게시물을 작성해보세요!</p></div>`;
     return;
   }
-  container.innerHTML = state.posts.map(post => {
+  container.innerHTML = posts.map(post => {
     const username = post.profiles?.username || '익명';
     const initial = username.charAt(0).toUpperCase();
     const avatarUrl = post.profiles?.avatar_url;
@@ -392,14 +398,11 @@ function renderPosts() {
     const timeAgo = getTimeAgo(new Date(post.created_at));
     const isOwn = state.user && post.user_id === state.user.id;
     const avatarHtml = avatarUrl
-      ? `<img src="${avatarUrl}" class="avatar" style="object-fit:cover" alt="">`
+      ? `<div class="avatar"><img src="${avatarUrl}" alt=""></div>`
       : `<div class="avatar">${initial}</div>`;
-    const imageHtml = post.image_url
-      ? `<img src="${post.image_url}" class="post-image" alt="게시물 이미지">`
-      : '';
-    const contentHtml = post.content
-      ? `<p class="post-content">${escHtml(post.content)}</p>`
-      : '';
+    const imageHtml = post.image_url ? `<img src="${post.image_url}" class="post-image" alt="">` : '';
+    const contentHtml = post.content ? `<p class="post-content">${escHtml(post.content)}</p>` : '';
+    const catHtml = post.categories?.name ? `<span class="post-cat-badge">${escHtml(post.categories.name)}</span>` : '';
     return `
       <div class="post-card">
         <div class="post-header">
@@ -408,18 +411,17 @@ function renderPosts() {
             <div class="post-username">${escHtml(username)}</div>
             <div class="post-time">${timeAgo}</div>
           </div>
-          ${isOwn ? `<button class="icon-btn small" onclick="deletePost('${post.id}')" style="color:#9ca3af"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>` : ''}
+          ${isOwn?`<button class="icon-btn small" onclick="deletePost('${post.id}')" style="color:#9ca3af"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>`:''}
         </div>
-        ${imageHtml}
-        ${contentHtml}
+        ${catHtml}${imageHtml}${contentHtml}
         <div class="post-actions">
-          <button class="post-action-btn${liked ? ' liked' : ''}" onclick="toggleLike('${post.id}')">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="${liked ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
-            ${post.likes_count || 0}
+          <button class="post-action-btn${liked?' liked':''}" onclick="toggleLike('${post.id}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="${liked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+            ${post.likes_count||0}
           </button>
           <button class="post-action-btn">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-            ${post.comments_count || 0}
+            ${post.comments_count||0}
           </button>
         </div>
       </div>`;
@@ -438,7 +440,6 @@ function renderProfile() {
   const avatarHtml = p.avatar_url
     ? `<img src="${p.avatar_url}" class="profile-img" alt="">`
     : `<div class="profile-avatar">${initial}</div>`;
-
   container.innerHTML = `
     <div class="profile-card">
       ${avatarHtml}
@@ -470,6 +471,7 @@ function showApp() {
   document.getElementById('auth-screen').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   renderAll();
+  initCalendarSwipe();
 }
 
 function showAuth() {
@@ -494,27 +496,28 @@ function switchInnerTab(tab, btn) {
   renderRoutineList();
 }
 
-// ── 글쓰기 페이지 ──
+// ── 글쓰기 ──
 function openCompose() {
   state.selectedPhoto = null;
+  state.composeCategoryId = null;
   document.getElementById('post-content').value = '';
   document.getElementById('photo-preview').classList.add('hidden');
   document.getElementById('photo-preview').innerHTML = '';
-  document.getElementById('compose-post-btn').disabled = true;
-  document.getElementById('compose-post-btn').textContent = '게시';
-
+  const btn = document.getElementById('compose-post-btn');
+  btn.disabled = true;
+  btn.textContent = '게시';
   const name = state.profile?.username || '사용자';
   document.getElementById('compose-username').textContent = name;
-
   const avatarEl = document.getElementById('compose-avatar');
   if (state.profile?.avatar_url) {
     avatarEl.style.backgroundImage = `url(${state.profile.avatar_url})`;
     avatarEl.style.backgroundSize = 'cover';
     avatarEl.textContent = '';
   } else {
+    avatarEl.style.backgroundImage = '';
     avatarEl.textContent = name.charAt(0).toUpperCase();
   }
-
+  renderComposeCategoryPills();
   const composePage = document.getElementById('page-compose');
   composePage.classList.remove('hidden-page');
   composePage.classList.add('active');
@@ -528,12 +531,12 @@ function closeCompose() {
   composePage.classList.add('hidden-page');
   document.querySelector('.bottom-nav').style.display = '';
   state.selectedPhoto = null;
+  state.composeCategoryId = null;
 }
 
 function onComposeInput(textarea) {
   const btn = document.getElementById('compose-post-btn');
   btn.disabled = !textarea.value.trim() && !state.selectedPhoto;
-  // 자동 높이 조절
   textarea.style.height = 'auto';
   textarea.style.height = textarea.scrollHeight + 'px';
 }
@@ -542,14 +545,11 @@ function handlePhotoSelect(event) {
   const file = event.target.files[0];
   if (!file) return;
   state.selectedPhoto = file;
-
   const preview = document.getElementById('photo-preview');
   const reader = new FileReader();
   reader.onload = e => {
     preview.classList.remove('hidden');
-    preview.innerHTML = `
-      <img src="${e.target.result}" alt="미리보기">
-      <button class="photo-remove" onclick="removePhoto()">✕</button>`;
+    preview.innerHTML = `<img src="${e.target.result}" alt="미리보기"><button class="photo-remove" onclick="removePhoto()">✕</button>`;
     document.getElementById('compose-post-btn').disabled = false;
   };
   reader.readAsDataURL(file);
@@ -561,20 +561,21 @@ function removePhoto() {
   const preview = document.getElementById('photo-preview');
   preview.classList.add('hidden');
   preview.innerHTML = '';
-  const content = document.getElementById('post-content').value.trim();
-  document.getElementById('compose-post-btn').disabled = !content;
+  document.getElementById('compose-post-btn').disabled = !document.getElementById('post-content').value.trim();
 }
 
-// ── 모달 ──
+// ── 모달 / 필터 ──
 function togglePeriodMenu() {
   state.periodMenuOpen = !state.periodMenuOpen;
   document.getElementById('period-menu').classList.toggle('hidden', !state.periodMenuOpen);
 }
 
 function setPeriod(label) {
+  state.currentPeriod = label;
   document.getElementById('period-label').textContent = label;
   document.getElementById('period-menu').classList.add('hidden');
   state.periodMenuOpen = false;
+  renderRoutineList();
 }
 
 document.addEventListener('click', e => {
@@ -582,6 +583,7 @@ document.addEventListener('click', e => {
     document.getElementById('period-menu').classList.add('hidden');
     state.periodMenuOpen = false;
   }
+  if (!e.target.closest('.routine-item-wrap')) closeAllSwipes();
 });
 
 function openModal(id) { document.getElementById(id).classList.remove('hidden'); }
@@ -589,35 +591,49 @@ function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 function handleOverlayClick(e, id) { if (e.target === e.currentTarget) closeModal(id); }
 
 function openAddRoutineModal() {
+  state.editingRoutineId = null;
+  document.getElementById('routine-modal-title').textContent = '루틴 추가';
   document.getElementById('routine-name').value = '';
   const defaultType = state.innerTab === 'diet' ? 'diet' : 'exercise';
   document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
   document.querySelector(`.type-btn[data-type="${defaultType}"]`).classList.add('active');
-  document.querySelectorAll('.day-btn').forEach(b => {
-    const d = parseInt(b.dataset.day);
-    b.classList.toggle('active', d >= 1 && d <= 5);
-  });
-  // 식사시간 그룹 표시 여부
-  document.getElementById('meal-time-group').style.display =
-    defaultType === 'diet' ? '' : 'none';
-  // 식사시간 초기화
-  document.querySelectorAll('.meal-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
+  document.querySelectorAll('.day-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.day) >= 1 && parseInt(b.dataset.day) <= 5));
+  document.querySelectorAll('.tod-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+  document.getElementById('meal-time-group').style.display = defaultType === 'diet' ? '' : 'none';
+  document.querySelectorAll('.meal-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+  openModal('modal-add-routine');
+}
+
+function openEditRoutineModal(routineId) {
+  const r = state.routines.find(x => x.id === routineId);
+  if (!r) return;
+  closeAllSwipes();
+  state.editingRoutineId = routineId;
+  document.getElementById('routine-modal-title').textContent = '루틴 수정';
+  document.getElementById('routine-name').value = r.name;
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === r.type));
+  document.getElementById('meal-time-group').style.display = r.type === 'diet' ? '' : 'none';
+  document.querySelectorAll('.meal-btn').forEach(b => b.classList.toggle('active', b.dataset.meal === r.meal_time));
+  document.querySelectorAll('.tod-btn').forEach(b => b.classList.toggle('active', b.dataset.tod === (r.time_of_day || '')));
+  document.querySelectorAll('.day-btn').forEach(b => b.classList.toggle('active', r.days_of_week?.includes(parseInt(b.dataset.day))));
   openModal('modal-add-routine');
 }
 
 function selectType(btn) {
   document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  const isDiet = btn.dataset.type === 'diet';
-  document.getElementById('meal-time-group').style.display = isDiet ? '' : 'none';
+  document.getElementById('meal-time-group').style.display = btn.dataset.type === 'diet' ? '' : 'none';
 }
 
-function toggleDay(btn) {
-  btn.classList.toggle('active');
-}
+function toggleDay(btn) { btn.classList.toggle('active'); }
 
 function toggleMeal(btn) {
   document.querySelectorAll('.meal-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function toggleTod(btn) {
+  document.querySelectorAll('.tod-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
 }
 
@@ -631,14 +647,231 @@ async function saveRoutine() {
   const name = document.getElementById('routine-name').value.trim();
   if (!name) { alert('루틴 이름을 입력해주세요.'); return; }
   const type = document.querySelector('.type-btn.active')?.dataset.type || 'exercise';
-  const days = Array.from(document.querySelectorAll('.day-btn.active'))
-    .map(b => parseInt(b.dataset.day));
+  const days = Array.from(document.querySelectorAll('.day-btn.active')).map(b => parseInt(b.dataset.day));
   if (days.length === 0) { alert('요일을 하나 이상 선택해주세요.'); return; }
-  const mealTime = type === 'diet'
-    ? (document.querySelector('.meal-btn.active')?.dataset.meal || null)
-    : null;
+  const mealTime = type === 'diet' ? (document.querySelector('.meal-btn.active')?.dataset.meal || null) : null;
+  const timeOfDay = document.querySelector('.tod-btn.active')?.dataset.tod || '';
   closeModal('modal-add-routine');
-  await addRoutine({ name, type, days, mealTime });
+  if (state.editingRoutineId) {
+    await updateRoutine(state.editingRoutineId, { name, type, days, mealTime, timeOfDay: timeOfDay || null });
+  } else {
+    await addRoutine({ name, type, days, mealTime, timeOfDay: timeOfDay || null });
+  }
+}
+
+// ── 월/년 피커 ──
+function openMonthPicker() {
+  state.pickerYear = state.selectedDate.getFullYear();
+  state.pickerMonth = state.selectedDate.getMonth();
+  document.getElementById('picker-year-display').textContent = state.pickerYear;
+  renderPickerMonths();
+  openModal('modal-month-picker');
+}
+
+function changePickerYear(delta) {
+  state.pickerYear += delta;
+  document.getElementById('picker-year-display').textContent = state.pickerYear;
+  renderPickerMonths();
+}
+
+function renderPickerMonths() {
+  const months = ['1월','2월','3월','4월','5월','6월','7월','8월','9월','10월','11월','12월'];
+  document.getElementById('picker-months').innerHTML = months.map((m, i) =>
+    `<button class="picker-month-btn${i===state.pickerMonth?' active':''}" onclick="selectPickerMonth(${i})">${m}</button>`
+  ).join('');
+}
+
+function selectPickerMonth(month) {
+  state.pickerMonth = month;
+  renderPickerMonths();
+}
+
+async function confirmMonthPicker() {
+  closeModal('modal-month-picker');
+  const newDate = new Date(state.selectedDate);
+  newDate.setFullYear(state.pickerYear);
+  newDate.setMonth(state.pickerMonth);
+  const daysInMonth = new Date(state.pickerYear, state.pickerMonth + 1, 0).getDate();
+  if (newDate.getDate() > daysInMonth) newDate.setDate(daysInMonth);
+  await selectDate(newDate);
+}
+
+// ── 캘린더 스와이프 ──
+function initCalendarSwipe() {
+  const cal = document.getElementById('week-calendar');
+  if (!cal) return;
+  let startX = 0, startY = 0, moved = false;
+  cal.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    moved = false;
+  }, { passive: true });
+  cal.addEventListener('touchmove', e => {
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 10) moved = true;
+  }, { passive: true });
+  cal.addEventListener('touchend', e => {
+    if (!moved) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    if (Math.abs(dx) < 40) return;
+    const newDate = new Date(state.selectedDate);
+    newDate.setDate(newDate.getDate() + (dx < 0 ? 7 : -7));
+    selectDate(newDate);
+  }, { passive: true });
+}
+
+// ── 스와이프로 수정/삭제 ──
+let activeSwipeEl = null;
+
+function closeAllSwipes() {
+  document.querySelectorAll('.routine-card.swiped').forEach(c => {
+    c.classList.remove('swiped');
+    c.style.transform = '';
+  });
+  activeSwipeEl = null;
+}
+
+function setupSwipeAndDrag() {
+  document.querySelectorAll('.routine-item-wrap').forEach(wrap => {
+    const card = wrap.querySelector('.routine-card');
+    const handle = wrap.querySelector('.drag-handle');
+    if (!card || !handle) return;
+    attachSwipe(card);
+    attachDrag(handle, wrap);
+  });
+}
+
+function attachSwipe(card) {
+  let startX = 0, startY = 0, dragging = false, isDrag = false;
+  const REVEAL = 160;
+
+  card.addEventListener('touchstart', e => {
+    if (e.target.closest('.drag-handle') || e.target.closest('.routine-check')) return;
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    dragging = false; isDrag = false;
+    card.style.transition = 'none';
+  }, { passive: true });
+
+  card.addEventListener('touchmove', e => {
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (!dragging && Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+    if (!dragging) {
+      dragging = true;
+      isDrag = Math.abs(dx) > Math.abs(dy);
+    }
+    if (!isDrag) return;
+
+    if (dx > 0 && !card.classList.contains('swiped')) return;
+    let cur = card.classList.contains('swiped') ? -REVEAL : 0;
+    cur += dx;
+    cur = Math.max(-REVEAL, Math.min(0, cur));
+    card.style.transform = `translateX(${cur}px)`;
+  }, { passive: true });
+
+  card.addEventListener('touchend', e => {
+    if (!isDrag) return;
+    const dx = e.changedTouches[0].clientX - startX;
+    card.style.transition = 'transform 0.22s ease';
+    const wasOpen = card.classList.contains('swiped');
+    if (!wasOpen && dx < -50) {
+      closeAllSwipes();
+      card.classList.add('swiped');
+      card.style.transform = `translateX(-${REVEAL}px)`;
+      activeSwipeEl = card;
+    } else if (wasOpen && dx > 50) {
+      card.classList.remove('swiped');
+      card.style.transform = '';
+      activeSwipeEl = null;
+    } else if (!wasOpen) {
+      card.style.transform = '';
+    } else {
+      card.style.transform = `translateX(-${REVEAL}px)`;
+    }
+  }, { passive: true });
+}
+
+// ── 드래그로 순서 변경 ──
+let drag = null;
+
+function attachDrag(handle, wrap) {
+  handle.addEventListener('touchstart', e => {
+    e.stopPropagation();
+    const rect = wrap.getBoundingClientRect();
+    const touchY = e.touches[0].clientY;
+    const clone = wrap.cloneNode(true);
+    Object.assign(clone.style, {
+      position:'fixed', left:rect.left+'px', top:rect.top+'px',
+      width:rect.width+'px', zIndex:'1000', pointerEvents:'none',
+      opacity:'0.9', boxShadow:'0 10px 30px rgba(0,0,0,0.2)',
+      transform:'scale(1.02)', transition:'none',
+    });
+    document.body.appendChild(clone);
+    wrap.style.opacity = '0.4';
+    drag = { wrap, clone, startY: touchY, originTop: rect.top, routineId: wrap.dataset.id, targetIndex: -1 };
+    document.addEventListener('touchmove', onDragMove, { passive: false });
+    document.addEventListener('touchend', onDragEnd);
+  }, { passive: true });
+}
+
+function onDragMove(e) {
+  if (!drag) return;
+  e.preventDefault();
+  const dy = e.touches[0].clientY - drag.startY;
+  drag.clone.style.top = (drag.originTop + dy) + 'px';
+  const items = Array.from(document.querySelectorAll('.routine-item-wrap')).filter(el => el !== drag.wrap);
+  const centerY = drag.originTop + dy + drag.clone.offsetHeight / 2;
+  let targetIndex = items.length;
+  for (let i = 0; i < items.length; i++) {
+    const r = items[i].getBoundingClientRect();
+    if (centerY < r.top + r.height / 2) { targetIndex = i; break; }
+  }
+  drag.targetIndex = targetIndex;
+  document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
+  const indicator = document.createElement('div');
+  indicator.className = 'drag-placeholder';
+  const list = document.getElementById('routine-list');
+  const ref = items[targetIndex];
+  if (ref) list.insertBefore(indicator, ref.closest ? ref : ref);
+  else list.appendChild(indicator);
+}
+
+async function onDragEnd() {
+  if (!drag) return;
+  document.removeEventListener('touchmove', onDragMove);
+  document.removeEventListener('touchend', onDragEnd);
+  document.querySelectorAll('.drag-placeholder').forEach(el => el.remove());
+  drag.clone.remove();
+  drag.wrap.style.opacity = '';
+
+  const typeFilter = state.innerTab === 'diet' ? 'diet' : 'exercise';
+  const dow = state.selectedDate.getDay();
+  let dayRoutines = state.routines
+    .filter(r => r.days_of_week?.includes(dow) && r.type === typeFilter)
+    .sort((a,b) => (a.order_index??999)-(b.order_index??999));
+
+  const fromIndex = dayRoutines.findIndex(r => r.id === drag.routineId);
+  let toIndex = drag.targetIndex;
+  if (fromIndex === -1 || fromIndex === toIndex) { drag = null; renderRoutineList(); return; }
+
+  dayRoutines.splice(fromIndex, 1);
+  if (toIndex > fromIndex) toIndex--;
+  toIndex = Math.max(0, Math.min(toIndex, dayRoutines.length));
+  dayRoutines.splice(toIndex, 0, state.routines.find(r => r.id === drag.routineId));
+
+  dayRoutines.forEach((r, i) => {
+    const sr = state.routines.find(x => x.id === r.id);
+    if (sr) sr.order_index = i;
+  });
+
+  drag = null;
+  renderRoutineList();
+
+  for (const r of dayRoutines) {
+    await sb.from('routines').update({ order_index: r.order_index }).eq('id', r.id);
+  }
 }
 
 // ── 유틸 ──
@@ -665,10 +898,11 @@ function escHtml(str) {
   return d.innerHTML;
 }
 
-// meal-btn 클릭 이벤트 위임
 document.addEventListener('click', e => {
   const btn = e.target.closest('.meal-btn');
   if (btn) toggleMeal(btn);
+  const tod = e.target.closest('.tod-btn');
+  if (tod) toggleTod(tod);
 });
 
 init();
