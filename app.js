@@ -111,7 +111,18 @@ async function loadAll() {
 
 async function loadProfile() {
   if (!state.user) return;
-  const { data } = await sb.from('profiles').select('*').eq('id', state.user.id).single();
+  let { data } = await sb.from('profiles').select('*').eq('id', state.user.id).single();
+  if (!data) {
+    // 프로필이 없으면 생성 (기존 유저 대응)
+    const username = state.user.user_metadata?.username || state.user.email?.split('@')[0] || '사용자';
+    const { data: created } = await sb.from('profiles').upsert({
+      id: state.user.id,
+      username,
+      full_name: '',
+      bio: '',
+    }).select().single();
+    data = created;
+  }
   if (data) state.profile = data;
 }
 
@@ -172,7 +183,7 @@ async function toggleRoutineComplete(routineId) {
   }
 }
 
-async function addRoutine(routineData, items) {
+async function addRoutine(routineData) {
   const { data: routine, error } = await sb
     .from('routines')
     .insert({
@@ -184,21 +195,10 @@ async function addRoutine(routineData, items) {
     .select()
     .single();
 
-  if (error || !routine) return;
-
-  if (items.length > 0) {
-    await sb.from('routine_items').insert(
-      items.map((item, i) => ({
-        routine_id: routine.id,
-        name: item.name,
-        sets: item.sets ? parseInt(item.sets) : null,
-        reps: item.reps ? parseInt(item.reps) : null,
-        weight: item.weight ? parseFloat(item.weight) : null,
-        calories: item.calories ? parseInt(item.calories) : null,
-        protein: item.protein ? parseInt(item.protein) : null,
-        order_index: i,
-      }))
-    );
+  if (error) {
+    console.error('루틴 추가 실패:', error);
+    alert('루틴 추가에 실패했습니다: ' + error.message);
+    return;
   }
 
   await loadRoutines();
@@ -238,11 +238,14 @@ async function addPost(content) {
     user_id: state.user.id,
     content: content.trim(),
   });
-  if (!error) {
-    await loadPosts();
-    renderPosts();
-    closeModal('modal-add-post');
+  if (error) {
+    console.error('게시물 추가 실패:', error);
+    alert('게시물 추가에 실패했습니다: ' + error.message);
+    return;
   }
+  await loadPosts();
+  renderPosts();
+  closeModal('modal-add-post');
 }
 
 async function toggleLike(postId) {
@@ -383,25 +386,19 @@ function renderRoutineList() {
   const container = document.getElementById('routine-list');
   if (!container) return;
 
-  if (state.innerTab === 'todo') {
-    container.innerHTML = `
-      <div class="empty-state">
-        <div class="empty-icon">✅</div>
-        <p>투두 기능은 곧 추가될 예정이에요!</p>
-      </div>`;
-    return;
-  }
-
   const dow = state.selectedDate.getDay();
+  // 운동 탭 = exercise, 식단 탭 = diet 필터
+  const typeFilter = state.innerTab === 'todo' ? 'diet' : 'exercise';
   const dayRoutines = state.routines.filter(
-    r => r.days_of_week && r.days_of_week.includes(dow)
+    r => r.days_of_week && r.days_of_week.includes(dow) && r.type === typeFilter
   );
 
   if (dayRoutines.length === 0) {
+    const label = typeFilter === 'exercise' ? '운동' : '식단';
     container.innerHTML = `
       <div class="empty-state">
-        <div class="empty-icon">📋</div>
-        <p>오늘 루틴이 없어요<br>+ 버튼으로 루틴을 추가해보세요!</p>
+        <div class="empty-icon">${typeFilter === 'exercise' ? '💪' : '🥗'}</div>
+        <p>오늘 ${label} 루틴이 없어요<br>+ 버튼으로 추가해보세요!</p>
       </div>`;
     return;
   }
@@ -648,10 +645,10 @@ function handleOverlayClick(e, id) {
 
 function openAddRoutineModal() {
   document.getElementById('routine-name').value = '';
-  document.getElementById('routine-items-list').innerHTML = '';
-  state.itemCount = 0;
+  // 현재 탭에 맞게 종류 기본값 설정
+  const defaultType = state.innerTab === 'todo' ? 'diet' : 'exercise';
   document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector('.type-btn[data-type="exercise"]').classList.add('active');
+  document.querySelector(`.type-btn[data-type="${defaultType}"]`).classList.add('active');
   document.querySelectorAll('.day-btn').forEach(b => {
     const d = parseInt(b.dataset.day);
     b.classList.toggle('active', d >= 1 && d <= 5);
@@ -726,23 +723,8 @@ async function saveRoutine() {
     return;
   }
 
-  const items = Array.from(document.querySelectorAll('.routine-item-form'))
-    .map(form => {
-      const nameInput = form.querySelector('.item-name-input');
-      if (!nameInput?.value.trim()) return null;
-      return {
-        name: nameInput.value.trim(),
-        sets: form.querySelector('.item-sets')?.value || null,
-        reps: form.querySelector('.item-reps')?.value || null,
-        weight: form.querySelector('.item-weight')?.value || null,
-        calories: form.querySelector('.item-calories')?.value || null,
-        protein: form.querySelector('.item-protein')?.value || null,
-      };
-    })
-    .filter(Boolean);
-
   closeModal('modal-add-routine');
-  await addRoutine({ name, type, days }, items);
+  await addRoutine({ name, type, days });
 }
 
 async function savePost() {
