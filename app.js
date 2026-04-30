@@ -206,6 +206,26 @@ async function savePost() {
   }
 }
 
+async function toggleScrap(postId) {
+  if (!state.user) return;
+  const scrapped = state.scrappedPosts.has(postId);
+  const post = state.posts.find(p => p.id === postId);
+  if (scrapped) {
+    state.scrappedPosts.delete(postId);
+    if (post) post.scraps_count = Math.max(0, (post.scraps_count || 1) - 1);
+    await sb.from('post_scraps').delete().match({ user_id: state.user.id, post_id: postId });
+  } else {
+    state.scrappedPosts.add(postId);
+    if (post) post.scraps_count = (post.scraps_count || 0) + 1;
+    await sb.from('post_scraps').insert({ user_id: state.user.id, post_id: postId });
+  }
+  if (post) await sb.from('posts').update({ scraps_count: post.scraps_count }).eq('id', postId);
+  renderPosts();
+  if (state.currentPostId === postId) {
+    renderPostDetail(post, state.currentComments);
+  }
+}
+
 async function toggleLike(postId) {
   if (!state.user) return;
   const liked = state.postLikes.has(postId);
@@ -466,8 +486,8 @@ function renderPosts() {
     const initial = username.charAt(0).toUpperCase();
     const avatarUrl = post.profiles?.avatar_url;
     const liked = state.postLikes.has(post.id);
+    const scrapped = state.scrappedPosts.has(post.id);
     const timeAgo = getTimeAgo(new Date(post.created_at));
-    const isOwn = state.user && post.user_id === state.user.id;
     const avatarHtml = avatarUrl
       ? `<div class="avatar"><img src="${avatarUrl}" alt=""></div>`
       : `<div class="avatar">${initial}</div>`;
@@ -475,24 +495,30 @@ function renderPosts() {
     const contentHtml = post.content ? `<p class="post-content">${escHtml(post.content)}</p>` : '';
     const catHtml = post.categories?.name ? `<span class="post-cat-badge">${escHtml(post.categories.name)}</span>` : '';
     return `
-      <div class="post-card">
+      <div class="post-card" onclick="openPostDetail('${post.id}')">
         <div class="post-header">
           ${avatarHtml}
           <div class="post-user-info">
             <div class="post-username">${escHtml(username)}</div>
             <div class="post-time">${timeAgo}</div>
           </div>
-          ${isOwn?`<button class="icon-btn small" onclick="deletePost('${post.id}')" style="color:#9ca3af"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg></button>`:''}
+          <button class="post-menu-btn" onclick="event.stopPropagation();openPostMenu('${post.id}')">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/></svg>
+          </button>
         </div>
         ${catHtml}${imageHtml}${contentHtml}
         <div class="post-actions">
-          <button class="post-action-btn${liked?' liked':''}" onclick="toggleLike('${post.id}')">
+          <button class="post-action-btn${liked?' liked':''}" onclick="event.stopPropagation();toggleLike('${post.id}')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="${liked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
             ${post.likes_count||0}
           </button>
-          <button class="post-action-btn" onclick="openPostDetail('${post.id}')">
+          <button class="post-action-btn" onclick="event.stopPropagation();openPostDetail('${post.id}')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             ${post.comments_count||0}
+          </button>
+          <button class="post-action-btn${scrapped?' scrapped':''}" onclick="event.stopPropagation();toggleScrap('${post.id}')">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="${scrapped?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+            ${post.scraps_count||0}
           </button>
         </div>
       </div>`;
