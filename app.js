@@ -242,6 +242,7 @@ async function toggleLike(postId) {
   }
   await sb.from('posts').update({ likes_count: post.likes_count }).eq('id', postId);
   renderPosts();
+  if (state.currentPostId === postId) renderPostDetail(post, state.currentComments);
 }
 
 async function deletePost(postId) {
@@ -1075,11 +1076,12 @@ async function openPostDetail(postId) {
   state.replyToUsername = null;
   const post = state.posts.find(p => p.id === postId);
   const body = document.getElementById('post-detail-body');
-  body.innerHTML = '<div class="empty-state" style="padding:40px"><div class="loading-spinner" style="margin:0 auto"></div></div>';
+  body.innerHTML = '<div style="padding:60px 0;display:flex;justify-content:center"><div class="loading-spinner"></div></div>';
   document.getElementById('comment-text').value = '';
   cancelReply();
   openModal('modal-post-detail');
   const comments = await loadComments(postId);
+  state.currentComments = comments;
   renderPostDetail(post, comments);
 }
 
@@ -1101,9 +1103,10 @@ function renderPostDetail(post, comments) {
   const avatarHtml = avatarUrl
     ? `<div class="avatar"><img src="${avatarUrl}" alt=""></div>`
     : `<div class="avatar">${initial}</div>`;
-  const imageHtml = post.image_url ? `<img src="${post.image_url}" class="post-image" style="width:100%;border-radius:0" alt="">` : '';
   const catHtml = post.categories?.name ? `<span class="post-cat-badge">${escHtml(post.categories.name)}</span>` : '';
   const timeAgo = getTimeAgo(new Date(post.created_at));
+  const liked = state.postLikes.has(post.id);
+  const scrapped = state.scrappedPosts.has(post.id);
 
   const topComments = comments.filter(c => !c.parent_id);
   const repliesMap = {};
@@ -1111,22 +1114,35 @@ function renderPostDetail(post, comments) {
     if (!repliesMap[c.parent_id]) repliesMap[c.parent_id] = [];
     repliesMap[c.parent_id].push(c);
   });
-
   const commentHtml = topComments.length === 0
     ? '<div class="no-comments">첫 댓글을 남겨보세요!</div>'
     : topComments.map(c => buildCommentHtml(c, repliesMap[c.id] || [])).join('');
 
   body.innerHTML = `
-    <div class="post-detail-post">
-      <div class="post-header">
-        ${avatarHtml}
-        <div class="post-user-info">
-          <div class="post-username">${escHtml(username)}</div>
-          <div class="post-time">${timeAgo}</div>
-        </div>
+    <div class="pd-author-row">
+      ${avatarHtml}
+      <div class="pd-user-info">
+        <div class="pd-username">${escHtml(username)}</div>
+        <div class="pd-time">${timeAgo}</div>
       </div>
-      ${catHtml}${imageHtml}
-      ${post.content ? `<p class="post-content">${escHtml(post.content)}</p>` : ''}
+    </div>
+    ${catHtml ? `<div class="pd-tags">${catHtml}</div>` : ''}
+    ${post.content ? `<p class="pd-content">${escHtml(post.content)}</p>` : ''}
+    ${post.image_url ? `<img src="${post.image_url}" class="pd-image" alt="">` : ''}
+    <div class="pd-actions">
+      <button class="pd-action-btn${liked?' liked':''}" onclick="toggleLike('${post.id}')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="${liked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
+        ${post.likes_count||0}
+      </button>
+      <span class="pd-action-stat">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+        ${comments.length}
+      </span>
+      <div class="pd-actions-spacer"></div>
+      <button class="pd-action-btn${scrapped?' scrapped':''}" onclick="toggleScrap('${post.id}')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="${scrapped?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 012-2h10a2 2 0 012 2z"/></svg>
+        스크랩
+      </button>
     </div>
     <div class="comment-section-label">댓글 ${comments.length}개</div>
     <div class="comment-list">${commentHtml}</div>`;
@@ -1205,6 +1221,7 @@ async function addComment(postId, content, parentId = null) {
   }
 
   const comments = await loadComments(postId);
+  state.currentComments = comments;
   renderPostDetail(post, comments);
   renderPosts();
 }
