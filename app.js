@@ -37,6 +37,8 @@ const state = {
   currentPostId: null, currentComments: [],
   setupPhoto: null, setupProvince: null, setupDistrict: null,
   selectedRoutineIds: new Set(),
+  pickerType: 'exercise',
+  pickerSelectedDays: { exercise: new Set(), diet: new Set() },
   replyToCommentId: null, replyToUsername: null,
   profileTab: 'posts',
 };
@@ -380,7 +382,7 @@ async function savePost() {
     if (state.editingPostId) {
       const editedRoutines = state.selectedRoutineIds.size > 0
         ? state.routines.filter(r => state.selectedRoutineIds.has(r.id))
-            .map(r => ({ id: r.id, name: r.name, type: r.type, meal_time: r.meal_time || null, time_of_day: r.time_of_day || null }))
+            .map(r => ({ id: r.id, name: r.name, type: r.type, meal_time: r.meal_time || null, time_of_day: r.time_of_day || null, days_of_week: r.days_of_week || [] }))
         : null;
       const updates = { content: content || '', category_id: state.composeCategoryId, image_url: imageUrl, image_urls: imageUrls, shared_routines: editedRoutines };
       const { error } = await sb.from('posts').update(updates).eq('id', state.editingPostId).eq('user_id', state.user.id);
@@ -394,7 +396,7 @@ async function savePost() {
     } else {
       const sharedRoutines = state.selectedRoutineIds.size > 0
         ? state.routines.filter(r => state.selectedRoutineIds.has(r.id))
-            .map(r => ({ id: r.id, name: r.name, type: r.type, meal_time: r.meal_time || null, time_of_day: r.time_of_day || null }))
+            .map(r => ({ id: r.id, name: r.name, type: r.type, meal_time: r.meal_time || null, time_of_day: r.time_of_day || null, days_of_week: r.days_of_week || [] }))
         : null;
       const { error } = await sb.from('posts').insert({
         user_id: state.user.id, content: content || '',
@@ -713,6 +715,54 @@ function selectComposeCategory(id, btn) {
     document.querySelectorAll('.compose-cat-pill').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
   }
+}
+
+// ── 루틴 카드 (게시물 상세) ──
+function buildRoutineCards(routines) {
+  if (!routines?.length) return '';
+  const exRoutines = routines.filter(r => r.type === 'exercise');
+  const dietRoutines = routines.filter(r => r.type === 'diet');
+  const cards = [
+    exRoutines.length ? buildRoutineTypeCard('exercise', exRoutines) : '',
+    dietRoutines.length ? buildRoutineTypeCard('diet', dietRoutines) : '',
+  ].filter(Boolean).join('');
+  return cards ? `<div class="pd-routine-cards">${cards}</div>` : '';
+}
+
+function buildRoutineTypeCard(type, routines) {
+  const label = type === 'exercise' ? '💪 운동 루틴' : '🥗 식단 루틴';
+  const allDays = new Set(routines.flatMap(r => r.days_of_week || []));
+  const avail = DAY_ORDER.filter(d => allDays.has(d));
+  const defaultDay = avail[0] ?? null;
+  const dayBtns = avail.length > 1
+    ? avail.map(d => `<button class="rc-day-btn${d === defaultDay ? ' active' : ''}" data-day="${d}" onclick="selectRoutineCardDay(this,'${type}')">${DAY_LABELS[d]}</button>`).join('')
+    : '';
+  const shown = defaultDay !== null
+    ? routines.filter(r => r.days_of_week?.includes(defaultDay))
+    : routines;
+  const items = shown.map(r => {
+    const meta = r.meal_time || r.time_of_day || '';
+    return `<div class="rc-item"><span class="rc-item-name">${escHtml(r.name)}</span>${meta ? `<span class="rc-item-meta">${meta}</span>` : ''}</div>`;
+  }).join('');
+  return `<div class="rc-card" data-type="${type}">
+    <div class="rc-header"><span>${label}</span></div>
+    ${dayBtns ? `<div class="rc-day-row">${dayBtns}</div>` : ''}
+    <div class="rc-list" id="rc-list-${type}">${items}</div>
+  </div>`;
+}
+
+function selectRoutineCardDay(btn, type) {
+  const card = btn.closest('.rc-card');
+  card.querySelectorAll('.rc-day-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const day = parseInt(btn.dataset.day);
+  const post = state.posts.find(p => p.id === state.currentPostId);
+  if (!post?.shared_routines) return;
+  const routines = post.shared_routines.filter(r => r.type === type && r.days_of_week?.includes(day));
+  card.querySelector('.rc-list').innerHTML = routines.map(r => {
+    const meta = r.meal_time || r.time_of_day || '';
+    return `<div class="rc-item"><span class="rc-item-name">${escHtml(r.name)}</span>${meta ? `<span class="rc-item-meta">${meta}</span>` : ''}</div>`;
+  }).join('') || `<div class="rc-empty">루틴이 없어요</div>`;
 }
 
 // ── 이미지 슬라이드쇼 ──
@@ -1074,43 +1124,88 @@ function switchInnerTab(tab, btn) {
   renderRoutineList();
 }
 
+const DAY_LABELS = ['일', '월', '화', '수', '목', '금', '토'];
+const DAY_ORDER = [1, 2, 3, 4, 5, 6, 0]; // 월화수목금토일
+
 function openRoutinePicker() {
-  state.selectedRoutineIds = new Set(
-    (state.selectedRoutineIds instanceof Set) ? [...state.selectedRoutineIds] : []
-  );
-  const list = document.getElementById('routine-picker-list');
-  if (!list) return;
-  if (!state.routines.length) {
-    list.innerHTML = '<div class="empty-state" style="padding:24px"><div class="empty-icon">📋</div><p>루틴이 없어요.<br>먼저 루틴을 추가해주세요.</p></div>';
-    openModal('modal-routine-picker');
-    return;
-  }
-  list.innerHTML = state.routines.map(r => {
-    const checked = state.selectedRoutineIds.has(r.id);
-    const icon = r.type === 'exercise' ? '💪' : '🥗';
-    const meta = r.meal_time || r.time_of_day || '';
-    return `
-      <label class="routine-pick-item${checked ? ' checked' : ''}">
-        <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleRoutinePick('${r.id}', this.closest('label'))">
-        <span class="routine-pick-icon">${icon}</span>
-        <span class="routine-pick-name">${escHtml(r.name)}${meta ? ` <span class="routine-pick-meta">${meta}</span>` : ''}</span>
-        <span class="routine-pick-check">✓</span>
-      </label>`;
-  }).join('');
+  state.pickerType = 'exercise';
+  state.pickerSelectedDays = { exercise: new Set(), diet: new Set() };
+  renderPickerTypeTabs();
+  renderPickerDays();
+  renderPickerRoutineList();
   openModal('modal-routine-picker');
 }
 
-function toggleRoutinePick(id, labelEl) {
-  if (state.selectedRoutineIds.has(id)) {
-    state.selectedRoutineIds.delete(id);
-    labelEl?.classList.remove('checked');
-  } else {
-    state.selectedRoutineIds.add(id);
-    labelEl?.classList.add('checked');
+function switchPickerTab(type) {
+  state.pickerType = type;
+  renderPickerTypeTabs();
+  renderPickerDays();
+  renderPickerRoutineList();
+}
+
+function renderPickerTypeTabs() {
+  document.querySelectorAll('.picker-type-tab').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.type === state.pickerType);
+  });
+}
+
+function renderPickerDays() {
+  const row = document.getElementById('picker-day-row');
+  if (!row) return;
+  const availDays = new Set(
+    state.routines.filter(r => r.type === state.pickerType).flatMap(r => r.days_of_week || [])
+  );
+  const selectedDays = state.pickerSelectedDays[state.pickerType];
+  row.innerHTML = DAY_ORDER.map(d => {
+    const has = availDays.has(d);
+    const sel = selectedDays.has(d);
+    return `<button class="picker-day-btn${sel ? ' active' : ''}${!has ? ' disabled' : ''}"
+      onclick="togglePickerDay(${d})" ${!has ? 'disabled' : ''}>${DAY_LABELS[d]}</button>`;
+  }).join('');
+}
+
+function togglePickerDay(day) {
+  const days = state.pickerSelectedDays[state.pickerType];
+  days.has(day) ? days.delete(day) : days.add(day);
+  renderPickerDays();
+  renderPickerRoutineList();
+}
+
+function renderPickerRoutineList() {
+  const list = document.getElementById('routine-picker-list');
+  if (!list) return;
+  const days = state.pickerSelectedDays[state.pickerType];
+  let routines = state.routines.filter(r => r.type === state.pickerType);
+  if (days.size > 0) {
+    routines = routines.filter(r => r.days_of_week?.some(d => days.has(d)));
   }
+  if (!routines.length) {
+    const msg = days.size > 0 ? '선택한 요일에 루틴이 없어요' : '루틴이 없어요. 먼저 루틴을 추가해주세요.';
+    list.innerHTML = `<div style="padding:20px 0;text-align:center;color:var(--text-muted);font-size:13px">${msg}</div>`;
+    return;
+  }
+  list.innerHTML = routines.map(r => {
+    const meta = r.meal_time || r.time_of_day || '';
+    const dayStr = (r.days_of_week || []).map(d => DAY_LABELS[d]).join('');
+    return `<div class="picker-routine-row">
+      <span class="picker-routine-name">${escHtml(r.name)}</span>
+      <span class="picker-routine-meta">${dayStr}${meta ? ' · ' + meta : ''}</span>
+    </div>`;
+  }).join('');
 }
 
 function confirmRoutinePick() {
+  const exDays = state.pickerSelectedDays.exercise;
+  const dietDays = state.pickerSelectedDays.diet;
+  if (exDays.size === 0 && dietDays.size === 0) {
+    showToast('요일을 선택해주세요');
+    return;
+  }
+  const selected = state.routines.filter(r => {
+    const days = r.type === 'exercise' ? exDays : dietDays;
+    return days.size > 0 && r.days_of_week?.some(d => days.has(d));
+  });
+  state.selectedRoutineIds = new Set(selected.map(r => r.id));
   closeModal('modal-routine-picker');
   renderSharedRoutinesPreview();
 }
@@ -1124,19 +1219,21 @@ function renderSharedRoutinesPreview() {
     return;
   }
   const selected = state.routines.filter(r => state.selectedRoutineIds.has(r.id));
+  const exCount = selected.filter(r => r.type === 'exercise').length;
+  const dietCount = selected.filter(r => r.type === 'diet').length;
+  const allDays = new Set(selected.flatMap(r => r.days_of_week || []));
+  const dayStr = DAY_ORDER.filter(d => allDays.has(d)).map(d => DAY_LABELS[d]).join('');
   preview.classList.remove('hidden');
   preview.innerHTML = `
-    <div class="shared-routines-label">공유할 루틴</div>
-    ${selected.map(r => {
-      const icon = r.type === 'exercise' ? '💪' : '🥗';
-      const meta = r.meal_time || r.time_of_day || '';
-      return `<div class="shared-routine-chip">${icon} ${escHtml(r.name)}${meta ? ` · ${meta}` : ''}</div>`;
-    }).join('')}
+    <div class="shared-routines-label">공유할 루틴 · ${dayStr} · 총 ${selected.length}개</div>
+    ${exCount ? `<div class="shared-routine-chip">💪 운동루틴 ${exCount}개</div>` : ''}
+    ${dietCount ? `<div class="shared-routine-chip">🥗 식단루틴 ${dietCount}개</div>` : ''}
     <button class="shared-routines-clear" onclick="clearSharedRoutines()">루틴 제거</button>`;
 }
 
 function clearSharedRoutines() {
   state.selectedRoutineIds = new Set();
+  state.pickerSelectedDays = { exercise: new Set(), diet: new Set() };
   renderSharedRoutinesPreview();
 }
 
@@ -1149,6 +1246,7 @@ function openCompose(postId = null) {
   // Pre-populate from existing post's shared_routines in edit mode
   const existingRoutineIds = post?.shared_routines?.map(r => r.id) || [];
   state.selectedRoutineIds = new Set(existingRoutineIds);
+  state.pickerSelectedDays = { exercise: new Set(), diet: new Set() };
 
   const textarea = document.getElementById('post-content');
   textarea.value = post?.content || '';
@@ -1699,15 +1797,7 @@ function renderPostDetail(post, comments) {
     ${catHtml ? `<div class="pd-tags">${catHtml}</div>` : ''}
     ${post.content ? `<p class="pd-content">${escHtml(post.content)}</p>` : ''}
     ${(() => { const u = post.image_urls?.length > 0 ? post.image_urls : (post.image_url ? [post.image_url] : []); return buildImageSlideshow(u, post.id, true); })()}
-    ${post.shared_routines?.length ? `
-      <div class="pd-routines">
-        <div class="pd-routines-label">공유한 루틴</div>
-        ${post.shared_routines.map(r => {
-          const icon = r.type === 'exercise' ? '💪' : '🥗';
-          const meta = r.meal_time || r.time_of_day || '';
-          return `<div class="pd-routine-item">${icon} <span>${escHtml(r.name)}</span>${meta ? `<span class="pd-routine-meta">${meta}</span>` : ''}</div>`;
-        }).join('')}
-      </div>` : ''}
+    ${buildRoutineCards(post.shared_routines)}
     <div class="pd-actions">
       <button class="pd-action-btn${liked?' liked':''}" onclick="toggleLike('${post.id}')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="${liked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>

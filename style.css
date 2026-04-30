@@ -1985,24 +1985,66 @@ input, textarea, select { font-family: inherit; }
 .toast-msg.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
 /* ── 루틴 피커 ── */
-.routine-pick-item {
+.picker-type-tabs {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 13px 14px;
-  border: 1.5px solid var(--border);
-  border-radius: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.picker-type-tab {
+  flex: 1;
+  padding: 12px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-muted);
   cursor: pointer;
+  position: relative;
+  transition: color 0.15s;
+}
+.picker-type-tab.active {
+  color: var(--blue);
+}
+.picker-type-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: 0; left: 15%; right: 15%;
+  height: 2px;
+  background: var(--blue);
+  border-radius: 1px;
+}
+.picker-day-row {
+  display: flex;
+  gap: 6px;
+  padding: 12px 16px 8px;
+  flex-wrap: wrap;
+}
+.picker-day-btn {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
   background: var(--bg);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
   transition: all 0.15s;
 }
-.routine-pick-item input { display: none; }
-.routine-pick-item.checked { border-color: var(--blue); background: var(--blue-light); }
-.routine-pick-icon { font-size: 18px; flex-shrink: 0; }
-.routine-pick-name { flex: 1; font-size: 14px; font-weight: 600; color: var(--text); }
-.routine-pick-meta { font-weight: 400; color: var(--text-muted); font-size: 12px; margin-left: 4px; }
-.routine-pick-check { font-size: 16px; color: var(--blue); opacity: 0; transition: opacity 0.15s; }
-.routine-pick-item.checked .routine-pick-check { opacity: 1; }
+.picker-day-btn.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: white;
+}
+.picker-day-btn.disabled { opacity: 0.35; cursor: default; }
+.picker-routine-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.picker-routine-row:last-child { border-bottom: none; }
+.picker-routine-name { font-size: 14px; font-weight: 600; color: var(--text); }
+.picker-routine-meta { font-size: 12px; color: var(--text-muted); }
 
 /* 공유 루틴 미리보기 (compose) */
 .shared-routines-preview {
@@ -2036,24 +2078,59 @@ input, textarea, select { font-family: inherit; }
   text-decoration: underline;
 }
 
-/* 공유 루틴 표시 (post detail) */
-.pd-routines {
+/* 공유 루틴 카드 (post detail) */
+.pd-routine-cards {
   margin: 0 20px 12px;
-  padding: 14px;
-  background: var(--blue-light);
-  border-radius: 12px;
-  border: 1px solid rgba(0,191,255,0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
-.pd-routines-label { font-size: 11px; font-weight: 700; color: var(--blue-dark); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
-.pd-routine-item {
+.rc-card {
+  background: var(--white);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+.rc-header {
+  padding: 12px 14px 10px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+}
+.rc-day-row {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px 6px;
+  flex-wrap: wrap;
+}
+.rc-day-btn {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.rc-day-btn.active {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: white;
+}
+.rc-list {
+  padding: 6px 14px 12px;
+}
+.rc-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
   padding: 8px 0;
-  border-bottom: 1px solid rgba(0,191,255,0.15);
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--text);
+  border-bottom: 1px solid var(--border);
 }
-.pd-routine-item:last-child { border-bottom: none; }
-.pd-routine-meta { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-left: auto; }
+.rc-item:last-child { border-bottom: none; }
+.rc-item-name { font-size: 14px; font-weight: 500; color: var(--text); }
+.rc-item-meta { font-size: 12px; color: var(--text-muted); }
+.rc-empty { font-size: 13px; color: var(--text-muted); padding: 8px 0; }
