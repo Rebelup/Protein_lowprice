@@ -1741,3 +1741,77 @@ input, textarea, select { font-family: inherit; }
   pointer-events: none;
 }
 .toast-msg.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+/* ── 루틴 피커 ── */
+.routine-pick-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  cursor: pointer;
+  background: var(--bg);
+  transition: all 0.15s;
+}
+.routine-pick-item input { display: none; }
+.routine-pick-item.checked { border-color: var(--blue); background: var(--blue-light); }
+.routine-pick-icon { font-size: 18px; flex-shrink: 0; }
+.routine-pick-name { flex: 1; font-size: 14px; font-weight: 600; color: var(--text); }
+.routine-pick-meta { font-weight: 400; color: var(--text-muted); font-size: 12px; margin-left: 4px; }
+.routine-pick-check { font-size: 16px; color: var(--blue); opacity: 0; transition: opacity 0.15s; }
+.routine-pick-item.checked .routine-pick-check { opacity: 1; }
+
+/* 공유 루틴 미리보기 (compose) */
+.shared-routines-preview {
+  margin-top: 10px;
+  padding: 12px;
+  background: var(--blue-light);
+  border-radius: 10px;
+  border: 1.5px solid rgba(0,191,255,0.2);
+}
+.shared-routines-label { font-size: 11px; font-weight: 700; color: var(--blue-dark); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px; }
+.shared-routine-chip {
+  display: inline-flex;
+  align-items: center;
+  background: white;
+  border: 1px solid rgba(0,191,255,0.3);
+  border-radius: 8px;
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--blue-dark);
+  margin: 3px 4px 3px 0;
+}
+.shared-routines-clear {
+  display: block;
+  background: none;
+  border: none;
+  font-size: 12px;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-top: 6px;
+  text-decoration: underline;
+}
+
+/* 공유 루틴 표시 (post detail) */
+.pd-routines {
+  margin: 0 20px 12px;
+  padding: 14px;
+  background: var(--blue-light);
+  border-radius: 12px;
+  border: 1px solid rgba(0,191,255,0.2);
+}
+.pd-routines-label { font-size: 11px; font-weight: 700; color: var(--blue-dark); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+.pd-routine-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(0,191,255,0.15);
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.pd-routine-item:last-child { border-bottom: none; }
+.pd-routine-meta { font-size: 12px; color: var(--text-muted); font-weight: 400; margin-left: auto; }

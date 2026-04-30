@@ -36,6 +36,7 @@ const state = {
   notifications: [],
   currentPostId: null, currentComments: [],
   setupPhoto: null, setupProvince: null, setupDistrict: null,
+  selectedRoutineIds: new Set(),
   replyToCommentId: null, replyToUsername: null,
   profileTab: 'posts',
 };
@@ -268,9 +269,14 @@ async function savePost() {
     } else {
       let imageUrl = null;
       if (state.selectedPhoto) imageUrl = await uploadPhoto(state.selectedPhoto);
+      const sharedRoutines = state.selectedRoutineIds.size > 0
+        ? state.routines.filter(r => state.selectedRoutineIds.has(r.id))
+            .map(r => ({ id: r.id, name: r.name, type: r.type, meal_time: r.meal_time || null, time_of_day: r.time_of_day || null }))
+        : null;
       const { error } = await sb.from('posts').insert({
         user_id: state.user.id, content: content || '',
         image_url: imageUrl, category_id: state.composeCategoryId,
+        shared_routines: sharedRoutines,
       });
       if (error) throw error;
       await loadPosts();
@@ -890,10 +896,77 @@ function switchInnerTab(tab, btn) {
   renderRoutineList();
 }
 
+function openRoutinePicker() {
+  state.selectedRoutineIds = new Set(
+    (state.selectedRoutineIds instanceof Set) ? [...state.selectedRoutineIds] : []
+  );
+  const list = document.getElementById('routine-picker-list');
+  if (!list) return;
+  if (!state.routines.length) {
+    list.innerHTML = '<div class="empty-state" style="padding:24px"><div class="empty-icon">📋</div><p>루틴이 없어요.<br>먼저 루틴을 추가해주세요.</p></div>';
+    openModal('modal-routine-picker');
+    return;
+  }
+  list.innerHTML = state.routines.map(r => {
+    const checked = state.selectedRoutineIds.has(r.id);
+    const icon = r.type === 'exercise' ? '💪' : '🥗';
+    const meta = r.meal_time || r.time_of_day || '';
+    return `
+      <label class="routine-pick-item${checked ? ' checked' : ''}">
+        <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleRoutinePick('${r.id}', this.closest('label'))">
+        <span class="routine-pick-icon">${icon}</span>
+        <span class="routine-pick-name">${escHtml(r.name)}${meta ? ` <span class="routine-pick-meta">${meta}</span>` : ''}</span>
+        <span class="routine-pick-check">✓</span>
+      </label>`;
+  }).join('');
+  openModal('modal-routine-picker');
+}
+
+function toggleRoutinePick(id, labelEl) {
+  if (state.selectedRoutineIds.has(id)) {
+    state.selectedRoutineIds.delete(id);
+    labelEl?.classList.remove('checked');
+  } else {
+    state.selectedRoutineIds.add(id);
+    labelEl?.classList.add('checked');
+  }
+}
+
+function confirmRoutinePick() {
+  closeModal('modal-routine-picker');
+  renderSharedRoutinesPreview();
+}
+
+function renderSharedRoutinesPreview() {
+  const preview = document.getElementById('shared-routines-preview');
+  if (!preview) return;
+  if (!state.selectedRoutineIds.size) {
+    preview.classList.add('hidden');
+    preview.innerHTML = '';
+    return;
+  }
+  const selected = state.routines.filter(r => state.selectedRoutineIds.has(r.id));
+  preview.classList.remove('hidden');
+  preview.innerHTML = `
+    <div class="shared-routines-label">공유할 루틴</div>
+    ${selected.map(r => {
+      const icon = r.type === 'exercise' ? '💪' : '🥗';
+      const meta = r.meal_time || r.time_of_day || '';
+      return `<div class="shared-routine-chip">${icon} ${escHtml(r.name)}${meta ? ` · ${meta}` : ''}</div>`;
+    }).join('')}
+    <button class="shared-routines-clear" onclick="clearSharedRoutines()">루틴 제거</button>`;
+}
+
+function clearSharedRoutines() {
+  state.selectedRoutineIds = new Set();
+  renderSharedRoutinesPreview();
+}
+
 // ── 글쓰기 ──
 function openCompose(postId = null) {
   state.selectedPhoto = null;
   state.editingPostId = postId;
+  state.selectedRoutineIds = new Set();
   const post = postId ? state.posts.find(p => p.id === postId) : null;
   state.composeCategoryId = post?.category_id || null;
 
@@ -1439,6 +1512,15 @@ function renderPostDetail(post, comments) {
     ${catHtml ? `<div class="pd-tags">${catHtml}</div>` : ''}
     ${post.content ? `<p class="pd-content">${escHtml(post.content)}</p>` : ''}
     ${post.image_url ? `<img src="${post.image_url}" class="pd-image" alt="">` : ''}
+    ${post.shared_routines?.length ? `
+      <div class="pd-routines">
+        <div class="pd-routines-label">공유한 루틴</div>
+        ${post.shared_routines.map(r => {
+          const icon = r.type === 'exercise' ? '💪' : '🥗';
+          const meta = r.meal_time || r.time_of_day || '';
+          return `<div class="pd-routine-item">${icon} <span>${escHtml(r.name)}</span>${meta ? `<span class="pd-routine-meta">${meta}</span>` : ''}</div>`;
+        }).join('')}
+      </div>` : ''}
     <div class="pd-actions">
       <button class="pd-action-btn${liked?' liked':''}" onclick="toggleLike('${post.id}')">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="${liked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
