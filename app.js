@@ -51,6 +51,10 @@ async function init() {
   } else {
     hideLoading();
     showAuth();
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('post')) {
+      document.getElementById('auth-error').textContent = '게시물을 보려면 먼저 로그인해주세요.';
+    }
   }
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session && !state.user) {
@@ -77,6 +81,50 @@ function cleanOAuthHash() {
   if (window.location.hash && window.location.hash.includes('access_token')) {
     window.history.replaceState({}, '', window.location.pathname);
   }
+}
+
+function checkDeepLink() {
+  const params = new URLSearchParams(window.location.search);
+  const postId = params.get('post');
+  if (postId) {
+    window.history.replaceState({}, '', window.location.pathname);
+    openPostDetail(postId);
+  }
+}
+
+function sharePost(postId) {
+  const url = `${window.location.origin}${window.location.pathname}?post=${postId}`;
+  if (navigator.share) {
+    navigator.share({ title: 'Rebel-Up 게시물', url }).catch(() => copyToClipboard(url));
+  } else {
+    copyToClipboard(url);
+  }
+}
+
+function copyToClipboard(text) {
+  if (navigator.clipboard) {
+    navigator.clipboard.writeText(text).then(() => showToast('링크가 복사되었어요!'));
+  } else {
+    const el = document.createElement('textarea');
+    el.value = text;
+    document.body.appendChild(el);
+    el.select();
+    document.execCommand('copy');
+    document.body.removeChild(el);
+    showToast('링크가 복사되었어요!');
+  }
+}
+
+function showToast(msg) {
+  const existing = document.getElementById('toast-msg');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.id = 'toast-msg';
+  toast.className = 'toast-msg';
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.classList.add('show'), 10);
+  setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 2200);
 }
 
 async function signInWithGoogle() {
@@ -710,6 +758,7 @@ function showApp() {
   document.getElementById('app').classList.remove('hidden');
   renderAll();
   initCalendarSwipe();
+  checkDeepLink();
   if (state.profile && !state.profile.setup_complete) {
     showProfileSetup();
   }
