@@ -580,13 +580,89 @@ function renderProfile() {
       <div class="stat-card"><div class="stat-value">${totalRoutines}</div><div class="stat-label">총 루틴</div></div>
       <div class="stat-card"><div class="stat-value">${completedToday}</div><div class="stat-label">오늘 완료</div></div>
     </div>
-    <div class="menu-list">
-      <div class="menu-item" onclick="openEditProfileModal()">
-        <div class="menu-item-icon">✏️</div><span class="menu-item-label">프로필 수정</span><span class="menu-item-arrow">›</span>
-      </div>
+    <div class="profile-activity-tabs">
+      <button class="profile-tab-btn${state.profileTab==='posts'?' active':''}" data-tab="posts" onclick="switchProfileTab('posts')">내가 쓴 글</button>
+      <button class="profile-tab-btn${state.profileTab==='comments'?' active':''}" data-tab="comments" onclick="switchProfileTab('comments')">내 댓글</button>
+      <button class="profile-tab-btn${state.profileTab==='scraps'?' active':''}" data-tab="scraps" onclick="switchProfileTab('scraps')">스크랩</button>
+    </div>
+    <div id="profile-tab-content" class="profile-tab-content"></div>
+    <div class="menu-list" style="margin-top:14px">
       <div class="menu-item danger" onclick="handleSignOut()">
         <div class="menu-item-icon">🚪</div><span class="menu-item-label">로그아웃</span>
       </div>
+    </div>`;
+  switchProfileTab(state.profileTab);
+}
+
+async function switchProfileTab(tab) {
+  state.profileTab = tab;
+  document.querySelectorAll('.profile-tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === tab));
+  const content = document.getElementById('profile-tab-content');
+  if (!content) return;
+  content.innerHTML = '<div style="padding:40px 0;display:flex;justify-content:center"><div class="loading-spinner"></div></div>';
+  if (tab === 'posts') await renderMyPosts(content);
+  else if (tab === 'comments') await renderMyComments(content);
+  else if (tab === 'scraps') await renderMyScraps(content);
+}
+
+async function renderMyPosts(container) {
+  const { data } = await sb.from('posts')
+    .select('*, profiles!posts_user_id_fkey(username,avatar_url), categories!posts_category_id_fkey(name)')
+    .eq('user_id', state.user.id)
+    .order('created_at', { ascending: false });
+  if (!data?.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">📝</div><p>작성한 게시물이 없어요</p></div>';
+    return;
+  }
+  container.innerHTML = data.map(post => buildProfilePostCard(post)).join('');
+}
+
+async function renderMyComments(container) {
+  const { data } = await sb.from('post_comments')
+    .select('*, posts!post_comments_post_id_fkey(id, content)')
+    .eq('user_id', state.user.id)
+    .order('created_at', { ascending: false });
+  if (!data?.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">💬</div><p>작성한 댓글이 없어요</p></div>';
+    return;
+  }
+  container.innerHTML = data.map(c => `
+    <div class="activity-comment-item" onclick="openPostDetail('${c.post_id}')">
+      <div class="activity-comment-text">${escHtml(c.content)}</div>
+      ${c.posts?.content ? `<div class="activity-comment-post">└ ${escHtml(c.posts.content.slice(0, 50))}${c.posts.content.length > 50 ? '...' : ''}</div>` : ''}
+      <div class="activity-comment-time">${getTimeAgo(new Date(c.created_at))}</div>
+    </div>`).join('');
+}
+
+async function renderMyScraps(container) {
+  const { data } = await sb.from('post_scraps')
+    .select('post_id, posts!post_scraps_post_id_fkey(*, profiles!posts_user_id_fkey(username,avatar_url), categories!posts_category_id_fkey(name))')
+    .eq('user_id', state.user.id)
+    .order('created_at', { ascending: false });
+  const posts = (data || []).map(s => s.posts).filter(Boolean);
+  if (!posts.length) {
+    container.innerHTML = '<div class="empty-state"><div class="empty-icon">🔖</div><p>스크랩한 게시물이 없어요</p></div>';
+    return;
+  }
+  container.innerHTML = posts.map(post => buildProfilePostCard(post)).join('');
+}
+
+function buildProfilePostCard(post) {
+  const catHtml = post.categories?.name ? `<span class="post-cat-badge">${escHtml(post.categories.name)}</span>` : '';
+  const contentPreview = post.content ? escHtml(post.content.slice(0, 80)) + (post.content.length > 80 ? '...' : '') : '';
+  const thumbHtml = post.image_url ? `<div class="profile-post-thumb"><img src="${post.image_url}" alt=""></div>` : '';
+  return `
+    <div class="profile-post-item" onclick="openPostDetail('${post.id}')">
+      <div class="profile-post-main">
+        ${catHtml}
+        <p class="profile-post-content">${contentPreview || '(이미지 게시물)'}</p>
+        <div class="profile-post-meta">
+          <span>${getTimeAgo(new Date(post.created_at))}</span>
+          <span>❤️ ${post.likes_count||0}</span>
+          <span>💬 ${post.comments_count||0}</span>
+        </div>
+      </div>
+      ${thumbHtml}
     </div>`;
 }
 
