@@ -2,42 +2,66 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Rebel-Up Admin</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f5f5f7;color:#1a1a1a;min-height:100vh}
-    .header{background:#fff;border-bottom:1px solid #f0f0f2;padding:16px 20px;display:flex;align-items:center;justify-content:space-between}
-    .header h1{font-size:18px;font-weight:800}
-    .header-right{display:flex;gap:10px;align-items:center}
-    .email{font-size:13px;color:#6b7280}
-    .btn{padding:9px 18px;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer;transition:opacity .15s}
-    .btn:active{opacity:.8}
-    .btn-primary{background:#00BFFF;color:#fff}
-    .btn-danger{background:#ef4444;color:#fff}
-    .btn-outline{background:#fff;color:#1a1a1a;border:1.5px solid #e5e7eb}
-    .container{max-width:600px;margin:24px auto;padding:0 16px}
-    .card{background:#fff;border-radius:14px;padding:20px;margin-bottom:16px;box-shadow:0 1px 3px rgba(0,0,0,.05)}
-    .card h2{font-size:16px;font-weight:700;margin-bottom:16px}
-    .form-row{display:flex;gap:10px;margin-bottom:0}
-    .form-row input{flex:1;padding:11px 14px;border:1.5px solid #f0f0f2;border-radius:10px;font-size:14px;outline:none;background:#f5f5f7}
-    .form-row input:focus{border-color:#00BFFF;background:#fff}
-    .cat-list{display:flex;flex-direction:column;gap:8px;margin-top:16px}
-    .cat-item{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid #f0f0f2;border-radius:10px;background:#fafafa}
-    .cat-item-name{flex:1;font-size:15px;font-weight:600}
-    .cat-item-order{font-size:12px;color:#9ca3af;width:30px;text-align:center}
-    .loading{text-align:center;padding:40px;color:#9ca3af;font-size:15px}
-    .auth-screen{position:fixed;inset:0;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:40px}
-    .auth-screen h2{font-size:20px;font-weight:800}
-    .auth-screen p{color:#6b7280;font-size:14px;text-align:center}
-    #error-msg{color:#ef4444;font-size:13px;min-height:18px}
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f5f5f7; color: #1a1a1a; min-height: 100vh; overflow-x: hidden; }
+
+    .header { background: #fff; border-bottom: 1px solid #e5e7eb; padding: 13px 16px; display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+    .header h1 { font-size: 17px; font-weight: 800; white-space: nowrap; }
+    .header-right { display: flex; gap: 8px; align-items: center; }
+    .email { font-size: 12px; color: #6b7280; max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    .btn { display: inline-flex; align-items: center; justify-content: center; padding: 8px 16px; border: none; border-radius: 10px; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity .15s; white-space: nowrap; }
+    .btn:active { opacity: .75; }
+    .btn-sm { padding: 5px 11px; font-size: 12px; border-radius: 8px; }
+    .btn-primary { background: #00BFFF; color: #fff; }
+    .btn-danger { background: #ef4444; color: #fff; }
+    .btn-outline { background: #fff; color: #374151; border: 1.5px solid #e5e7eb; }
+    .btn-ghost { background: #f3f4f6; color: #374151; }
+    .btn:disabled { opacity: .35; cursor: not-allowed; }
+
+    .container { max-width: 600px; margin: 20px auto; padding: 0 14px 48px; }
+    .card { background: #fff; border-radius: 14px; padding: 18px; margin-bottom: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+    .card-title { font-size: 15px; font-weight: 700; margin-bottom: 14px; }
+
+    .add-row { display: flex; gap: 8px; align-items: center; }
+    .add-row input[type="text"] { flex: 1; min-width: 0; }
+    .add-row input[type="number"] { width: 68px; flex: none; }
+    input[type="text"], input[type="number"] { padding: 10px 12px; border: 1.5px solid #e5e7eb; border-radius: 10px; font-size: 14px; outline: none; background: #f9fafb; width: 100%; }
+    input[type="text"]:focus, input[type="number"]:focus { border-color: #00BFFF; background: #fff; }
+
+    .cat-list { display: flex; flex-direction: column; gap: 6px; margin-top: 14px; }
+    .cat-item { border: 1px solid #e5e7eb; border-radius: 10px; background: #fafafa; overflow: hidden; }
+
+    .cat-row { display: flex; align-items: center; gap: 8px; padding: 10px 12px; }
+    .cat-order-badge { font-size: 11px; color: #9ca3af; background: #f3f4f6; border-radius: 5px; padding: 2px 6px; flex-shrink: 0; min-width: 28px; text-align: center; }
+    .cat-name { flex: 1; font-size: 14px; font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cat-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+    .move-btn { width: 30px; height: 30px; border: none; border-radius: 7px; background: #f3f4f6; color: #374151; cursor: pointer; font-size: 15px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .move-btn:active { background: #e5e7eb; }
+    .move-btn:disabled { opacity: .3; cursor: not-allowed; }
+
+    .edit-row { display: none; align-items: center; gap: 7px; padding: 10px 12px; border-top: 1px solid #e5e7eb; background: #fff; flex-wrap: wrap; }
+    .edit-row.open { display: flex; }
+    .edit-row input[type="text"] { flex: 1; min-width: 100px; font-size: 13px; padding: 7px 10px; }
+    .edit-row input[type="number"] { width: 60px; flex: none; font-size: 13px; padding: 7px 10px; }
+
+    .empty { text-align: center; padding: 36px; color: #9ca3af; font-size: 14px; }
+
+    .auth-screen { position: fixed; inset: 0; background: #fff; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 40px 24px; }
+    .auth-screen h2 { font-size: 22px; font-weight: 800; }
+    .auth-screen p { color: #6b7280; font-size: 14px; text-align: center; line-height: 1.7; }
+    #error-msg { color: #ef4444; font-size: 13px; min-height: 18px; }
   </style>
 </head>
 <body>
+
 <div id="auth-screen" class="auth-screen">
-  <div style="font-size:40px">⚡</div>
-  <h2>Admin</h2>
+  <h2>Rebel-Up Admin</h2>
   <p>fightingman012@gmail.com 계정으로<br>로그인해주세요</p>
   <button class="btn btn-primary" onclick="adminLogin()">Google로 로그인</button>
   <p id="error-msg"></p>
@@ -45,21 +69,23 @@
 
 <div id="admin-app" style="display:none">
   <div class="header">
-    <h1>⚡ Rebel-Up Admin</h1>
+    <h1>Rebel-Up Admin</h1>
     <div class="header-right">
       <span class="email" id="admin-email"></span>
-      <button class="btn btn-outline" onclick="adminLogout()">로그아웃</button>
+      <button class="btn btn-sm btn-outline" onclick="adminLogout()">로그아웃</button>
     </div>
   </div>
   <div class="container">
     <div class="card">
-      <h2>카테고리 관리</h2>
-      <div class="form-row">
+      <div class="card-title">카테고리 관리</div>
+      <div class="add-row">
+        <input type="number" id="cat-order" placeholder="순서" min="0">
         <input type="text" id="cat-name" placeholder="카테고리 이름">
-        <input type="number" id="cat-order" placeholder="순서" style="width:80px;flex:none">
         <button class="btn btn-primary" onclick="addCategory()">추가</button>
       </div>
-      <div id="cat-list" class="cat-list"><div class="loading">로딩 중...</div></div>
+      <div id="cat-list" class="cat-list">
+        <div class="empty">로딩 중...</div>
+      </div>
     </div>
   </div>
 </div>

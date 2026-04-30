@@ -62,15 +62,14 @@ async function loadAll() {
 
 async function loadProfile() {
   if (!state.user) return;
-  let { data } = await sb.from('profiles').select('*').eq('id', state.user.id).single();
-  if (!data) {
-    const username = state.user.user_metadata?.full_name || state.user.user_metadata?.name || state.user.email?.split('@')[0] || '사용자';
-    const { data: created } = await sb.from('profiles').upsert({
-      id: state.user.id, username, full_name: username, bio: '', avatar_url: state.user.user_metadata?.avatar_url || null,
-    }).select().single();
-    data = created;
-  }
-  if (data) state.profile = data;
+  const { data } = await sb.from('profiles').select('*').eq('id', state.user.id).maybeSingle();
+  if (data) { state.profile = data; return; }
+  const username = state.user.user_metadata?.full_name || state.user.user_metadata?.name || state.user.email?.split('@')[0] || '사용자';
+  const { data: created, error } = await sb.from('profiles').upsert({
+    id: state.user.id, username, full_name: username, bio: '', avatar_url: state.user.user_metadata?.avatar_url || null,
+  }, { onConflict: 'id' }).select().maybeSingle();
+  if (error) console.error('프로필 생성 실패:', error);
+  if (created) state.profile = created;
 }
 
 async function loadRoutines() {
@@ -173,7 +172,9 @@ async function savePost() {
     if (error) throw error;
     await loadPosts();
     closeCompose();
+    state.selectedCategoryId = null;
     switchPage('community', document.querySelector('[data-page="community"]'));
+    renderCategoryPills();
     renderPosts();
   } catch (err) {
     console.error('게시 실패:', err);
