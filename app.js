@@ -6,17 +6,17 @@ const state = {
   user: null, profile: null,
   selectedDate: new Date(),
   routines: [], routineLogs: {},
-  posts: [], postLikes: new Set(),
+  posts: [], postLikes: new Set(), scrappedPosts: new Set(),
   streak: 0, innerTab: 'exercise',
   periodMenuOpen: false, currentPeriod: '하루',
   selectedPhoto: null,
   categories: [], selectedCategoryId: null, composeCategoryId: null,
-  editingRoutineId: null,
+  editingRoutineId: null, editingPostId: null,
   pickerYear: new Date().getFullYear(), pickerMonth: new Date().getMonth(),
   notifications: [],
-  currentPostId: null,
-  replyToCommentId: null,
-  replyToUsername: null,
+  currentPostId: null, currentComments: [],
+  replyToCommentId: null, replyToUsername: null,
+  profileTab: 'posts',
 };
 
 async function init() {
@@ -67,9 +67,15 @@ async function signInWithGoogle() {
 }
 
 async function loadAll() {
-  await Promise.all([loadProfile(), loadRoutines(), loadPosts(), loadCategories(), loadNotifications()]);
+  await Promise.all([loadProfile(), loadRoutines(), loadPosts(), loadCategories(), loadNotifications(), loadScraps()]);
   await loadRoutineLogsForDate(state.selectedDate);
   await calcStreak();
+}
+
+async function loadScraps() {
+  if (!state.user) return;
+  const { data } = await sb.from('post_scraps').select('post_id').eq('user_id', state.user.id);
+  state.scrappedPosts = new Set((data || []).map(s => s.post_id));
 }
 
 async function loadProfile() {
@@ -219,7 +225,6 @@ async function toggleLike(postId) {
 }
 
 async function deletePost(postId) {
-  if (!confirm('게시물을 삭제할까요?')) return;
   const post = state.posts.find(p => p.id === postId);
   if (post?.image_url) {
     const path = post.image_url.split('/post-images/')[1];
@@ -228,6 +233,54 @@ async function deletePost(postId) {
   await sb.from('posts').delete().eq('id', postId).eq('user_id', state.user.id);
   state.posts = state.posts.filter(p => p.id !== postId);
   renderPosts();
+}
+
+function openPostMenu(postId) {
+  const post = state.posts.find(p => p.id === postId);
+  const isOwn = state.user && post?.user_id === state.user.id;
+  const list = document.getElementById('post-action-list');
+  list.innerHTML = `
+    ${isOwn ? `
+    <div class="action-item" onclick="editPost('${postId}')">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+      수정하기
+    </div>
+    <div class="action-item danger" onclick="confirmDeletePost('${postId}')">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+      삭제하기
+    </div>` : ''}
+    <div class="action-item danger" onclick="reportPost('${postId}')">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      신고하기
+    </div>
+    <div class="action-item cancel" onclick="closeModal('modal-post-action')">취소</div>`;
+  openModal('modal-post-action');
+}
+
+function openCurrentPostMenu() {
+  if (state.currentPostId) openPostMenu(state.currentPostId);
+}
+
+async function confirmDeletePost(postId) {
+  closeModal('modal-post-action');
+  if (!confirm('게시물을 삭제할까요?')) return;
+  await deletePost(postId);
+  if (!document.getElementById('modal-post-detail').classList.contains('hidden')) {
+    closeModal('modal-post-detail');
+  }
+}
+
+function editPost(postId) {
+  closeModal('modal-post-action');
+  if (!document.getElementById('modal-post-detail').classList.contains('hidden')) {
+    closeModal('modal-post-detail');
+  }
+  openCompose(postId);
+}
+
+function reportPost(postId) {
+  closeModal('modal-post-action');
+  alert('신고가 접수되었어요. 검토 후 처리하겠습니다.');
 }
 
 async function saveProfile() {
@@ -916,13 +969,6 @@ function escHtml(str) {
   d.textContent = str || '';
   return d.innerHTML;
 }
-
-document.addEventListener('click', e => {
-  const btn = e.target.closest('.meal-btn');
-  if (btn) toggleMeal(btn);
-  const tod = e.target.closest('.tod-btn');
-  if (tod) toggleTod(tod);
-});
 
 // ── 알림 ──
 async function loadNotifications() {

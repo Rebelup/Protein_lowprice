@@ -1386,3 +1386,256 @@ input, textarea, select { font-family: inherit; }
   transition: opacity 0.15s;
 }
 .comment-submit-btn:active { opacity: 0.8; }
+
+/* ── 알림 '모두 읽음' 버튼 ── */
+.mark-all-btn {
+  font-size: 13px;
+  color: var(--text-secondary);
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.mark-all-btn:hover { background: var(--bg); }
+
+/* ── 게시물 상세 (전체화면, 오늘의집 스타일) ── */
+.post-detail-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: var(--white);
+}
+.post-detail-page {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+.post-detail-topbar {
+  display: flex;
+  align-items: center;
+  padding: 10px 8px 10px 4px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  background: var(--white);
+  gap: 4px;
+}
+.pd-back-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.pd-topbar-title {
+  flex: 1;
+  text-align: center;
+  font-size: 16px;
+  font-weight: 700;
+}
+.pd-more-btn {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+  flex-shrink: 0;
+}
+.post-detail-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── 게시물 상세 내용 (오늘의집 스타일) ── */
+.pd-author-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 16px 20px 10px;
+}
+.pd-user-info { flex: 1; }
+.pd-username { font-size: 15px; font-weight: 700; }
+.pd-time { font-size: 12px; color: var(--text-muted); margin-top: 1px; }
+.pd-tags { padding: 0 20px 10px; }
+.pd-content {
+  padding: 0 20px 16px;
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.pd-image {
+  width: 100%;
+  display: block;
+  object-fit: cover;
+  max-height: 420px;
+  margin-bottom: 4px;
+}
+.pd-actions {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+.pd-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.2s;
+  padding: 4px 0;
+}
+.pd-action-btn.liked { color: #ef4444; }
+.pd-action-btn.scrapped { color: var(--blue); }
+.pd-action-stat {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+.pd-actions-spacer { flex: 1; }
+
+/* ── 게시물 "..." 메뉴 버튼 ── */
+.post-menu-btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-muted);
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+.post-menu-btn:active { background: var(--bg); }
+.post-action-btn.scrapped { color: var(--blue); }
+
+/* ── 액션 시트 ── */
+.action-sheet { padding-bottom: env(safe-area-inset-bottom, 8px); }
+.post-action-list { }
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 17px 24px;
+  font-size: 16px;
+  cursor: pointer;
+  border-bottom: 1px solid var(--border);
+  transition: background 0.12s;
+  color: var(--text);
+}
+.action-item:last-child { border-bottom: none; }
+.action-item:active { background: var(--bg); }
+.action-item.danger { color: #ef4444; }
+.action-item.cancel {
+  justify-content: center;
+  color: var(--text-secondary);
+  font-weight: 600;
+  background: var(--bg);
+  margin-top: 6px;
+  border-top: 1px solid var(--border);
+}
+
+/* ── 내정보 활동 탭 ── */
+.profile-activity-tabs {
+  display: flex;
+  background: var(--white);
+  border-bottom: 2px solid var(--border);
+  margin-top: 14px;
+}
+.profile-tab-btn {
+  flex: 1;
+  padding: 13px 8px;
+  background: none;
+  border: none;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s;
+  white-space: nowrap;
+}
+.profile-tab-btn.active { color: var(--blue); font-weight: 700; }
+.profile-tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: var(--blue);
+  border-radius: 2px;
+}
+.profile-tab-content { background: var(--bg); min-height: 120px; }
+
+/* 내정보 게시글/댓글 카드 */
+.profile-post-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.profile-post-item:active { background: var(--bg); }
+.profile-post-main { flex: 1; min-width: 0; }
+.profile-post-content {
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.55;
+  margin: 4px 0 6px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.profile-post-meta { display: flex; gap: 10px; font-size: 12px; color: var(--text-muted); }
+.profile-post-thumb { width: 68px; height: 68px; border-radius: 8px; overflow: hidden; flex-shrink: 0; }
+.profile-post-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.activity-comment-item {
+  padding: 14px 16px;
+  background: var(--white);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+}
+.activity-comment-item:active { background: var(--bg); }
+.activity-comment-text { font-size: 14px; color: var(--text); line-height: 1.5; margin-bottom: 4px; }
+.activity-comment-post { font-size: 12px; color: var(--text-muted); margin-bottom: 3px; }
+.activity-comment-time { font-size: 11px; color: var(--text-muted); }
+
+/* ── 식단 섹션 헤더 ── */
+.diet-section-header {
+  padding: 12px 16px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  background: var(--bg);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+.diet-section-header:first-child { padding-top: 14px; }
