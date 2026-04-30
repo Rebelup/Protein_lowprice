@@ -239,9 +239,11 @@ async function signInWithGoogle() {
 }
 
 async function loadAll() {
-  await Promise.all([loadProfile(), loadRoutines(), loadPosts(), loadCategories(), loadNotifications(), loadScraps()]);
-  await loadRoutineLogsForDate(state.selectedDate);
-  await calcStreak();
+  await Promise.all([
+    loadProfile(), loadRoutines(), loadPosts(), loadCategories(),
+    loadNotifications(), loadScraps(),
+    loadRoutineLogsForDate(state.selectedDate), calcStreak(),
+  ]);
 }
 
 async function loadScraps() {
@@ -252,14 +254,15 @@ async function loadScraps() {
 
 async function loadProfile() {
   if (!state.user) return;
-  const { data } = await sb.from('profiles').select('*').eq('id', state.user.id).maybeSingle();
-  if (data) { state.profile = data; return; }
   const username = state.user.user_metadata?.full_name || state.user.user_metadata?.name || state.user.email?.split('@')[0] || '사용자';
-  const { data: created, error } = await sb.from('profiles').upsert({
-    id: state.user.id, username, full_name: username, bio: '', avatar_url: state.user.user_metadata?.avatar_url || null,
-  }, { onConflict: 'id' }).select().maybeSingle();
-  if (error) return;
-  if (created) state.profile = created;
+  const { data, error } = await sb.from('profiles').upsert({
+    id: state.user.id, username, full_name: username, bio: '',
+    avatar_url: state.user.user_metadata?.avatar_url || null,
+  }, { onConflict: 'id', ignoreDuplicates: true }).select().maybeSingle();
+  if (!error && data) { state.profile = data; return; }
+  // If upsert returned nothing (existing row, ignoreDuplicates), fetch it
+  const { data: existing } = await sb.from('profiles').select('*').eq('id', state.user.id).maybeSingle();
+  if (existing) state.profile = existing;
 }
 
 async function loadRoutines() {
