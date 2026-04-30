@@ -41,8 +41,58 @@ const state = {
   profileTab: 'posts',
 };
 
+function setupPullToRefresh() {
+  const scroll = document.getElementById('community-scroll');
+  const indicator = document.getElementById('ptr-indicator');
+  const label = document.getElementById('ptr-label');
+  if (!scroll || !indicator) return;
+  const THRESHOLD = 72;
+  let startY = 0, pulling = false, refreshing = false;
+
+  scroll.addEventListener('touchstart', e => {
+    if (scroll.scrollTop === 0 && !refreshing) {
+      startY = e.touches[0].clientY;
+      pulling = true;
+    }
+  }, { passive: true });
+
+  scroll.addEventListener('touchmove', e => {
+    if (!pulling || refreshing) return;
+    const dy = e.touches[0].clientY - startY;
+    if (dy <= 0) return;
+    const h = Math.min(dy * 0.45, 60);
+    indicator.style.height = h + 'px';
+    indicator.style.opacity = Math.min(dy / THRESHOLD, 1);
+    label.textContent = dy >= THRESHOLD ? '놓으면 새로고침' : '당겨서 새로고침';
+  }, { passive: true });
+
+  scroll.addEventListener('touchend', async e => {
+    if (!pulling) return;
+    pulling = false;
+    const dy = e.changedTouches[0].clientY - startY;
+    if (dy >= THRESHOLD && !refreshing) {
+      refreshing = true;
+      label.textContent = '새로고침 중...';
+      indicator.classList.add('ptr-spinning');
+      indicator.style.height = '56px';
+      indicator.style.opacity = '1';
+      await loadPosts();
+      renderPosts();
+      refreshing = false;
+      indicator.classList.remove('ptr-spinning');
+      indicator.style.height = '0';
+      indicator.style.opacity = '0';
+      label.textContent = '당겨서 새로고침';
+    } else {
+      indicator.style.height = '0';
+      indicator.style.opacity = '0';
+    }
+  });
+}
+
 async function init() {
   setupPostDetailSwipe();
+  setupPullToRefresh();
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     state.user = session.user;
