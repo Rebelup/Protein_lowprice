@@ -587,6 +587,60 @@ function selectComposeCategory(id, btn) {
   }
 }
 
+// ── 이미지 슬라이드쇼 ──
+function buildImageSlideshow(urls, postId, inDetail = false) {
+  if (!urls || urls.length === 0) return '';
+  if (urls.length === 1) {
+    if (inDetail) return `<img src="${urls[0]}" class="pd-image" alt="">`;
+    return `<img src="${urls[0]}" class="post-image" alt="">`;
+  }
+  const slides = urls.map((url, i) =>
+    `<div class="slide${i === 0 ? ' active' : ''}"><img src="${url}" alt="사진 ${i + 1}"></div>`
+  ).join('');
+  const dots = urls.map((_, i) =>
+    `<button class="slide-dot${i === 0 ? ' active' : ''}" onclick="event.stopPropagation();goToSlide(this,${i})"></button>`
+  ).join('');
+  const cls = inDetail ? 'post-slideshow detail-slideshow' : 'post-slideshow';
+  const tapAction = inDetail ? '' : `onclick="event.stopPropagation();openPostDetail('${postId}')"`;
+  return `
+    <div class="${cls}" data-current="0" ${tapAction}>
+      <div class="slides-track">${slides}</div>
+      <button class="slide-btn prev" onclick="event.stopPropagation();slidePrev(this.parentElement)">&#8249;</button>
+      <button class="slide-btn next" onclick="event.stopPropagation();slideNext(this.parentElement)">&#8250;</button>
+      <div class="slide-dots">${dots}</div>
+      <span class="slide-counter">1 / ${urls.length}</span>
+    </div>`;
+}
+function slideNext(c) {
+  const slides = c.querySelectorAll('.slide');
+  let cur = +c.dataset.current;
+  slides[cur].classList.remove('active');
+  cur = (cur + 1) % slides.length;
+  slides[cur].classList.add('active');
+  c.dataset.current = cur;
+  c.querySelectorAll('.slide-dot').forEach((d, i) => d.classList.toggle('active', i === cur));
+  c.querySelector('.slide-counter').textContent = `${cur + 1} / ${slides.length}`;
+}
+function slidePrev(c) {
+  const slides = c.querySelectorAll('.slide');
+  let cur = +c.dataset.current;
+  slides[cur].classList.remove('active');
+  cur = (cur - 1 + slides.length) % slides.length;
+  slides[cur].classList.add('active');
+  c.dataset.current = cur;
+  c.querySelectorAll('.slide-dot').forEach((d, i) => d.classList.toggle('active', i === cur));
+  c.querySelector('.slide-counter').textContent = `${cur + 1} / ${slides.length}`;
+}
+function goToSlide(dot, idx) {
+  const c = dot.closest('.post-slideshow');
+  const slides = c.querySelectorAll('.slide');
+  slides[+c.dataset.current].classList.remove('active');
+  slides[idx].classList.add('active');
+  c.dataset.current = idx;
+  c.querySelectorAll('.slide-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+  c.querySelector('.slide-counter').textContent = `${idx + 1} / ${slides.length}`;
+}
+
 function renderPosts() {
   const container = document.getElementById('posts-list');
   if (!container) return;
@@ -606,7 +660,8 @@ function renderPosts() {
     const scrapped = state.scrappedPosts.has(post.id);
     const timeAgo = getTimeAgo(new Date(post.created_at));
     const avatarHtml = makeAvatarHtml(avatarUrl, username);
-    const imageHtml = post.image_url ? `<img src="${post.image_url}" class="post-image" alt="">` : '';
+    const imageUrls = post.image_urls?.length > 0 ? post.image_urls : (post.image_url ? [post.image_url] : []);
+    const imageHtml = buildImageSlideshow(imageUrls, post.id);
     const contentHtml = post.content ? `<p class="post-content">${escHtml(post.content)}</p>` : '';
     const catHtml = post.categories?.name ? `<span class="post-cat-badge">${escHtml(post.categories.name)}</span>` : '';
     return `
@@ -1511,7 +1566,7 @@ function renderPostDetail(post, comments) {
     </div>
     ${catHtml ? `<div class="pd-tags">${catHtml}</div>` : ''}
     ${post.content ? `<p class="pd-content">${escHtml(post.content)}</p>` : ''}
-    ${post.image_url ? `<img src="${post.image_url}" class="pd-image" alt="">` : ''}
+    ${(() => { const u = post.image_urls?.length > 0 ? post.image_urls : (post.image_url ? [post.image_url] : []); return buildImageSlideshow(u, post.id, true); })()}
     ${post.shared_routines?.length ? `
       <div class="pd-routines">
         <div class="pd-routines-label">공유한 루틴</div>
