@@ -42,6 +42,7 @@ const state = {
 };
 
 async function init() {
+  setupPostDetailSwipe();
   const { data: { session } } = await sb.auth.getSession();
   if (session) {
     state.user = session.user;
@@ -82,6 +83,44 @@ function cleanOAuthHash() {
   if (window.location.hash && window.location.hash.includes('access_token')) {
     window.history.replaceState({}, '', window.location.pathname);
   }
+}
+
+function setupPostDetailSwipe() {
+  const overlay = document.getElementById('modal-post-detail');
+  if (!overlay) return;
+  const page = overlay.querySelector('.post-detail-page');
+  let startX = 0, startY = 0, tracking = false;
+
+  overlay.addEventListener('touchstart', e => {
+    startX = e.touches[0].clientX;
+    startY = e.touches[0].clientY;
+    tracking = startX < 44; // only track swipes starting from left edge
+  }, { passive: true });
+
+  overlay.addEventListener('touchmove', e => {
+    if (!tracking) return;
+    const dx = e.touches[0].clientX - startX;
+    const dy = e.touches[0].clientY - startY;
+    if (dx <= 0 || Math.abs(dy) > Math.abs(dx)) { tracking = false; return; }
+    const progress = Math.min(dx / window.innerWidth, 1);
+    page.style.cssText = `transform:translateX(${dx}px);opacity:${1 - progress * 0.5};transition:none`;
+  }, { passive: true });
+
+  overlay.addEventListener('touchend', e => {
+    if (!tracking) return;
+    tracking = false;
+    const dx = e.changedTouches[0].clientX - startX;
+    if (dx > 80) {
+      page.style.cssText = 'transform:translateX(100%);opacity:0;transition:transform 0.22s ease,opacity 0.22s ease';
+      setTimeout(() => {
+        closeModal('modal-post-detail');
+        page.style.cssText = '';
+      }, 220);
+    } else {
+      page.style.cssText = 'transition:transform 0.2s ease,opacity 0.2s ease';
+      setTimeout(() => { page.style.cssText = ''; }, 200);
+    }
+  });
 }
 
 function checkDeepLink() {
