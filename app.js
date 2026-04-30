@@ -727,12 +727,11 @@ function openAddRoutineModal() {
   document.getElementById('routine-modal-title').textContent = '루틴 추가';
   document.getElementById('routine-name').value = '';
   const defaultType = state.innerTab === 'diet' ? 'diet' : 'exercise';
-  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
-  document.querySelector(`.type-btn[data-type="${defaultType}"]`).classList.add('active');
+  document.querySelectorAll('.type-btn').forEach(b => b.classList.toggle('active', b.dataset.type === defaultType));
   document.querySelectorAll('.day-btn').forEach(b => b.classList.toggle('active', parseInt(b.dataset.day) >= 1 && parseInt(b.dataset.day) <= 5));
-  document.querySelectorAll('.tod-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+  document.querySelectorAll('.tod-btn').forEach((b, i) => b.classList.toggle('active', i === 0));
   document.getElementById('meal-time-group').style.display = defaultType === 'diet' ? '' : 'none';
-  document.querySelectorAll('.meal-btn').forEach((b,i) => b.classList.toggle('active', i===0));
+  document.querySelectorAll('.meal-btn').forEach(b => b.classList.remove('active'));
   openModal('modal-add-routine');
 }
 
@@ -782,6 +781,7 @@ async function saveRoutine() {
   const days = Array.from(document.querySelectorAll('.day-btn.active')).map(b => parseInt(b.dataset.day));
   if (days.length === 0) { alert('요일을 하나 이상 선택해주세요.'); return; }
   const mealTime = type === 'diet' ? (document.querySelector('.meal-btn.active')?.dataset.meal || null) : null;
+  if (type === 'diet' && !mealTime) { alert('식사 종류를 선택해주세요.'); return; }
   const timeOfDay = document.querySelector('.tod-btn.active')?.dataset.tod || '';
   closeModal('modal-add-routine');
   if (state.editingRoutineId) {
