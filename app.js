@@ -156,7 +156,7 @@ async function loadProfile() {
   const { data: created, error } = await sb.from('profiles').upsert({
     id: state.user.id, username, full_name: username, bio: '', avatar_url: state.user.user_metadata?.avatar_url || null,
   }, { onConflict: 'id' }).select().maybeSingle();
-  if (error) console.error('프로필 생성 실패:', error);
+  if (error) return;
   if (created) state.profile = created;
 }
 
@@ -239,7 +239,7 @@ async function uploadPhoto(file) {
   const ext = file.name.split('.').pop();
   const path = `${state.user.id}/${Date.now()}.${ext}`;
   const { error } = await sb.storage.from('post-images').upload(path, file);
-  if (error) { console.error('이미지 업로드 실패:', error); return null; }
+  if (error) return null;
   const { data } = sb.storage.from('post-images').getPublicUrl(path);
   return data.publicUrl;
 }
@@ -607,9 +607,7 @@ function renderPosts() {
     const liked = state.postLikes.has(post.id);
     const scrapped = state.scrappedPosts.has(post.id);
     const timeAgo = getTimeAgo(new Date(post.created_at));
-    const avatarHtml = avatarUrl
-      ? `<div class="avatar"><img src="${avatarUrl}" alt=""></div>`
-      : `<div class="avatar">${initial}</div>`;
+    const avatarHtml = makeAvatarHtml(avatarUrl, username);
     const imageHtml = post.image_url ? `<img src="${post.image_url}" class="post-image" alt="">` : '';
     const contentHtml = post.content ? `<p class="post-content">${escHtml(post.content)}</p>` : '';
     const catHtml = post.categories?.name ? `<span class="post-cat-badge">${escHtml(post.categories.name)}</span>` : '';
@@ -1101,22 +1099,13 @@ function openEditRoutineModal(routineId) {
 }
 
 function selectType(btn) {
-  document.querySelectorAll('.type-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+  toggleButtonGroup(btn, '.type-btn');
   document.getElementById('meal-time-group').style.display = btn.dataset.type === 'diet' ? '' : 'none';
 }
 
 function toggleDay(btn) { btn.classList.toggle('active'); }
-
-function toggleMeal(btn) {
-  document.querySelectorAll('.meal-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-}
-
-function toggleTod(btn) {
-  document.querySelectorAll('.tod-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-}
+function toggleMeal(btn) { toggleButtonGroup(btn, '.meal-btn'); }
+function toggleTod(btn) { toggleButtonGroup(btn, '.tod-btn'); }
 
 function openEditProfileModal() {
   document.getElementById('edit-username').value = state.profile?.username || '';
@@ -1380,6 +1369,18 @@ function escHtml(str) {
   return d.innerHTML;
 }
 
+function makeAvatarHtml(avatarUrl, username, cls = 'avatar') {
+  const initial = (username || '?').charAt(0).toUpperCase();
+  return avatarUrl
+    ? `<div class="${cls}"><img src="${avatarUrl}" alt=""></div>`
+    : `<div class="${cls}">${initial}</div>`;
+}
+
+function toggleButtonGroup(btn, selector) {
+  document.querySelectorAll(selector).forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
 // ── 알림 ──
 async function loadNotifications() {
   if (!state.user) return;
@@ -1482,10 +1483,7 @@ function renderPostDetail(post, comments) {
 
   const username = post.profiles?.username || '익명';
   const avatarUrl = post.profiles?.avatar_url;
-  const initial = username.charAt(0).toUpperCase();
-  const avatarHtml = avatarUrl
-    ? `<div class="avatar"><img src="${avatarUrl}" alt=""></div>`
-    : `<div class="avatar">${initial}</div>`;
+  const avatarHtml = makeAvatarHtml(avatarUrl, username);
   const catHtml = post.categories?.name ? `<span class="post-cat-badge">${escHtml(post.categories.name)}</span>` : '';
   const timeAgo = getTimeAgo(new Date(post.created_at));
   const liked = state.postLikes.has(post.id);
@@ -1542,10 +1540,7 @@ function renderPostDetail(post, comments) {
 
 function buildCommentHtml(comment, replies) {
   const u = comment.profiles?.username || '익명';
-  const initial = u.charAt(0).toUpperCase();
-  const avatarHtml = comment.profiles?.avatar_url
-    ? `<div class="comment-avatar"><img src="${comment.profiles.avatar_url}" alt=""></div>`
-    : `<div class="comment-avatar">${initial}</div>`;
+  const avatarHtml = makeAvatarHtml(comment.profiles?.avatar_url, u, 'comment-avatar');
   const timeAgo = getTimeAgo(new Date(comment.created_at));
   const repliesHtml = replies.map(r => buildCommentHtml(r, [])).join('');
   return `
