@@ -584,6 +584,12 @@ input, textarea, select { font-family: inherit; }
   border-radius: var(--radius);
   padding: 16px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  cursor: pointer;
+  transition: transform 0.12s, background-color 0.12s;
+}
+.post-card:active {
+  transform: scale(0.98);
+  background-color: #f5f5f7;
 }
 
 .post-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
@@ -1269,22 +1275,22 @@ input, textarea, select { font-family: inherit; }
 .comment-item {
   display: flex;
   gap: 10px;
-  padding: 12px 20px;
-  border-bottom: 1px solid var(--border);
+  padding: 14px 20px;
 }
 .comment-item.reply {
   padding-left: 52px;
-  background: var(--bg);
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 .comment-avatar {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
   background: var(--blue);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 700;
   color: white;
   flex-shrink: 0;
@@ -1294,30 +1300,50 @@ input, textarea, select { font-family: inherit; }
 .comment-body { flex: 1; min-width: 0; }
 .comment-header {
   display: flex;
-  align-items: baseline;
-  gap: 8px;
-  margin-bottom: 3px;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 4px;
 }
-.comment-username { font-size: 13px; font-weight: 700; }
-.comment-time { font-size: 11px; color: var(--text-muted); }
+.comment-username { font-size: 13px; font-weight: 700; color: var(--text); }
+.comment-dot { font-size: 11px; color: var(--text-muted); }
+.comment-time { font-size: 12px; color: var(--text-muted); flex: 1; }
+.comment-more-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 15px;
+  cursor: pointer;
+  padding: 0 2px;
+  letter-spacing: 1px;
+  line-height: 1;
+}
 .comment-content {
   font-size: 14px;
-  line-height: 1.55;
+  line-height: 1.6;
   color: var(--text);
   word-break: break-word;
   white-space: pre-wrap;
+  margin-bottom: 8px;
 }
+.comment-actions {
+  display: flex;
+  gap: 14px;
+}
+.comment-like-action,
 .comment-reply-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   background: none;
   border: none;
   font-size: 12px;
   color: var(--text-muted);
   cursor: pointer;
-  padding: 4px 0;
-  margin-top: 2px;
-  display: block;
+  padding: 0;
+  font-family: inherit;
 }
-.comment-reply-btn:hover { color: var(--blue); }
+.comment-like-action:active,
+.comment-reply-btn:active { color: var(--blue); }
 .no-comments {
   padding: 40px 24px;
   text-align: center;

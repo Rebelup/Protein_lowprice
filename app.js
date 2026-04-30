@@ -466,9 +466,6 @@ function renderRoutineList() {
   closeAllSwipes();
   const dow = state.selectedDate.getDay();
   let dayRoutines = state.routines.filter(r => r.days_of_week?.includes(dow) && r.type === 'exercise');
-  if (state.currentPeriod !== '하루') {
-    dayRoutines = dayRoutines.filter(r => r.time_of_day === state.currentPeriod);
-  }
   dayRoutines.sort((a, b) => (a.order_index ?? 999) - (b.order_index ?? 999));
   if (dayRoutines.length === 0) {
     container.innerHTML = `<div class="empty-state"><div class="empty-icon">💪</div><p>오늘 운동 루틴이 없어요<br>+ 버튼으로 추가해보세요!</p></div>`;
@@ -889,8 +886,6 @@ function switchInnerTab(tab, btn) {
   state.innerTab = tab;
   document.querySelectorAll('.inner-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  const toolbar = document.getElementById('routine-toolbar');
-  if (toolbar) toolbar.style.display = tab === 'diet' ? 'none' : '';
   renderRoutineList();
 }
 
@@ -1044,25 +1039,8 @@ function removePhoto() {
   document.getElementById('compose-post-btn').disabled = !document.getElementById('post-content').value.trim();
 }
 
-// ── 모달 / 필터 ──
-function togglePeriodMenu() {
-  state.periodMenuOpen = !state.periodMenuOpen;
-  document.getElementById('period-menu').classList.toggle('hidden', !state.periodMenuOpen);
-}
-
-function setPeriod(label) {
-  state.currentPeriod = label;
-  document.getElementById('period-label').textContent = label;
-  document.getElementById('period-menu').classList.add('hidden');
-  state.periodMenuOpen = false;
-  renderRoutineList();
-}
-
+// ── 모달 ──
 document.addEventListener('click', e => {
-  if (state.periodMenuOpen && !e.target.closest('.routine-toolbar')) {
-    document.getElementById('period-menu').classList.add('hidden');
-    state.periodMenuOpen = false;
-  }
   if (!e.target.closest('.routine-item-wrap')) closeAllSwipes();
 });
 
@@ -1543,15 +1521,23 @@ function buildCommentHtml(comment, replies) {
   const avatarHtml = makeAvatarHtml(comment.profiles?.avatar_url, u, 'comment-avatar');
   const timeAgo = getTimeAgo(new Date(comment.created_at));
   const repliesHtml = replies.map(r => buildCommentHtml(r, [])).join('');
+  const isReply = !!comment.parent_id;
   return `
-    <div class="comment-item${comment.parent_id ? ' reply' : ''}">
-      <div class="comment-header">
-        ${avatarHtml}
-        <span class="comment-username">${escHtml(u)}</span>
-        <span class="comment-time">${timeAgo}</span>
+    <div class="comment-item${isReply ? ' reply' : ''}">
+      ${avatarHtml}
+      <div class="comment-body">
+        <div class="comment-header">
+          <span class="comment-username">${escHtml(u)}</span>
+          <span class="comment-dot">·</span>
+          <span class="comment-time">${timeAgo}</span>
+          <button class="comment-more-btn" onclick="void(0)">···</button>
+        </div>
+        <div class="comment-content">${escHtml(comment.content)}</div>
+        <div class="comment-actions">
+          <button class="comment-like-action"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg> 좋아요</button>
+          ${!isReply ? `<button class="comment-reply-btn" onclick="setReplyTo('${comment.id}','${escHtml(u)}')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> 답글쓰기</button>` : ''}
+        </div>
       </div>
-      <div class="comment-content">${escHtml(comment.content)}</div>
-      ${!comment.parent_id ? `<button class="comment-reply-btn" onclick="setReplyTo('${comment.id}','${escHtml(u)}')">답글 달기</button>` : ''}
     </div>
     ${repliesHtml}`;
 }
