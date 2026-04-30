@@ -56,6 +56,13 @@
     .auth-screen h2 { font-size: 22px; font-weight: 800; }
     .auth-screen p { color: #6b7280; font-size: 14px; text-align: center; line-height: 1.7; }
     #error-msg { color: #ef4444; font-size: 13px; min-height: 18px; }
+
+    /* Analytics */
+    .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat-box { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px 12px; text-align: center; }
+    .stat-label { font-size: 11px; color: #6b7280; margin-bottom: 6px; }
+    .stat-value { font-size: 22px; font-weight: 800; color: #111; line-height: 1; }
+    .stat-sub { font-size: 11px; color: #9ca3af; margin-top: 3px; }
   </style>
 </head>
 <body>
@@ -76,6 +83,34 @@
     </div>
   </div>
   <div class="container">
+    <div class="card">
+      <div class="card-title" style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+        <span>방문 통계</span>
+        <button class="btn btn-sm btn-ghost" onclick="loadAnalytics()">새로고침</button>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-box">
+          <div class="stat-label">오늘 방문자</div>
+          <div class="stat-value" id="stat-today">—</div>
+          <div class="stat-sub" id="stat-today-sub"></div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">리텐션 (재방문율)</div>
+          <div class="stat-value" id="stat-retention">—</div>
+          <div class="stat-sub" id="stat-retention-sub"></div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">평균 체류시간</div>
+          <div class="stat-value" id="stat-duration">—</div>
+          <div class="stat-sub" id="stat-duration-sub"></div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-label">누적 방문자</div>
+          <div class="stat-value" id="stat-total">—</div>
+          <div class="stat-sub" id="stat-total-sub"></div>
+        </div>
+      </div>
+    </div>
     <div class="card">
       <div class="card-title">카테고리 관리</div>
       <div class="add-row">

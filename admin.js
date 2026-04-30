@@ -40,6 +40,68 @@ function showAdminApp(email) {
   document.getElementById('admin-app').style.display = 'block';
   document.getElementById('admin-email').textContent = email;
   loadCategories();
+  loadAnalytics();
+}
+
+async function loadAnalytics() {
+  const set = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+
+  // Today's date range (KST = UTC+9)
+  const now = new Date();
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const kstNow = new Date(now.getTime() + kstOffset);
+  const todayStr = kstNow.toISOString().slice(0, 10);
+  const todayStart = todayStr + 'T00:00:00+09:00';
+  const todayEnd = todayStr + 'T23:59:59+09:00';
+
+  // All visits
+  const { data: allVisits, error } = await sb.from('page_visits').select('ip, session_id, visited_at, left_at');
+  if (error) { set('stat-today', '오류'); return; }
+
+  const visits = allVisits || [];
+
+  // Today's unique IPs
+  const todayVisits = visits.filter(v => {
+    const d = new Date(v.visited_at);
+    const kd = new Date(d.getTime() + kstOffset);
+    return kd.toISOString().slice(0, 10) === todayStr;
+  });
+  const todayIps = new Set(todayVisits.map(v => v.ip).filter(Boolean));
+  set('stat-today', todayIps.size || todayVisits.length);
+  set('stat-today-sub', `세션 ${todayVisits.length}건`);
+
+  // Retention: IPs that visited before today AND also today
+  const prevVisits = visits.filter(v => {
+    const d = new Date(v.visited_at);
+    const kd = new Date(d.getTime() + kstOffset);
+    return kd.toISOString().slice(0, 10) < todayStr;
+  });
+  const prevIps = new Set(prevVisits.map(v => v.ip).filter(Boolean));
+  const returningToday = [...todayIps].filter(ip => prevIps.has(ip)).length;
+  const retentionPct = todayIps.size > 0 ? Math.round(returningToday / todayIps.size * 100) : 0;
+  set('stat-retention', retentionPct + '%');
+  set('stat-retention-sub', `재방문 ${returningToday}명`);
+
+  // Average session duration (sessions with both visited_at and left_at)
+  const withDuration = visits.filter(v => v.visited_at && v.left_at);
+  if (withDuration.length > 0) {
+    const totalMs = withDuration.reduce((sum, v) => {
+      return sum + (new Date(v.left_at) - new Date(v.visited_at));
+    }, 0);
+    const avgSec = Math.round(totalMs / withDuration.length / 1000);
+    const mins = Math.floor(avgSec / 60);
+    const secs = avgSec % 60;
+    set('stat-duration', mins > 0 ? `${mins}분 ${secs}초` : `${secs}초`);
+    set('stat-duration-sub', `${withDuration.length}건 기준`);
+  } else {
+    set('stat-duration', '—');
+    set('stat-duration-sub', '데이터 없음');
+  }
+
+  // Total unique IPs
+  const allIps = new Set(visits.map(v => v.ip).filter(Boolean));
+  set('stat-total', allIps.size || visits.length);
+  set('stat-total-sub', `세션 ${visits.length}건`);
 }
 
 async function adminLogin() {

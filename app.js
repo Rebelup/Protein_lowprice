@@ -41,7 +41,59 @@ const state = {
   pickerSelectedDays: { exercise: new Set(), diet: new Set() },
   replyToCommentId: null, replyToUsername: null,
   profileTab: 'posts',
+  visitId: null,
 };
+
+// --- Visit Tracking ---
+async function trackVisit() {
+  try {
+    const sessionId = (() => {
+      let sid = sessionStorage.getItem('_vsid');
+      if (!sid) { sid = crypto.randomUUID(); sessionStorage.setItem('_vsid', sid); }
+      return sid;
+    })();
+    // Check if already tracked this session
+    if (sessionStorage.getItem('_vtracked')) return;
+    sessionStorage.setItem('_vtracked', '1');
+
+    let ip = null;
+    try {
+      const r = await fetch('https://api.ipify.org?format=json', { signal: AbortSignal.timeout(3000) });
+      const j = await r.json();
+      ip = j.ip;
+    } catch (_) {}
+
+    const { data } = await sb.from('page_visits').insert({
+      ip,
+      session_id: sessionId,
+      user_id: state.user?.id || null,
+      user_agent: navigator.userAgent,
+    }).select('id').maybeSingle();
+
+    if (data?.id) {
+      state.visitId = data.id;
+      // Update left_at when user leaves
+      const updateLeftAt = () => {
+        if (!state.visitId) return;
+        const payload = JSON.stringify({ visitId: state.visitId });
+        navigator.sendBeacon
+          ? navigator.sendBeacon(`${SUPABASE_URL}/rest/v1/page_visits?id=eq.${state.visitId}`, null)
+          : null;
+        // Also try via supabase directly (best effort)
+        sb.from('page_visits').update({ left_at: new Date().toISOString() }).eq('id', state.visitId).then(() => {});
+      };
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'hidden') updateLeftAt();
+      });
+      window.addEventListener('pagehide', updateLeftAt);
+      // Heartbeat: update left_at every 30s to track active sessions
+      setInterval(() => {
+        if (!state.visitId) return;
+        sb.from('page_visits').update({ left_at: new Date().toISOString() }).eq('id', state.visitId).then(() => {});
+      }, 30000);
+    }
+  } catch (_) {}
+}
 
 function setupPullToRefresh() {
   const scroll = document.getElementById('community-scroll');
@@ -102,9 +154,11 @@ async function init() {
     await loadAll();
     hideLoading();
     showApp();
+    trackVisit();
   } else {
     hideLoading();
     showAuth();
+    trackVisit();
     const params = new URLSearchParams(window.location.search);
     if (params.get('post')) {
       document.getElementById('auth-error').textContent = '게시물을 보려면 먼저 로그인해주세요.';
