@@ -177,32 +177,44 @@ async function uploadPhoto(file) {
 async function savePost() {
   const content = document.getElementById('post-content').value.trim();
   if (!content && !state.selectedPhoto) return;
-  if (!state.composeCategoryId) {
-    alert('카테고리를 선택해주세요.');
-    return;
-  }
+  if (!state.composeCategoryId) { alert('카테고리를 선택해주세요.'); return; }
   const btn = document.getElementById('compose-post-btn');
   btn.disabled = true;
-  btn.textContent = '게시 중...';
+  btn.textContent = state.editingPostId ? '수정 중...' : '게시 중...';
   try {
-    let imageUrl = null;
-    if (state.selectedPhoto) imageUrl = await uploadPhoto(state.selectedPhoto);
-    const { error } = await sb.from('posts').insert({
-      user_id: state.user.id, content: content || '',
-      image_url: imageUrl, category_id: state.composeCategoryId,
-    });
-    if (error) throw error;
-    await loadPosts();
+    if (state.editingPostId) {
+      const updates = { content: content || '', category_id: state.composeCategoryId };
+      if (state.selectedPhoto) {
+        const imageUrl = await uploadPhoto(state.selectedPhoto);
+        if (imageUrl) updates.image_url = imageUrl;
+      }
+      const { error } = await sb.from('posts').update(updates).eq('id', state.editingPostId).eq('user_id', state.user.id);
+      if (error) throw error;
+      const idx = state.posts.findIndex(p => p.id === state.editingPostId);
+      if (idx >= 0) {
+        state.posts[idx] = { ...state.posts[idx], ...updates };
+        const cat = state.categories.find(c => c.id === updates.category_id);
+        if (cat) state.posts[idx].categories = { name: cat.name };
+      }
+    } else {
+      let imageUrl = null;
+      if (state.selectedPhoto) imageUrl = await uploadPhoto(state.selectedPhoto);
+      const { error } = await sb.from('posts').insert({
+        user_id: state.user.id, content: content || '',
+        image_url: imageUrl, category_id: state.composeCategoryId,
+      });
+      if (error) throw error;
+      await loadPosts();
+    }
     closeCompose();
     state.selectedCategoryId = null;
     switchPage('community', document.querySelector('[data-page="community"]'));
     renderCategoryPills();
     renderPosts();
   } catch (err) {
-    console.error('게시 실패:', err);
-    alert('게시 실패: ' + err.message);
+    alert((state.editingPostId ? '수정' : '게시') + ' 실패: ' + err.message);
     btn.disabled = false;
-    btn.textContent = '게시';
+    btn.textContent = state.editingPostId ? '수정' : '게시';
   }
 }
 
@@ -705,15 +717,30 @@ function switchInnerTab(tab, btn) {
 }
 
 // ── 글쓰기 ──
-function openCompose() {
+function openCompose(postId = null) {
   state.selectedPhoto = null;
-  state.composeCategoryId = null;
-  document.getElementById('post-content').value = '';
-  document.getElementById('photo-preview').classList.add('hidden');
-  document.getElementById('photo-preview').innerHTML = '';
+  state.editingPostId = postId;
+  const post = postId ? state.posts.find(p => p.id === postId) : null;
+  state.composeCategoryId = post?.category_id || null;
+
+  const textarea = document.getElementById('post-content');
+  textarea.value = post?.content || '';
+  textarea.style.height = 'auto';
+
+  const preview = document.getElementById('photo-preview');
+  if (post?.image_url) {
+    preview.classList.remove('hidden');
+    preview.innerHTML = `<img src="${post.image_url}" alt="미리보기"><button class="photo-remove" onclick="removePhoto()">✕</button>`;
+  } else {
+    preview.classList.add('hidden');
+    preview.innerHTML = '';
+  }
+
   const btn = document.getElementById('compose-post-btn');
-  btn.disabled = true;
-  btn.textContent = '게시';
+  btn.disabled = !post?.content && !post?.image_url;
+  btn.textContent = postId ? '수정' : '게시';
+  document.getElementById('compose-title').textContent = postId ? '게시물 수정' : '새 게시물';
+
   const name = state.profile?.username || '사용자';
   document.getElementById('compose-username').textContent = name;
   const avatarEl = document.getElementById('compose-avatar');
@@ -730,7 +757,7 @@ function openCompose() {
   composePage.classList.remove('hidden-page');
   composePage.classList.add('active');
   document.querySelector('.bottom-nav').style.display = 'none';
-  document.getElementById('post-content').focus();
+  if (!postId) textarea.focus();
 }
 
 function closeCompose() {
