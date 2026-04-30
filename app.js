@@ -2,6 +2,26 @@ const SUPABASE_URL = 'https://myficrjdmqbtsgmdxtiu.supabase.co';
 const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im15ZmljcmpkbXFidHNnbWR4dGl1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzU5ODY4OTEsImV4cCI6MjA5MTU2Mjg5MX0.G2-_UEqO12SqxELdkZScvrdcYBNPW1gusEBA0ZW6smc';
 const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
+const KOREA_REGIONS = {
+  '서울':['강남구','강동구','강북구','강서구','관악구','광진구','구로구','금천구','노원구','도봉구','동대문구','동작구','마포구','서대문구','서초구','성동구','성북구','송파구','양천구','영등포구','용산구','은평구','종로구','중구','중랑구'],
+  '부산':['강서구','금정구','기장군','남구','동구','동래구','부산진구','북구','사상구','사하구','서구','수영구','연제구','영도구','중구','해운대구'],
+  '대구':['달서구','달성군','동구','북구','서구','수성구','중구','남구'],
+  '인천':['강화군','계양구','남동구','동구','미추홀구','부평구','서구','연수구','옹진군','중구'],
+  '광주':['광산구','남구','동구','북구','서구'],
+  '대전':['대덕구','동구','서구','유성구','중구'],
+  '울산':['남구','동구','북구','울주군','중구'],
+  '세종':['세종시'],
+  '경기':['가평군','고양시','과천시','광명시','광주시','구리시','군포시','김포시','남양주시','동두천시','부천시','성남시','수원시','시흥시','안산시','안성시','안양시','양주시','양평군','여주시','연천군','오산시','용인시','의왕시','의정부시','이천시','파주시','평택시','포천시','하남시','화성시'],
+  '강원':['강릉시','고성군','동해시','삼척시','속초시','양구군','양양군','영월군','원주시','인제군','정선군','철원군','춘천시','태백시','평창군','홍천군','화천군','횡성군'],
+  '충북':['괴산군','단양군','보은군','영동군','옥천군','음성군','제천시','증평군','진천군','청주시','충주시'],
+  '충남':['계룡시','공주시','금산군','논산시','당진시','보령시','부여군','서산시','서천군','아산시','예산군','천안시','청양군','태안군','홍성군'],
+  '전북':['고창군','군산시','김제시','남원시','무주군','부안군','순창군','완주군','익산시','임실군','장수군','전주시','정읍시','진안군'],
+  '전남':['강진군','고흥군','곡성군','광양시','구례군','나주시','담양군','목포시','무안군','보성군','순천시','신안군','여수시','영광군','영암군','완도군','장성군','장흥군','진도군','함평군','해남군','화순군'],
+  '경북':['경산시','경주시','고령군','구미시','군위군','김천시','문경시','봉화군','상주시','성주군','안동시','영덕군','영양군','영주시','영천시','예천군','울릉군','울진군','의성군','청도군','청송군','칠곡군','포항시'],
+  '경남':['거제시','거창군','고성군','김해시','남해군','밀양시','산청군','사천시','양산시','의령군','진주시','창녕군','창원시','통영시','하동군','함안군','함양군','합천군'],
+  '제주':['서귀포시','제주시'],
+};
+
 const state = {
   user: null, profile: null,
   selectedDate: new Date(),
@@ -15,6 +35,7 @@ const state = {
   pickerYear: new Date().getFullYear(), pickerMonth: new Date().getMonth(),
   notifications: [],
   currentPostId: null, currentComments: [],
+  setupPhoto: null, setupProvince: null, setupDistrict: null,
   replyToCommentId: null, replyToUsername: null,
   profileTab: 'posts',
 };
@@ -689,6 +710,110 @@ function showApp() {
   document.getElementById('app').classList.remove('hidden');
   renderAll();
   initCalendarSwipe();
+  if (state.profile && !state.profile.setup_complete) {
+    showProfileSetup();
+  }
+}
+
+function showProfileSetup() {
+  state.setupPhoto = null;
+  state.setupProvince = null;
+  state.setupDistrict = null;
+  const usernameEl = document.getElementById('setup-username');
+  if (usernameEl) usernameEl.value = state.profile?.username || '';
+  const avatar = document.getElementById('setup-avatar');
+  if (avatar) {
+    if (state.profile?.avatar_url) {
+      avatar.innerHTML = `<img src="${state.profile.avatar_url}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+    } else {
+      avatar.innerHTML = `<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>`;
+    }
+  }
+  renderProvincePills();
+  document.getElementById('setup-district-pills').style.display = 'none';
+  document.getElementById('setup-location-display').classList.add('hidden');
+  document.getElementById('profile-setup-overlay').classList.remove('hidden');
+}
+
+function renderProvincePills() {
+  const container = document.getElementById('setup-province-pills');
+  if (!container) return;
+  container.innerHTML = Object.keys(KOREA_REGIONS).map(p =>
+    `<button class="location-pill${state.setupProvince===p?' active':''}" onclick="selectProvince('${p}')">${p}</button>`
+  ).join('');
+}
+
+function selectProvince(province) {
+  state.setupProvince = province;
+  state.setupDistrict = null;
+  renderProvincePills();
+  const districts = KOREA_REGIONS[province] || [];
+  const dc = document.getElementById('setup-district-pills');
+  dc.style.display = '';
+  dc.innerHTML = districts.map(d =>
+    `<button class="location-pill" onclick="selectDistrict('${d}')">${d}</button>`
+  ).join('');
+  document.getElementById('setup-location-display').classList.add('hidden');
+}
+
+function selectDistrict(district) {
+  state.setupDistrict = district;
+  document.querySelectorAll('#setup-district-pills .location-pill').forEach(b =>
+    b.classList.toggle('active', b.textContent === district)
+  );
+  const display = document.getElementById('setup-location-display');
+  display.textContent = `📍 ${state.setupProvince} ${district}`;
+  display.classList.remove('hidden');
+}
+
+function handleSetupPhoto(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  state.setupPhoto = file;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const avatar = document.getElementById('setup-avatar');
+    if (avatar) avatar.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;border-radius:50%">`;
+  };
+  reader.readAsDataURL(file);
+  event.target.value = '';
+}
+
+async function saveProfileSetup() {
+  const username = document.getElementById('setup-username').value.trim();
+  if (!username) { alert('닉네임을 입력해주세요.'); return; }
+  const btn = document.querySelector('#profile-setup-overlay .btn-primary');
+  if (btn) { btn.disabled = true; btn.textContent = '저장 중...'; }
+  try {
+    let avatarUrl = state.profile?.avatar_url || null;
+    if (state.setupPhoto) {
+      const ext = state.setupPhoto.name.split('.').pop();
+      const path = `avatars/${state.user.id}.${ext}`;
+      await sb.storage.from('post-images').upload(path, state.setupPhoto, { upsert: true });
+      const { data } = sb.storage.from('post-images').getPublicUrl(path);
+      avatarUrl = data.publicUrl;
+    }
+    const location = state.setupProvince && state.setupDistrict
+      ? `${state.setupProvince} ${state.setupDistrict}`
+      : (state.setupProvince || null);
+    const { error } = await sb.from('profiles').update({
+      username, avatar_url: avatarUrl, location, setup_complete: true,
+      updated_at: new Date().toISOString(),
+    }).eq('id', state.user.id);
+    if (error) throw error;
+    state.profile = { ...state.profile, username, avatar_url: avatarUrl, location, setup_complete: true };
+    document.getElementById('profile-setup-overlay').classList.add('hidden');
+    renderAll();
+  } catch (err) {
+    alert('저장 실패: ' + err.message);
+    if (btn) { btn.disabled = false; btn.textContent = '시작하기'; }
+  }
+}
+
+async function skipProfileSetup() {
+  await sb.from('profiles').update({ setup_complete: true }).eq('id', state.user.id);
+  state.profile = { ...state.profile, setup_complete: true };
+  document.getElementById('profile-setup-overlay').classList.add('hidden');
 }
 
 function showAuth() {

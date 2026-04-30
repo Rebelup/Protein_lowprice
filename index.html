@@ -299,6 +299,42 @@
   </div>
 </div>
 
+<!-- ── 프로필 초기 설정 오버레이 ── -->
+<div id="profile-setup-overlay" class="setup-overlay hidden">
+  <div class="setup-page">
+    <div class="setup-header">
+      <h2>프로필 설정</h2>
+      <p>Rebel-Up에 오신 걸 환영해요!<br>프로필을 먼저 설정해주세요.</p>
+    </div>
+    <div class="setup-body">
+      <div class="setup-photo-section">
+        <div class="setup-avatar-wrap" onclick="document.getElementById('setup-photo-input').click()">
+          <div class="setup-avatar" id="setup-avatar">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <span class="setup-photo-label">사진 선택</span>
+        </div>
+        <input type="file" id="setup-photo-input" accept="image/*" style="display:none" onchange="handleSetupPhoto(event)">
+      </div>
+      <div class="setup-field">
+        <label>닉네임 <span style="color:#ef4444">*</span></label>
+        <input type="text" id="setup-username" placeholder="닉네임을 입력해주세요" maxlength="20">
+      </div>
+      <div class="setup-field">
+        <label>사는 곳</label>
+        <div class="setup-location-hint">도/시 먼저 선택 후 구/시를 선택해주세요</div>
+        <div class="location-pills-wrap" id="setup-province-pills"></div>
+        <div class="location-pills-wrap" id="setup-district-pills" style="display:none"></div>
+        <div class="setup-location-selected hidden" id="setup-location-display"></div>
+      </div>
+    </div>
+    <div class="setup-footer">
+      <button class="btn-primary" onclick="saveProfileSetup()">시작하기</button>
+      <button class="setup-skip-btn" onclick="skipProfileSetup()">나중에 설정하기</button>
+    </div>
+  </div>
+</div>
+
 <!-- ── 월/년 피커 모달 ── -->
 <div id="modal-month-picker" class="modal-overlay hidden" onclick="handleOverlayClick(event,'modal-month-picker')">
   <div class="modal-sheet">
