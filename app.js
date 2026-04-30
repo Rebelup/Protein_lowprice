@@ -373,28 +373,59 @@ async function selectDate(date) {
 }
 
 function renderRoutineList() {
+  if (state.innerTab === 'diet') { renderDietSections(); return; }
   const container = document.getElementById('routine-list');
   if (!container) return;
   closeAllSwipes();
   const dow = state.selectedDate.getDay();
-  const typeFilter = state.innerTab === 'diet' ? 'diet' : 'exercise';
-  let dayRoutines = state.routines.filter(r => r.days_of_week?.includes(dow) && r.type === typeFilter);
-
+  let dayRoutines = state.routines.filter(r => r.days_of_week?.includes(dow) && r.type === 'exercise');
   if (state.currentPeriod !== '하루') {
     dayRoutines = dayRoutines.filter(r => r.time_of_day === state.currentPeriod);
   }
-
   dayRoutines.sort((a, b) => (a.order_index ?? 999) - (b.order_index ?? 999));
-
   if (dayRoutines.length === 0) {
-    const label = typeFilter === 'exercise' ? '운동' : '식단';
-    container.innerHTML = `<div class="empty-state"><div class="empty-icon">${typeFilter==='exercise'?'💪':'🥗'}</div><p>오늘 ${label} 루틴이 없어요<br>+ 버튼으로 추가해보세요!</p></div>`;
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">💪</div><p>오늘 운동 루틴이 없어요<br>+ 버튼으로 추가해보세요!</p></div>`;
     return;
   }
-
   const allDone = dayRoutines.every(r => state.routineLogs[r.id] === true);
   const clearBanner = allDone ? `<div class="clear-banner"><div class="clear-banner-icon">😊</div><div class="clear-banner-text"><h4>클리어🎉</h4><p>내일도 화이팅이에요!</p></div></div>` : '';
   container.innerHTML = clearBanner + dayRoutines.map(r => buildRoutineCard(r)).join('');
+  setupSwipeAndDrag();
+}
+
+function renderDietSections() {
+  const container = document.getElementById('routine-list');
+  if (!container) return;
+  closeAllSwipes();
+  const dow = state.selectedDate.getDay();
+  const dietRoutines = state.routines
+    .filter(r => r.days_of_week?.includes(dow) && r.type === 'diet')
+    .sort((a, b) => (a.order_index ?? 999) - (b.order_index ?? 999));
+  if (!dietRoutines.length) {
+    container.innerHTML = `<div class="empty-state"><div class="empty-icon">🥗</div><p>오늘 식단 루틴이 없어요<br>+ 버튼으로 추가해보세요!</p></div>`;
+    return;
+  }
+  const mealOrder = ['아침', '점심', '저녁', '간식'];
+  const groups = {};
+  mealOrder.forEach(m => { groups[m] = []; });
+  const etc = [];
+  dietRoutines.forEach(r => {
+    if (r.meal_time && groups[r.meal_time]) groups[r.meal_time].push(r);
+    else etc.push(r);
+  });
+  let html = '';
+  const allDone = dietRoutines.every(r => state.routineLogs[r.id] === true);
+  if (allDone) html += `<div class="clear-banner"><div class="clear-banner-icon">😊</div><div class="clear-banner-text"><h4>클리어🎉</h4><p>내일도 화이팅이에요!</p></div></div>`;
+  mealOrder.forEach(meal => {
+    if (!groups[meal].length) return;
+    html += `<div class="diet-section-header">${meal}</div>`;
+    html += groups[meal].map(r => buildRoutineCard(r)).join('');
+  });
+  if (etc.length) {
+    html += `<div class="diet-section-header">기타</div>`;
+    html += etc.map(r => buildRoutineCard(r)).join('');
+  }
+  container.innerHTML = html;
   setupSwipeAndDrag();
 }
 
@@ -592,6 +623,8 @@ function switchInnerTab(tab, btn) {
   state.innerTab = tab;
   document.querySelectorAll('.inner-tab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
+  const toolbar = document.getElementById('routine-toolbar');
+  if (toolbar) toolbar.style.display = tab === 'diet' ? 'none' : '';
   renderRoutineList();
 }
 
