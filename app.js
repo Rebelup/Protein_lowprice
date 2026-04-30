@@ -29,7 +29,7 @@ const state = {
   posts: [], postLikes: new Set(), scrappedPosts: new Set(),
   streak: 0, innerTab: 'exercise',
   periodMenuOpen: false, currentPeriod: '하루',
-  selectedPhoto: null,
+  selectedPhotos: [],
   categories: [], selectedCategoryId: null, composeCategoryId: null,
   editingRoutineId: null, editingPostId: null,
   pickerYear: new Date().getFullYear(), pickerMonth: new Date().getMonth(),
@@ -246,18 +246,21 @@ async function uploadPhoto(file) {
 
 async function savePost() {
   const content = document.getElementById('post-content').value.trim();
-  if (!content && !state.selectedPhoto) return;
+  if (!content && state.selectedPhotos.length === 0) return;
   if (!state.composeCategoryId) { alert('카테고리를 선택해주세요.'); return; }
   const btn = document.getElementById('compose-post-btn');
   btn.disabled = true;
   btn.textContent = state.editingPostId ? '수정 중...' : '게시 중...';
   try {
+    const existingUrls = state.selectedPhotos.filter(p => p.isExisting).map(p => p.previewUrl);
+    const newFiles = state.selectedPhotos.filter(p => !p.isExisting).map(p => p.file);
+    const uploadedUrls = await Promise.all(newFiles.map(f => uploadPhoto(f)));
+    const allUrls = [...existingUrls, ...uploadedUrls.filter(Boolean)];
+    const imageUrl = allUrls[0] || null;
+    const imageUrls = allUrls.length > 0 ? allUrls : null;
+
     if (state.editingPostId) {
-      const updates = { content: content || '', category_id: state.composeCategoryId };
-      if (state.selectedPhoto) {
-        const imageUrl = await uploadPhoto(state.selectedPhoto);
-        if (imageUrl) updates.image_url = imageUrl;
-      }
+      const updates = { content: content || '', category_id: state.composeCategoryId, image_url: imageUrl, image_urls: imageUrls };
       const { error } = await sb.from('posts').update(updates).eq('id', state.editingPostId).eq('user_id', state.user.id);
       if (error) throw error;
       const idx = state.posts.findIndex(p => p.id === state.editingPostId);
@@ -267,16 +270,14 @@ async function savePost() {
         if (cat) state.posts[idx].categories = { name: cat.name };
       }
     } else {
-      let imageUrl = null;
-      if (state.selectedPhoto) imageUrl = await uploadPhoto(state.selectedPhoto);
       const sharedRoutines = state.selectedRoutineIds.size > 0
         ? state.routines.filter(r => state.selectedRoutineIds.has(r.id))
             .map(r => ({ id: r.id, name: r.name, type: r.type, meal_time: r.meal_time || null, time_of_day: r.time_of_day || null }))
         : null;
       const { error } = await sb.from('posts').insert({
         user_id: state.user.id, content: content || '',
-        image_url: imageUrl, category_id: state.composeCategoryId,
-        shared_routines: sharedRoutines,
+        image_url: imageUrl, image_urls: imageUrls,
+        category_id: state.composeCategoryId, shared_routines: sharedRoutines,
       });
       if (error) throw error;
       await loadPosts();
@@ -957,7 +958,7 @@ function clearSharedRoutines() {
 
 // ── 글쓰기 ──
 function openCompose(postId = null) {
-  state.selectedPhoto = null;
+  state.selectedPhotos = [];
   state.editingPostId = postId;
   state.selectedRoutineIds = new Set();
   const post = postId ? state.posts.find(p => p.id === postId) : null;
@@ -967,17 +968,15 @@ function openCompose(postId = null) {
   textarea.value = post?.content || '';
   textarea.style.height = 'auto';
 
-  const preview = document.getElementById('photo-preview');
-  if (post?.image_url) {
-    preview.classList.remove('hidden');
-    preview.innerHTML = `<img src="${post.image_url}" alt="미리보기"><button class="photo-remove" onclick="removePhoto()">✕</button>`;
-  } else {
-    preview.classList.add('hidden');
-    preview.innerHTML = '';
+  if (post?.image_urls?.length > 0) {
+    state.selectedPhotos = post.image_urls.map(url => ({ file: null, previewUrl: url, isExisting: true }));
+  } else if (post?.image_url) {
+    state.selectedPhotos = [{ file: null, previewUrl: post.image_url, isExisting: true }];
   }
+  renderPhotoPreview();
 
   const btn = document.getElementById('compose-post-btn');
-  btn.disabled = !post?.content && !post?.image_url;
+  btn.disabled = !post?.content && state.selectedPhotos.length === 0;
   btn.textContent = postId ? '수정' : '게시';
   document.getElementById('compose-title').textContent = postId ? '게시물 수정' : '새 게시물';
 
@@ -1005,38 +1004,63 @@ function closeCompose() {
   composePage.classList.remove('active');
   composePage.classList.add('hidden-page');
   document.querySelector('.bottom-nav').style.display = '';
-  state.selectedPhoto = null;
+  state.selectedPhotos = [];
   state.composeCategoryId = null;
 }
 
 function onComposeInput(textarea) {
   const btn = document.getElementById('compose-post-btn');
-  btn.disabled = !textarea.value.trim() && !state.selectedPhoto;
+  btn.disabled = !textarea.value.trim() && state.selectedPhotos.length === 0;
   textarea.style.height = 'auto';
   textarea.style.height = textarea.scrollHeight + 'px';
 }
 
 function handlePhotoSelect(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-  state.selectedPhoto = file;
-  const preview = document.getElementById('photo-preview');
-  const reader = new FileReader();
-  reader.onload = e => {
-    preview.classList.remove('hidden');
-    preview.innerHTML = `<img src="${e.target.result}" alt="미리보기"><button class="photo-remove" onclick="removePhoto()">✕</button>`;
-    document.getElementById('compose-post-btn').disabled = false;
-  };
-  reader.readAsDataURL(file);
+  const files = Array.from(event.target.files);
   event.target.value = '';
+  if (!files.length) return;
+  const remaining = 5 - state.selectedPhotos.length;
+  if (remaining <= 0) { showToast('사진은 최대 5장까지 첨부할 수 있어요'); return; }
+  const toAdd = files.slice(0, remaining);
+  if (files.length > remaining) showToast(`사진은 최대 5장까지만 가능해요 (${files.length - remaining}장 제외)`);
+  toAdd.forEach(file => {
+    const reader = new FileReader();
+    reader.onload = e => {
+      state.selectedPhotos.push({ file, previewUrl: e.target.result, isExisting: false });
+      renderPhotoPreview();
+      document.getElementById('compose-post-btn').disabled = false;
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
-function removePhoto() {
-  state.selectedPhoto = null;
+function removePhoto(index) {
+  state.selectedPhotos.splice(index, 1);
+  renderPhotoPreview();
+  const btn = document.getElementById('compose-post-btn');
+  btn.disabled = !document.getElementById('post-content').value.trim() && state.selectedPhotos.length === 0;
+}
+
+function renderPhotoPreview() {
   const preview = document.getElementById('photo-preview');
-  preview.classList.add('hidden');
-  preview.innerHTML = '';
-  document.getElementById('compose-post-btn').disabled = !document.getElementById('post-content').value.trim();
+  if (state.selectedPhotos.length === 0) {
+    preview.classList.add('hidden');
+    preview.innerHTML = '';
+    return;
+  }
+  preview.classList.remove('hidden');
+  const items = state.selectedPhotos.map((p, i) => `
+    <div class="photo-preview-item">
+      <img src="${p.previewUrl}" alt="사진 ${i + 1}">
+      <button class="photo-remove" onclick="removePhoto(${i})">✕</button>
+      ${i === 0 ? '<span class="photo-main-badge">대표</span>' : ''}
+    </div>`).join('');
+  const addBtn = state.selectedPhotos.length < 5 ? `
+    <button class="photo-add-more" onclick="document.getElementById('photo-input').click()">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span>${state.selectedPhotos.length}/5</span>
+    </button>` : '';
+  preview.innerHTML = items + addBtn;
 }
 
 // ── 모달 ──
