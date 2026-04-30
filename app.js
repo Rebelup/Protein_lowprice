@@ -128,6 +128,17 @@ function showToast(msg) {
   setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 300); }, 2200);
 }
 
+function openPhotoViewer(url) {
+  const viewer = document.getElementById('photo-viewer');
+  document.getElementById('photo-viewer-img').src = url;
+  viewer.classList.remove('hidden');
+}
+function closePhotoViewer() {
+  const viewer = document.getElementById('photo-viewer');
+  viewer.classList.add('hidden');
+  document.getElementById('photo-viewer-img').src = '';
+}
+
 async function signInWithGoogle() {
   const { error } = await sb.auth.signInWithOAuth({
     provider: 'google',
@@ -595,12 +606,13 @@ function selectComposeCategory(id, btn) {
 function buildImageSlideshow(urls, postId, inDetail = false) {
   if (!urls || urls.length === 0) return '';
   if (urls.length === 1) {
-    if (inDetail) return `<img src="${urls[0]}" class="pd-image" alt="">`;
+    if (inDetail) return `<img src="${urls[0]}" class="pd-image" alt="" onclick="openPhotoViewer('${urls[0]}')" style="cursor:pointer">`;
     return `<img src="${urls[0]}" class="post-image" alt="">`;
   }
-  const slides = urls.map((url, i) =>
-    `<div class="slide${i === 0 ? ' active' : ''}"><img src="${url}" alt="사진 ${i + 1}"></div>`
-  ).join('');
+  const slides = urls.map((url, i) => {
+    const tapAction = inDetail ? `onclick="openPhotoViewer('${url}')" style="cursor:pointer"` : '';
+    return `<div class="slide${i === 0 ? ' active' : ''}"><img src="${url}" alt="사진 ${i + 1}" ${tapAction}></div>`;
+  }).join('');
   const dots = urls.map((_, i) =>
     `<button class="slide-dot${i === 0 ? ' active' : ''}" onclick="event.stopPropagation();goToSlide(this,${i})"></button>`
   ).join('');
