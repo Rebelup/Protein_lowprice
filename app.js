@@ -86,7 +86,7 @@ async function loadRoutineLogsForDate(date) {
 }
 
 async function loadPosts() {
-  const { data } = await sb.from('posts').select('*, profiles(username, avatar_url), categories(name)').order('created_at', { ascending: false }).limit(50);
+  const { data } = await sb.from('posts').select('*, profiles!posts_user_id_fkey(username, avatar_url), categories!posts_category_id_fkey(name)').order('created_at', { ascending: false }).limit(50);
   state.posts = data || [];
   if (state.user) {
     const { data: likes } = await sb.from('post_likes').select('post_id').eq('user_id', state.user.id);
