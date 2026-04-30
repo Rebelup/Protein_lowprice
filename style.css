@@ -1885,6 +1885,50 @@ input, textarea, select { font-family: inherit; }
   text-decoration: underline;
 }
 
+/* ── 업로드 진행바 ── */
+.upload-progress-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 550;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.upload-progress-box {
+  background: var(--white);
+  border-radius: 16px;
+  padding: 28px 32px;
+  min-width: 240px;
+  text-align: center;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.18);
+}
+.upload-progress-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+.upload-bar-wrap {
+  height: 6px;
+  background: var(--border);
+  border-radius: 3px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+.upload-bar {
+  height: 100%;
+  background: var(--blue);
+  border-radius: 3px;
+  width: 0%;
+  transition: width 0.3s ease;
+}
+.upload-pct {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--blue);
+}
+
 /* ── 사진 전체화면 뷰어 ── */
 .photo-viewer-overlay {
   position: fixed;

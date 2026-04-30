@@ -344,6 +344,11 @@ async function uploadPhoto(file) {
   return data.publicUrl;
 }
 
+function setUploadProgress(pct) {
+  document.getElementById('upload-bar').style.width = pct + '%';
+  document.getElementById('upload-pct').textContent = pct + '%';
+}
+
 async function savePost() {
   const content = document.getElementById('post-content').value.trim();
   if (!content && state.selectedPhotos.length === 0) return;
@@ -351,10 +356,23 @@ async function savePost() {
   const btn = document.getElementById('compose-post-btn');
   btn.disabled = true;
   btn.textContent = state.editingPostId ? '수정 중...' : '게시 중...';
+
+  const newFiles = state.selectedPhotos.filter(p => !p.isExisting).map(p => p.file);
+  const hasWork = newFiles.length > 0;
+  if (hasWork) {
+    setUploadProgress(0);
+    document.getElementById('upload-progress').classList.remove('hidden');
+  }
+
   try {
     const existingUrls = state.selectedPhotos.filter(p => p.isExisting).map(p => p.previewUrl);
-    const newFiles = state.selectedPhotos.filter(p => !p.isExisting).map(p => p.file);
-    const uploadedUrls = await Promise.all(newFiles.map(f => uploadPhoto(f)));
+    const uploadedUrls = [];
+    for (let i = 0; i < newFiles.length; i++) {
+      const url = await uploadPhoto(newFiles[i]);
+      uploadedUrls.push(url);
+      setUploadProgress(Math.round((i + 1) / (newFiles.length + 1) * 90));
+    }
+    if (hasWork) setUploadProgress(95);
     const allUrls = [...existingUrls, ...uploadedUrls.filter(Boolean)];
     const imageUrl = allUrls[0] || null;
     const imageUrls = allUrls.length > 0 ? allUrls : null;
@@ -386,12 +404,18 @@ async function savePost() {
       if (error) throw error;
       await loadPosts();
     }
+    if (hasWork) {
+      setUploadProgress(100);
+      await new Promise(r => setTimeout(r, 350));
+      document.getElementById('upload-progress').classList.add('hidden');
+    }
     closeCompose();
     state.selectedCategoryId = null;
     switchPage('community', document.querySelector('[data-page="community"]'));
     renderCategoryPills();
     renderPosts();
   } catch (err) {
+    document.getElementById('upload-progress').classList.add('hidden');
     alert((state.editingPostId ? '수정' : '게시') + ' 실패: ' + err.message);
     btn.disabled = false;
     btn.textContent = state.editingPostId ? '수정' : '게시';
