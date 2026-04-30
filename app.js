@@ -260,7 +260,11 @@ async function savePost() {
     const imageUrls = allUrls.length > 0 ? allUrls : null;
 
     if (state.editingPostId) {
-      const updates = { content: content || '', category_id: state.composeCategoryId, image_url: imageUrl, image_urls: imageUrls };
+      const editedRoutines = state.selectedRoutineIds.size > 0
+        ? state.routines.filter(r => state.selectedRoutineIds.has(r.id))
+            .map(r => ({ id: r.id, name: r.name, type: r.type, meal_time: r.meal_time || null, time_of_day: r.time_of_day || null }))
+        : null;
+      const updates = { content: content || '', category_id: state.composeCategoryId, image_url: imageUrl, image_urls: imageUrls, shared_routines: editedRoutines };
       const { error } = await sb.from('posts').update(updates).eq('id', state.editingPostId).eq('user_id', state.user.id);
       if (error) throw error;
       const idx = state.posts.findIndex(p => p.id === state.editingPostId);
@@ -1015,9 +1019,11 @@ function clearSharedRoutines() {
 function openCompose(postId = null) {
   state.selectedPhotos = [];
   state.editingPostId = postId;
-  state.selectedRoutineIds = new Set();
   const post = postId ? state.posts.find(p => p.id === postId) : null;
   state.composeCategoryId = post?.category_id || null;
+  // Pre-populate from existing post's shared_routines in edit mode
+  const existingRoutineIds = post?.shared_routines?.map(r => r.id) || [];
+  state.selectedRoutineIds = new Set(existingRoutineIds);
 
   const textarea = document.getElementById('post-content');
   textarea.value = post?.content || '';
@@ -1029,6 +1035,7 @@ function openCompose(postId = null) {
     state.selectedPhotos = [{ file: null, previewUrl: post.image_url, isExisting: true }];
   }
   renderPhotoPreview();
+  renderSharedRoutinesPreview();
 
   const btn = document.getElementById('compose-post-btn');
   btn.disabled = !post?.content && state.selectedPhotos.length === 0;
