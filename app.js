@@ -13,6 +13,10 @@ const state = {
   categories: [], selectedCategoryId: null, composeCategoryId: null,
   editingRoutineId: null,
   pickerYear: new Date().getFullYear(), pickerMonth: new Date().getMonth(),
+  notifications: [],
+  currentPostId: null,
+  replyToCommentId: null,
+  replyToUsername: null,
 };
 
 async function init() {
@@ -21,15 +25,20 @@ async function init() {
     state.user = session.user;
     cleanOAuthHash();
     await loadAll();
+    hideLoading();
     showApp();
   } else {
+    hideLoading();
     showAuth();
   }
   sb.auth.onAuthStateChange(async (event, session) => {
     if (event === 'SIGNED_IN' && session && !state.user) {
       state.user = session.user;
       cleanOAuthHash();
+      document.getElementById('auth-screen').classList.add('hidden');
+      showLoading();
       await loadAll();
+      hideLoading();
       showApp();
     } else if (event === 'TOKEN_REFRESHED' && session) {
       state.user = session.user;
@@ -39,6 +48,9 @@ async function init() {
     }
   });
 }
+
+function showLoading() { document.getElementById('loading-screen').classList.remove('hidden'); }
+function hideLoading() { document.getElementById('loading-screen').classList.add('hidden'); }
 
 function cleanOAuthHash() {
   if (window.location.hash && window.location.hash.includes('access_token')) {
@@ -55,7 +67,7 @@ async function signInWithGoogle() {
 }
 
 async function loadAll() {
-  await Promise.all([loadProfile(), loadRoutines(), loadPosts(), loadCategories()]);
+  await Promise.all([loadProfile(), loadRoutines(), loadPosts(), loadCategories(), loadNotifications()]);
   await loadRoutineLogsForDate(state.selectedDate);
   await calcStreak();
 }
@@ -159,6 +171,10 @@ async function uploadPhoto(file) {
 async function savePost() {
   const content = document.getElementById('post-content').value.trim();
   if (!content && !state.selectedPhoto) return;
+  if (!state.composeCategoryId) {
+    alert('카테고리를 선택해주세요.');
+    return;
+  }
   const btn = document.getElementById('compose-post-btn');
   btn.disabled = true;
   btn.textContent = '게시 중...';
@@ -167,7 +183,7 @@ async function savePost() {
     if (state.selectedPhoto) imageUrl = await uploadPhoto(state.selectedPhoto);
     const { error } = await sb.from('posts').insert({
       user_id: state.user.id, content: content || '',
-      image_url: imageUrl, category_id: state.composeCategoryId || null,
+      image_url: imageUrl, category_id: state.composeCategoryId,
     });
     if (error) throw error;
     await loadPosts();
@@ -241,6 +257,7 @@ function renderAll() {
   renderPosts();
   renderProfile();
   renderCategoryPills();
+  updateNotifyBadge();
   document.getElementById('streak-count').textContent = state.streak;
 }
 
@@ -420,7 +437,7 @@ function renderPosts() {
             <svg width="16" height="16" viewBox="0 0 24 24" fill="${liked?'currentColor':'none'}" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
             ${post.likes_count||0}
           </button>
-          <button class="post-action-btn">
+          <button class="post-action-btn" onclick="openPostDetail('${post.id}')">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
             ${post.comments_count||0}
           </button>
@@ -488,6 +505,7 @@ function switchPage(pageName, btn) {
   if (navBtn) navBtn.classList.add('active');
   if (pageName === 'community') renderPosts();
   if (pageName === 'my') renderProfile();
+  if (pageName === 'notify') renderNotifications();
 }
 
 function switchInnerTab(tab, btn) {
@@ -905,5 +923,253 @@ document.addEventListener('click', e => {
   const tod = e.target.closest('.tod-btn');
   if (tod) toggleTod(tod);
 });
+
+// ── 알림 ──
+async function loadNotifications() {
+  if (!state.user) return;
+  const { data } = await sb.from('notifications')
+    .select('*, profiles!notifications_from_user_id_fkey(username, avatar_url), posts!notifications_post_id_fkey(content)')
+    .eq('user_id', state.user.id)
+    .order('created_at', { ascending: false })
+    .limit(50);
+  state.notifications = data || [];
+}
+
+function updateNotifyBadge() {
+  const badge = document.getElementById('notify-badge');
+  if (!badge) return;
+  const unread = state.notifications.filter(n => !n.is_read).length;
+  if (unread > 0) {
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+}
+
+function renderNotifications() {
+  const list = document.getElementById('notify-list');
+  if (!list) return;
+  if (!state.notifications.length) {
+    list.innerHTML = '<div class="empty-state"><div class="empty-icon">🔔</div><p>아직 알림이 없어요</p></div>';
+    return;
+  }
+  list.innerHTML = state.notifications.map(n => {
+    const from = n.profiles?.username || '누군가';
+    const postText = n.posts?.content ? `"${escHtml(n.posts.content.slice(0, 30))}${n.posts.content.length > 30 ? '...' : ''}"` : '';
+    const typeText = n.type === 'comment' ? '게시물에 댓글을 달았어요' : '댓글에 대댓글을 달았어요';
+    const timeAgo = getTimeAgo(new Date(n.created_at));
+    const initial = from.charAt(0).toUpperCase();
+    const avatarHtml = n.profiles?.avatar_url
+      ? `<div class="notify-avatar"><img src="${n.profiles.avatar_url}" alt=""></div>`
+      : `<div class="notify-avatar">${initial}</div>`;
+    return `
+      <div class="notify-item${n.is_read ? '' : ' unread'}" onclick="onNotifyClick('${n.id}','${n.post_id}')">
+        ${avatarHtml}
+        <div class="notify-item-content">
+          <div class="notify-item-text"><strong>${escHtml(from)}</strong>님이 ${typeText}</div>
+          ${postText ? `<div class="notify-item-post">${postText}</div>` : ''}
+          <div class="notify-item-time">${timeAgo}</div>
+        </div>
+        ${!n.is_read ? '<div class="notify-dot"></div>' : ''}
+      </div>`;
+  }).join('');
+}
+
+async function onNotifyClick(notifId, postId) {
+  const notif = state.notifications.find(n => n.id === notifId);
+  if (notif && !notif.is_read) {
+    notif.is_read = true;
+    await sb.from('notifications').update({ is_read: true }).eq('id', notifId);
+    updateNotifyBadge();
+    renderNotifications();
+  }
+  if (postId) openPostDetail(postId);
+}
+
+async function markAllRead() {
+  const unreadIds = state.notifications.filter(n => !n.is_read).map(n => n.id);
+  if (!unreadIds.length) return;
+  state.notifications.forEach(n => { n.is_read = true; });
+  await sb.from('notifications').update({ is_read: true }).eq('user_id', state.user.id);
+  updateNotifyBadge();
+  renderNotifications();
+}
+
+// ── 게시물 상세 / 댓글 ──
+async function openPostDetail(postId) {
+  state.currentPostId = postId;
+  state.replyToCommentId = null;
+  state.replyToUsername = null;
+  const post = state.posts.find(p => p.id === postId);
+  const body = document.getElementById('post-detail-body');
+  body.innerHTML = '<div class="empty-state" style="padding:40px"><div class="loading-spinner" style="margin:0 auto"></div></div>';
+  document.getElementById('comment-text').value = '';
+  cancelReply();
+  openModal('modal-post-detail');
+  const comments = await loadComments(postId);
+  renderPostDetail(post, comments);
+}
+
+async function loadComments(postId) {
+  const { data } = await sb.from('post_comments')
+    .select('*, profiles!post_comments_user_id_fkey(username, avatar_url)')
+    .eq('post_id', postId)
+    .order('created_at', { ascending: true });
+  return data || [];
+}
+
+function renderPostDetail(post, comments) {
+  const body = document.getElementById('post-detail-body');
+  if (!post) { body.innerHTML = '<div class="no-comments">게시물을 불러올 수 없어요</div>'; return; }
+
+  const username = post.profiles?.username || '익명';
+  const avatarUrl = post.profiles?.avatar_url;
+  const initial = username.charAt(0).toUpperCase();
+  const avatarHtml = avatarUrl
+    ? `<div class="avatar"><img src="${avatarUrl}" alt=""></div>`
+    : `<div class="avatar">${initial}</div>`;
+  const imageHtml = post.image_url ? `<img src="${post.image_url}" class="post-image" style="width:100%;border-radius:0" alt="">` : '';
+  const catHtml = post.categories?.name ? `<span class="post-cat-badge">${escHtml(post.categories.name)}</span>` : '';
+  const timeAgo = getTimeAgo(new Date(post.created_at));
+
+  const topComments = comments.filter(c => !c.parent_id);
+  const repliesMap = {};
+  comments.filter(c => c.parent_id).forEach(c => {
+    if (!repliesMap[c.parent_id]) repliesMap[c.parent_id] = [];
+    repliesMap[c.parent_id].push(c);
+  });
+
+  const commentHtml = topComments.length === 0
+    ? '<div class="no-comments">첫 댓글을 남겨보세요!</div>'
+    : topComments.map(c => buildCommentHtml(c, repliesMap[c.id] || [])).join('');
+
+  body.innerHTML = `
+    <div class="post-detail-post">
+      <div class="post-header">
+        ${avatarHtml}
+        <div class="post-user-info">
+          <div class="post-username">${escHtml(username)}</div>
+          <div class="post-time">${timeAgo}</div>
+        </div>
+      </div>
+      ${catHtml}${imageHtml}
+      ${post.content ? `<p class="post-content">${escHtml(post.content)}</p>` : ''}
+    </div>
+    <div class="comment-section-label">댓글 ${comments.length}개</div>
+    <div class="comment-list">${commentHtml}</div>`;
+}
+
+function buildCommentHtml(comment, replies) {
+  const u = comment.profiles?.username || '익명';
+  const initial = u.charAt(0).toUpperCase();
+  const avatarHtml = comment.profiles?.avatar_url
+    ? `<div class="comment-avatar"><img src="${comment.profiles.avatar_url}" alt=""></div>`
+    : `<div class="comment-avatar">${initial}</div>`;
+  const timeAgo = getTimeAgo(new Date(comment.created_at));
+  const repliesHtml = replies.map(r => buildCommentHtml(r, [])).join('');
+  return `
+    <div class="comment-item${comment.parent_id ? ' reply' : ''}">
+      <div class="comment-header">
+        ${avatarHtml}
+        <span class="comment-username">${escHtml(u)}</span>
+        <span class="comment-time">${timeAgo}</span>
+      </div>
+      <div class="comment-content">${escHtml(comment.content)}</div>
+      ${!comment.parent_id ? `<button class="comment-reply-btn" onclick="setReplyTo('${comment.id}','${escHtml(u)}')">답글 달기</button>` : ''}
+    </div>
+    ${repliesHtml}`;
+}
+
+function setReplyTo(commentId, username) {
+  state.replyToCommentId = commentId;
+  state.replyToUsername = username;
+  const hint = document.getElementById('reply-hint');
+  document.getElementById('reply-hint-name').textContent = username;
+  hint.classList.remove('hidden');
+  document.getElementById('comment-text').focus();
+}
+
+function cancelReply() {
+  state.replyToCommentId = null;
+  state.replyToUsername = null;
+  const hint = document.getElementById('reply-hint');
+  if (hint) hint.classList.add('hidden');
+}
+
+function autoResizeComment(textarea) {
+  textarea.style.height = 'auto';
+  textarea.style.height = Math.min(textarea.scrollHeight, 80) + 'px';
+}
+
+async function submitComment() {
+  const text = document.getElementById('comment-text').value.trim();
+  if (!text || !state.currentPostId) return;
+  const btn = document.querySelector('.comment-submit-btn');
+  btn.disabled = true;
+  await addComment(state.currentPostId, text, state.replyToCommentId);
+  document.getElementById('comment-text').value = '';
+  document.getElementById('comment-text').style.height = 'auto';
+  cancelReply();
+  btn.disabled = false;
+}
+
+async function addComment(postId, content, parentId = null) {
+  const { data: comment, error } = await sb.from('post_comments').insert({
+    post_id: postId, user_id: state.user.id, content, parent_id: parentId,
+  }).select().single();
+  if (error) { alert('댓글 실패: ' + error.message); return; }
+
+  const post = state.posts.find(p => p.id === postId);
+  if (post) {
+    post.comments_count = (post.comments_count || 0) + 1;
+    await sb.from('posts').update({ comments_count: post.comments_count }).eq('id', postId);
+  }
+
+  if (parentId) {
+    await sendReplyNotifications(postId, parentId, comment.id);
+  } else {
+    await sendCommentNotifications(postId, comment.id);
+  }
+
+  const comments = await loadComments(postId);
+  renderPostDetail(post, comments);
+  renderPosts();
+}
+
+async function sendCommentNotifications(postId, commentId) {
+  const post = state.posts.find(p => p.id === postId);
+  const { data: existingComments } = await sb.from('post_comments')
+    .select('user_id').eq('post_id', postId).is('parent_id', null);
+
+  const recipients = new Set();
+  if (post?.user_id && post.user_id !== state.user.id) recipients.add(post.user_id);
+  (existingComments || []).forEach(c => { if (c.user_id !== state.user.id) recipients.add(c.user_id); });
+
+  if (!recipients.size) return;
+  await sb.from('notifications').insert(
+    Array.from(recipients).map(userId => ({
+      user_id: userId, type: 'comment',
+      post_id: postId, comment_id: commentId, from_user_id: state.user.id,
+    }))
+  );
+}
+
+async function sendReplyNotifications(postId, parentId, commentId) {
+  const { data: related } = await sb.from('post_comments')
+    .select('user_id')
+    .or(`id.eq.${parentId},parent_id.eq.${parentId}`);
+
+  const recipients = new Set();
+  (related || []).forEach(c => { if (c.user_id !== state.user.id) recipients.add(c.user_id); });
+
+  if (!recipients.size) return;
+  await sb.from('notifications').insert(
+    Array.from(recipients).map(userId => ({
+      user_id: userId, type: 'reply',
+      post_id: postId, comment_id: commentId, from_user_id: state.user.id,
+    }))
+  );
+}
 
 init();
